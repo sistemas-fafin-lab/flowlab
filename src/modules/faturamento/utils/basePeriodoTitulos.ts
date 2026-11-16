@@ -1,5 +1,5 @@
 // Base do período da aba Títulos: sobre qual data o "de/até" recorta.
-// Compartilhado pela tela (useContasReceber) e pela API (titulos-lotes-status-aplis).
+// Usado pela tela (useContasReceber) e pelas rotas que recortam os títulos pelo período.
 //
 // - emissao: `notas.data_emissao` (padrão; a emissão nunca é nula).
 // - competencia: `notas.competencia` ('YYYY-MM'), pelos meses do de/até — título

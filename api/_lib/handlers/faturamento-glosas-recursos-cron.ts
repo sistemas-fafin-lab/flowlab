@@ -7,12 +7,16 @@
 // agora, ainda couber antes do limite; os que não cabem ficam em `pulados` e no log.
 // Ordem: primeiro os meses sincronizados há mais tempo (todos os convênios), então
 // um mês pulado hoje vai para o começo da fila amanhã.
+// Antes dos meses, sincroniza os títulos com o apLIS (faturamento/sincronizarTitulosAplis.ts):
+// status, envio, protocolo, NF-e, RPS e responsável dos lotes, número da nota e refechamento.
 // Segurança: Authorization: Bearer <CRON_SECRET>.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { cronAutorizado } from '../faturamento/autorizacao.js';
 import { sincronizarRecorte } from '../faturamento/sincronizarGlosasRecursos.js';
+import { sincronizarTitulosAplis } from '../faturamento/sincronizarTitulosAplis.js';
+import type { ResumoSincronizacaoTitulos } from '../faturamento/sincronizarTitulosAplis.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 /** Recursos anteriores a 2026 não foram organizados em lotes no apLIS. */
@@ -78,6 +82,31 @@ async function sincronizarMes(supabase: SupabaseClient, competencia: string): Pr
   }
 }
 
+type ResultadoTitulos = ({ ok: true } & Omit<ResumoSincronizacaoTitulos, 'dadoAte'>) | { ok: false; erro: string };
+
+/** Títulos; a falha fica no log e no resultado, sem impedir os meses. */
+async function sincronizarTitulos(supabase: SupabaseClient): Promise<ResultadoTitulos> {
+  try {
+    const r = await sincronizarTitulosAplis(supabase);
+    if (!('erro' in r)) {
+      return {
+        ok: true,
+        lotes: r.lotes,
+        lotesAtualizados: r.lotesAtualizados,
+        statusMudaram: r.statusMudaram,
+        numerosPreenchidos: r.numerosPreenchidos,
+        refechamentos: r.refechamentos,
+      };
+    }
+    console.error('[faturamento/glosas-recursos-cron] títulos:', r.erro.mensagem);
+    return { ok: false, erro: r.erro.mensagem };
+  } catch (err) {
+    const erro = describeError(err);
+    console.error('[faturamento/glosas-recursos-cron] títulos:', erro);
+    return { ok: false, erro };
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
   if (!cronAutorizado(req)) {
@@ -88,6 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     const inicio = Date.now();
     const supabase = getSupabaseAdminClient();
+    const titulos = await sincronizarTitulos(supabase);
     const meses: ResultadoMes[] = [];
     const pulados: string[] = [];
     let maisLentoMs = 0;
@@ -104,8 +134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       console.error('[faturamento/glosas-recursos-cron] sem tempo para:', pulados.join(', '));
     }
 
-    const ok = meses.every((m) => m.ok) && pulados.length === 0;
-    res.status(ok ? 200 : 502).json({ success: ok, meses, pulados });
+    const ok = titulos.ok && meses.every((m) => m.ok) && pulados.length === 0;
+    res.status(ok ? 200 : 502).json({ success: ok, titulos, meses, pulados });
   } catch (e) {
     console.error('[faturamento/glosas-recursos-cron]', describeError(e));
     res.status(500).json({ success: false, error: 'Erro interno' });

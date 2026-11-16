@@ -1142,31 +1142,63 @@ export async function saldosAplisDosLotes(idsLote: number[]): Promise<SaldosApli
   });
 }
 
-export type LotesNoStatusResultado =
-  | { idsLote: number[]; dadoAte: string | null }
+/** O que a sincronização dos títulos copia de cada lote do apLIS. */
+export interface DadosLoteTitulo {
+  /** `fatlote.Status` (STLOT). */
+  status: number;
+  /** YYYY-MM-DD; null com o lote não enviado. */
+  dtaEnvio: string | null;
+  /** YYYY-MM-DD do fechamento mais recente (o apLIS sobrescreve ao refechar). */
+  dtaFechamento: string | null;
+  protocolo: string | null;
+  nfeNumero: string | null;
+  numeroRps: number | null;
+  /** Quem fechou o lote (ver `responsaveisFechamento`); null sem o evento. */
+  responsavelFechamento: string | null;
+}
+
+export type DadosDosLotesResultado =
+  | { porLote: Map<number, DadosLoteTitulo>; dadoAte: string | null }
   | { erro: { status: number; mensagem: string } };
 
 /**
- * Dos lotes informados, os que estão hoje no status STLOT pedido — filtro
- * "Status do lote (apLIS)" da aba Títulos. Lote que não existe no MySQL fica de
- * fora. Blocos de 1.000 lotes, como `recebidosDosLotes`. Sem cache.
+ * Dados de hoje de cada lote informado — a sincronização dos títulos com o
+ * apLIS (sincronizarTitulosAplis.ts). Lote que não existe no MySQL fica fora do
+ * mapa. Blocos de 1.000 lotes, como `recebidosDosLotes`. Sem cache.
  */
-export async function lotesNoStatus(idsLote: number[], status: number): Promise<LotesNoStatusResultado> {
+export async function dadosDosLotes(idsLote: number[]): Promise<DadosDosLotesResultado> {
   const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
-  if (ids.length === 0) return { idsLote: [], dadoAte: null };
+  if (ids.length === 0) return { porLote: new Map(), dadoAte: null };
 
-  return comConexao('lotesNoStatus', async (conn) => {
-    const encontrados: number[] = [];
+  return comConexao('dadosDosLotes', async (conn) => {
+    const porLote = new Map<number, DadosLoteTitulo>();
     for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
       const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
       const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-        `SELECT IdLote FROM fatlote
-          WHERE Status = ? AND IdLote IN (${bloco.map(() => '?').join(', ')})`,
-        [status, ...bloco],
+        `SELECT l.IdLote, l.Status,
+                DATE_FORMAT(l.DtaEnvio, '%Y-%m-%d') AS DtaEnvio,
+                DATE_FORMAT(l.DtaFechamento, '%Y-%m-%d') AS DtaFechamento,
+                l.Protocolo, rps.NumeroRPS, rps.NFeNumero
+           FROM fatlote l
+           LEFT JOIN fatrps rps ON rps.IdRPS = l.IdRPS
+          WHERE l.IdLote IN (${bloco.map(() => '?').join(', ')})`,
+        bloco,
       );
-      for (const linha of linhas) encontrados.push(numero(linha.IdLote));
+      const responsaveis = await responsaveisNaConexao(conn, bloco);
+      for (const linha of linhas) {
+        const idLote = numero(linha.IdLote);
+        porLote.set(idLote, {
+          status: numero(linha.Status),
+          dtaEnvio: dataIso(linha.DtaEnvio),
+          dtaFechamento: dataIso(linha.DtaFechamento),
+          protocolo: texto(linha.Protocolo),
+          nfeNumero: texto(linha.NFeNumero),
+          numeroRps: inteiroOuNulo(linha.NumeroRPS),
+          responsavelFechamento: responsaveis[idLote] ?? null,
+        });
+      }
     }
-    return { idsLote: encontrados, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
+    return { porLote, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
   });
 }
 
@@ -1647,26 +1679,30 @@ export async function responsaveisFechamento(idsLote: number[]): Promise<Respons
   const ids = idsLote.map((n) => Math.trunc(n));
   if (ids.length === 0) return { porLote: {} };
 
-  return comConexao('responsaveisFechamento', async (conn) => {
-    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT h.IdLote, u.NomUsuario
-         FROM fathistorico h
-         JOIN (SELECT IdLote, MAX(IdHistorico) AS IdHistorico
-                 FROM fathistorico
-                WHERE Tipo = 54 AND StatusLote = 3 AND IdRequisicao IS NULL
-                  AND IdLote IN (${ids.map(() => '?').join(', ')})
-                GROUP BY IdLote) ultimo ON ultimo.IdHistorico = h.IdHistorico
-         JOIN autusuario u ON u.IdUsuario = h.IdUsuario`,
-      ids,
-    );
+  return comConexao('responsaveisFechamento', async (conn) => ({ porLote: await responsaveisNaConexao(conn, ids) }));
+}
 
-    const porLote: Record<number, string> = {};
-    for (const linha of linhas) {
-      const nome = texto(linha.NomUsuario);
-      if (nome) porLote[numero(linha.IdLote)] = nome;
-    }
-    return { porLote };
-  });
+/** `responsaveisFechamento` numa conexão já aberta (também usado por `dadosDosLotes`). */
+async function responsaveisNaConexao(conn: mysql.Connection, ids: number[]): Promise<Record<number, string>> {
+  if (ids.length === 0) return {};
+  const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+    `SELECT h.IdLote, u.NomUsuario
+       FROM fathistorico h
+       JOIN (SELECT IdLote, MAX(IdHistorico) AS IdHistorico
+               FROM fathistorico
+              WHERE Tipo = 54 AND StatusLote = 3 AND IdRequisicao IS NULL
+                AND IdLote IN (${ids.map(() => '?').join(', ')})
+              GROUP BY IdLote) ultimo ON ultimo.IdHistorico = h.IdHistorico
+       JOIN autusuario u ON u.IdUsuario = h.IdUsuario`,
+    ids,
+  );
+
+  const porLote: Record<number, string> = {};
+  for (const linha of linhas) {
+    const nome = texto(linha.NomUsuario);
+    if (nome) porLote[numero(linha.IdLote)] = nome;
+  }
+  return porLote;
 }
 
 /** Requisições de um lote, cada uma com seus procedimentos cobrados. */

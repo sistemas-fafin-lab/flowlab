@@ -8,6 +8,11 @@ vi.mock('../faturamento/bdLab.js', () => ({
   glosasRecursosDoPeriodo: vi.fn(),
   requisicoesAindaGlosadas: vi.fn(async () => new Set<number>()),
 }));
+vi.mock('../faturamento/sincronizarTitulosAplis.js', () => ({
+  sincronizarTitulosAplis: vi.fn(async () => ({
+    lotes: 0, lotesAtualizados: 0, statusMudaram: 0, numerosPreenchidos: 0, refechamentos: [], dadoAte: null,
+  })),
+}));
 
 import { getSupabaseAdminClient } from '../supabase.js';
 import { glosasRecursosDoPeriodo, requisicoesAindaGlosadas } from '../faturamento/bdLab.js';

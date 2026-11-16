@@ -195,6 +195,9 @@ interface LinhaTitulo {
       aplis_id: string | null;
       codigo_lote: string;
       status: string | null;
+      status_aplis: number | null;
+      status_aplis_atualizado_em: string | null;
+      data_snapshot: string | null;
       data_envio: string | null;
       protocolo: string | null;
       valor_total: number | string;
@@ -207,11 +210,11 @@ interface LinhaTitulo {
 const SELECT_TITULO = `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
   valor_total, valor_recebido, valor_saldo, status, observacoes, updated_at,
   operadoras(nome),
-  nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, protocolo, valor_total, qtd_requisicoes, responsavel_fechamento))`;
+  nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, status_aplis, status_aplis_atualizado_em, data_snapshot, data_envio, protocolo, valor_total, qtd_requisicoes, responsavel_fechamento))`;
 
-// Vínculo extra com os lotes, só para o filtro "Status do lote (apLIS)".
+// Vínculo extra com os lotes, só para o filtro de status do apLIS.
 const ALIAS_STATUS_LOTE = 'filtro_status_lote';
-const EMBED_STATUS_LOTE = `${ALIAS_STATUS_LOTE}:nota_lote!inner(lotes!inner(aplis_id))`;
+const EMBED_STATUS_LOTE = `${ALIAS_STATUS_LOTE}:nota_lote!inner(lotes!inner(status_aplis))`;
 
 const num = (bruto: number | string | null | undefined): number => {
   const n = Number(bruto ?? 0);
@@ -227,6 +230,9 @@ function normalizar(linha: LinhaTitulo): TituloReceber {
       aplisId: lote.aplis_id,
       codigoLote: lote.codigo_lote,
       statusLabel: lote.status,
+      statusAplis: lote.status_aplis,
+      // Sem mudança vista pela sincronização: o status é o da criação do título.
+      statusAplisAtualizadoEm: lote.status_aplis_atualizado_em ?? lote.data_snapshot,
       dataEnvio: lote.data_envio,
       protocolo: lote.protocolo,
       valorTotal: num(lote.valor_total),
@@ -347,7 +353,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
   const {
     desde, ate, basePeriodo = 'emissao', status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
-    divergenteAplis, idsDivergentesAplis, statusLote, idsLotesStatusAplis, pagina, tamanho,
+    divergenteAplis, idsDivergentesAplis, statusLote, pagina, tamanho,
   } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
@@ -367,9 +373,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     // Filtro "Divergente do apLIS" sem divergente a mostrar (ou sem a
     // conferência, que a tela avisa à parte): nem vai ao banco — `in.()`
     // vazio e "ignorar o filtro" seriam as duas respostas erradas.
-    // O mesmo para o filtro "Status do lote (apLIS)".
-    const semLotesNoStatus = Boolean(statusLote) && (!idsLotesStatusAplis || idsLotesStatusAplis.length === 0);
-    if ((divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) || semLotesNoStatus) {
+    if (divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) {
       setTitulos([]);
       setTotal(0);
       setTotais(TOTAIS_ZERADOS);
@@ -481,12 +485,14 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         // Os ids vêm da conferência (rota própria, MySQL do apLIS) — recorte no
         // servidor para contagem e paginação continuarem certas.
         if (divergenteAplis && idsDivergentesAplis) query = query.in('id_nota', idsDivergentesAplis);
-        // Filtro "Status do lote (apLIS)": um segundo vínculo com os lotes, com
-        // apelido e `!inner`, só para o recorte — o `nota_lote` do select segue
-        // trazendo todos os lotes do título. Ids do apLIS (curtos), não ids de
-        // título: no pior caso são centenas e a URL do GET continua pequena.
-        if (filtrarStatusLote && idsLotesStatusAplis) {
-          query = query.in(`${ALIAS_STATUS_LOTE}.lotes.aplis_id`, idsLotesStatusAplis.map(String));
+        // Status do apLIS (o status do título na tela): um segundo vínculo com os
+        // lotes, com apelido e `!inner`, só para o recorte — o `nota_lote` do
+        // select segue trazendo todos os lotes do título. O título cancelado
+        // aparece como "Cancelada" seja qual for o status do lote, então sai daqui.
+        if (filtrarStatusLote) {
+          query = query
+            .eq(`${ALIAS_STATUS_LOTE}.lotes.status_aplis`, statusLote)
+            .neq('status', 'cancelada');
         }
         // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
         // filtro está ativo, e o recorte é feito no servidor (is null / not is null
@@ -589,7 +595,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [
     desde, ate, basePeriodo, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
-    divergenteAplis, idsDivergentesAplis, statusLote, idsLotesStatusAplis, pagina, tamanho, operadoras,
+    divergenteAplis, idsDivergentesAplis, statusLote, pagina, tamanho, operadoras,
   ]);
 
   useEffect(() => {

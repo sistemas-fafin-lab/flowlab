@@ -24,6 +24,7 @@ import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { competenciaValida } from '../faturamento/recursoGlosa.js';
 import { sincronizarRecorte } from '../faturamento/sincronizarGlosasRecursos.js';
+import { sincronizarTitulosAplis } from '../faturamento/sincronizarTitulosAplis.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 interface CorpoSincronizar {
@@ -71,9 +72,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    // Títulos com o apLIS (status, dados dos lotes, número da nota, refechamento —
+    // faturamento/sincronizarTitulosAplis.ts). Todos os títulos, não só os do
+    // recorte: são duas consultas ao apLIS. Falha aqui não desfaz a foto já
+    // gravada — fica no log e a rotina diária tenta de novo.
+    let titulosSincronizados = false;
+    try {
+      const t = await sincronizarTitulosAplis(supabase);
+      if ('erro' in t) console.error('[faturamento/glosas-recursos-sincronizar] títulos:', t.erro.mensagem);
+      else titulosSincronizados = true;
+    } catch (errTitulos) {
+      console.error('[faturamento/glosas-recursos-sincronizar] títulos:', describeError(errTitulos));
+    }
+
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       success: true,
+      titulosSincronizados,
       meta: { dadoAte: r.dadoAte, sincronizadoEm: r.sincronizadoEm },
       requisicoes: r.requisicoes,
       lotes: r.lotes,

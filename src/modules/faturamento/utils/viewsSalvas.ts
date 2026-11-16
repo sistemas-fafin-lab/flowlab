@@ -111,7 +111,13 @@ export function sanitizarFiltrosTitulos(
   base: TitulosViewFiltros,
 ): TitulosViewFiltros {
   const obj = objetoDe(raw);
-  const status = statusTituloOu(obj.status, base.status);
+  // O status do título na tela é o do lote no apLIS (`statusLote`); de
+  // `status` só o cancelamento sobrou no seletor. View antiga com um status
+  // pelas baixas (Aberta, Parcial…) fica sem recorte de status.
+  const statusLote = statusLoteOu(obj.statusLote);
+  const statusDaView = statusTituloOu(obj.status, base.status);
+  const status = statusLote === '' && statusDaView === 'cancelada' ? 'cancelada' : '';
+  const temStatusManual = statusLote !== '' || statusTituloOu(obj.status, '') !== '';
   return {
     desde: dataOu(obj.desde, base.desde),
     ate: dataOu(obj.ate, base.ate),
@@ -125,7 +131,7 @@ export function sanitizarFiltrosTitulos(
     // precedência do query builder em useContasReceber). Sem isto, uma view salva
     // antes da issue 38 (sem a chave somentePendentes) herdava o valor de `base` e
     // podia reativar o atalho por cima de um status que a própria view define.
-    somentePendentes: status ? false : boolOu(obj.somentePendentes, base.somentePendentes),
+    somentePendentes: temStatusManual ? false : boolOu(obj.somentePendentes, base.somentePendentes),
     // Sem recorte (e não `base`) quando a view não traz o campo: uma view salva
     // antes do filtro existir não tinha recorte por glosa, e herdar o da tela
     // mudaria o que ela mostra.
@@ -133,7 +139,7 @@ export function sanitizarFiltrosTitulos(
     // Mesma regra do `glosa`: view sem o campo é anterior ao filtro.
     divergenteAplis: boolOu(obj.divergenteAplis, false),
     // Mesma regra do `glosa`: view sem o campo é anterior ao filtro.
-    statusLote: statusLoteOu(obj.statusLote),
+    statusLote,
   };
 }
 

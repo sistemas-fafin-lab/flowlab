@@ -669,6 +669,11 @@ export interface TituloLote {
   aplisId: string | null;
   codigoLote: string;
   statusLabel: string | null;
+  /** Código STLOT do lote no apLIS (`lotes.status_aplis`), regravado pela
+   *  sincronização diária — é o status do título na aba Títulos. */
+  statusAplis: number | null;
+  /** Quando a sincronização viu esse status mudar; sem mudança, a criação do título. */
+  statusAplisAtualizadoEm: string | null;
   dataEnvio: string | null;
   /** Protocolo do lote na operadora (`lotes.protocolo`, cópia do apLIS); null se não informado. */
   protocolo: string | null;
@@ -764,11 +769,9 @@ export interface TitulosFiltros {
    *  null = a conferência ainda não chegou ou falhou: a lista fica vazia em vez
    *  de mostrar títulos que talvez não divirjam. */
   idsDivergentesAplis?: string[] | null;
-  /** Filtro "Status do lote (apLIS)": código STLOT; vazio = sem recorte. */
+  /** Status do apLIS (código STLOT de `lotes.status_aplis`), que é o status do
+   *  título na tela; vazio = sem recorte. Exclui os cancelados. */
   statusLote?: number | '';
-  /** Ids no apLIS dos lotes no `statusLote`, lidos da rota titulos-lotes-status-aplis.
-   *  null = ainda não chegou ou falhou: a lista fica vazia, como em `idsDivergentesAplis`. */
-  idsLotesStatusAplis?: number[] | null;
   pagina?: number;
   tamanho?: number;
 }

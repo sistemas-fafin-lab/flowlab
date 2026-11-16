@@ -5,7 +5,6 @@ import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
 import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
-import { useLotesNoStatusAplis } from '../hooks/useLotesNoStatusAplis';
 import { periodoEsteMes } from '../utils/formato';
 import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
 import { podeVerTela } from '../utils/permissoesTelas';
@@ -151,17 +150,6 @@ const ContasReceberPage: React.FC = () => {
     return chaveIdsDivergentes === '' ? [] : chaveIdsDivergentes.split(',');
   }, [chaveIdsDivergentes]);
 
-  // Filtro "Status do lote (apLIS)": os ids dos lotes no status, relidos a cada
-  // troca de status ou de período e no "Atualizar" (`versaoLotesStatus`).
-  const [versaoLotesStatus, setVersaoLotesStatus] = useState(0);
-  const lotesNoStatus = useLotesNoStatusAplis(
-    aba === 'titulos' ? filtros.statusLote : '',
-    filtros.desde,
-    filtros.ate,
-    versaoLotesStatus,
-    filtros.basePeriodo,
-  );
-
   const parametros = useMemo(() => ({
     desde: filtros.desde,
     ate: filtros.ate,
@@ -175,10 +163,9 @@ const ContasReceberPage: React.FC = () => {
     divergenteAplis: filtros.divergenteAplis,
     idsDivergentesAplis,
     statusLote: filtros.statusLote,
-    idsLotesStatusAplis: lotesNoStatus.idsLote,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
-  }), [filtros, idsDivergentesAplis, lotesNoStatus.idsLote]);
+  }), [filtros, idsDivergentesAplis]);
 
   const {
     titulos, operadoras, total, totais, loading, error, erroGlosasAplis, nfsCanceladasSemTitulo, refetch, refetchOperadoras, buscarTitulo,
@@ -226,7 +213,6 @@ const ContasReceberPage: React.FC = () => {
   // falha ao ler o apLIS ou ao aplicar não mexe na lista: só avisa.
   const atualizarTitulos = useCallback(async () => {
     void refetch();
-    setVersaoLotesStatus((v) => v + 1);
     setRefechamentosAplicados([]);
     try {
       const aplicados = await atualizarConferencia(podeEditar);
@@ -465,14 +451,12 @@ const ContasReceberPage: React.FC = () => {
           loading={
             loading
             || (filtros.divergenteAplis && !conferencia.titulos && !conferencia.erro)
-            || (Boolean(filtros.statusLote) && lotesNoStatus.carregando)
           }
           error={error}
           erroGlosasAplis={erroGlosasAplis}
           nfsCanceladasSemTitulo={nfsCanceladasSemTitulo}
           divergencias={conferencia.porTitulo}
           erroConferencia={conferencia.erro}
-          erroStatusLote={lotesNoStatus.erro}
           podeEditar={podeEditar}
           filtros={filtros}
           onFiltrar={aplicarFiltro}

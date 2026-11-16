@@ -19,6 +19,7 @@ import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
 import { useStatusFaturamento } from '../hooks/useStatusFaturamento';
 import StatusFaturamentoChips from './StatusFaturamentoChips';
 import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../types';
+import { STLOT_CORES } from '../utils/tituloStatus';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
@@ -56,19 +57,6 @@ const STATUS_FILTRO_OPCOES = [
 const CAMPO_FILTRO =
   'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white';
 
-// Cores por código STLOT (ver STLOT_LABELS). Agrupadas por significado financeiro:
-// em andamento (azul/amarelo), dinheiro entrou (verde), encerrado sem receita
-// (cinza/vermelho).
-const STATUS_CORES: Record<number, string> = {
-  1: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-  2: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
-  3: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
-  4: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-  5: 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300',
-  6: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-  7: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
-  8: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
-};
 
 /** Em lotes "Recebido - parcial" (STLOT 7), esconde as requisições já totalmente
  *  recebidas do drill-down — só as pendentes (issue 09 do feedback). Nos demais
@@ -85,7 +73,7 @@ function requisicoesParaExibir(
 const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
   <span
     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-      STATUS_CORES[lote.status] ?? 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300'
+      STLOT_CORES[lote.status] ?? 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300'
     }`}
   >
     {lote.statusLabel}

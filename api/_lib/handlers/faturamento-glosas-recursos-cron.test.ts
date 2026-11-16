@@ -8,19 +8,25 @@ vi.mock('../faturamento/bdLab.js', () => ({
   glosasRecursosDoPeriodo: vi.fn(),
   requisicoesAindaGlosadas: vi.fn(async () => new Set<number>()),
 }));
+vi.mock('../faturamento/sincronizarTitulosAplis.js', () => ({
+  sincronizarTitulosAplis: vi.fn(),
+}));
 
 import { getSupabaseAdminClient } from '../supabase.js';
 import { glosasRecursosDoPeriodo } from '../faturamento/bdLab.js';
+import { sincronizarTitulosAplis } from '../faturamento/sincronizarTitulosAplis.js';
 import handler from './faturamento-glosas-recursos-cron.js';
 
 const getSupabaseAdminClientMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;
 const glosasRecursosDoPeriodoMock = glosasRecursosDoPeriodo as ReturnType<typeof vi.fn>;
+const sincronizarTitulosAplisMock = sincronizarTitulosAplis as ReturnType<typeof vi.fn>;
 
 type Linha = Record<string, unknown>;
 
 interface CorpoResposta {
   success: boolean;
   error?: string;
+  titulos: Record<string, unknown>;
   meses: { competencia: string; ok: boolean; requisicoes?: number; lotes?: number; erro?: string }[];
   pulados: string[];
 }
@@ -108,6 +114,9 @@ describe('GET /api/faturamento/glosas-recursos-cron', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-03-15T09:00:00Z'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    sincronizarTitulosAplisMock.mockResolvedValue({
+      lotes: 10, lotesAtualizados: 3, statusMudaram: 2, numerosPreenchidos: 1, refechamentos: [], dadoAte: '2026-03-14',
+    });
   });
 
   afterEach(() => {
@@ -116,6 +125,32 @@ describe('GET /api/faturamento/glosas-recursos-cron', () => {
     vi.restoreAllMocks();
     getSupabaseAdminClientMock.mockReset();
     glosasRecursosDoPeriodoMock.mockReset();
+    sincronizarTitulosAplisMock.mockReset();
+  });
+
+  it('sincroniza os títulos com o apLIS antes dos meses', async () => {
+    mockarSupabase();
+    glosasRecursosDoPeriodoMock.mockResolvedValue(semGlosas());
+
+    const { status, corpo } = await chamar();
+
+    expect(status).toBe(200);
+    expect(sincronizarTitulosAplisMock).toHaveBeenCalledTimes(1);
+    expect(corpo.titulos).toEqual({
+      ok: true, lotes: 10, lotesAtualizados: 3, statusMudaram: 2, numerosPreenchidos: 1, refechamentos: [],
+    });
+  });
+
+  it('falha nos títulos não impede os meses, mas a rotina sai com 502', async () => {
+    mockarSupabase();
+    glosasRecursosDoPeriodoMock.mockResolvedValue(semGlosas());
+    sincronizarTitulosAplisMock.mockResolvedValue({ erro: { status: 502, mensagem: 'túnel fora' } });
+
+    const { status, corpo } = await chamar();
+
+    expect(status).toBe(502);
+    expect(corpo.titulos).toEqual({ ok: false, erro: 'túnel fora' });
+    expect(corpo.meses.every((m) => m.ok)).toBe(true);
   });
 
   it('sem o segredo do cron devolve 401 sem consultar o apLIS', async () => {

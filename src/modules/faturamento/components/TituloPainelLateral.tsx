@@ -26,7 +26,7 @@ import { rotuloStatusAplis, STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosa
 import { formatCurrency, formatData, formatDataHora } from '../utils/formato';
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
 import { descreverAlteracao } from '../utils/correcaoLancamento';
-import { STATUS_CORES, STATUS_ROTULOS } from '../utils/tituloStatus';
+import { statusExibido } from '../utils/tituloStatus';
 
 // Detalhes de um título num painel lateral (.scratch/titulos-painel-lateral):
 // baixas, glosas do apLIS, alterações e lotes → guias. Montado com `key` do
@@ -252,6 +252,7 @@ const TituloPainelLateral: React.FC<Props> = ({
   };
 
   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
+  const statusDoTitulo = statusExibido(titulo);
 
   return (
     <>
@@ -274,8 +275,8 @@ const TituloPainelLateral: React.FC<Props> = ({
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                   {titulo.numeroNota ? `NF ${titulo.numeroNota}` : 'Sem número de nota'}
                 </h2>
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_CORES[titulo.status]}`}>
-                  {STATUS_ROTULOS[titulo.status]}
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusDoTitulo.cor}`}>
+                  {statusDoTitulo.rotulo}
                 </span>
               </div>
               <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300 truncate">

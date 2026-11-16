@@ -99,7 +99,7 @@ describe('sanitizarFiltrosTitulos', () => {
       desde: '2025-07-01',
       ate: '2025-07-31',
       basePeriodo: 'envio',
-      status: 'recebida',
+      status: '',
       operadoraId: 'op1',
       busca: '123',
       ocultarParceiras: true,
@@ -131,7 +131,7 @@ describe('sanitizarFiltrosTitulos', () => {
     expect(sanitizarFiltrosTitulos({ statusLote: 99 }, BASE_TITULOS)).toEqual(BASE_TITULOS);
     expect(sanitizarFiltrosTitulos({ statusLote: '14' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
     expect(sanitizarFiltrosTitulos({}, { ...BASE_TITULOS, statusLote: 4 })).toEqual(BASE_TITULOS);
-    expect(sanitizarFiltrosTitulos({ statusLote: 12 }, BASE_TITULOS)).toEqual({ ...BASE_TITULOS, statusLote: 12 });
+    expect(sanitizarFiltrosTitulos({ statusLote: 12 }, BASE_TITULOS)).toEqual({ ...BASE_TITULOS, statusLote: 12, somentePendentes: false });
   });
 
   it('ocultarParceiras fora do tipo boolean cai na base', () => {
@@ -152,16 +152,25 @@ describe('sanitizarFiltrosTitulos', () => {
     expect(sanitizarFiltrosTitulos({ somentePendentes: 'sim' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
   });
 
-  it('view antiga com status mas sem somentePendentes não reativa o atalho por cima do status (issue 38)', () => {
+  it('view antiga com status pelas baixas fica sem recorte de status e não reativa o atalho (issue 38)', () => {
     expect(
       sanitizarFiltrosTitulos({ status: 'aberta' }, { ...BASE_TITULOS, somentePendentes: true }),
-    ).toEqual({ ...BASE_TITULOS, status: 'aberta', somentePendentes: false });
+    ).toEqual({ ...BASE_TITULOS, status: '', somentePendentes: false });
   });
 
   it('somentePendentes explícito não sobrevive junto de um status manual', () => {
     expect(
-      sanitizarFiltrosTitulos({ status: 'recebida', somentePendentes: true }, BASE_TITULOS),
-    ).toEqual({ ...BASE_TITULOS, status: 'recebida', somentePendentes: false });
+      sanitizarFiltrosTitulos({ status: 'cancelada', somentePendentes: true }, BASE_TITULOS),
+    ).toEqual({ ...BASE_TITULOS, status: 'cancelada', somentePendentes: false });
+    expect(
+      sanitizarFiltrosTitulos({ statusLote: 12, somentePendentes: true }, BASE_TITULOS),
+    ).toEqual({ ...BASE_TITULOS, statusLote: 12, somentePendentes: false });
+  });
+
+  it('status do apLIS e cancelada não convivem: vale o do apLIS', () => {
+    expect(
+      sanitizarFiltrosTitulos({ status: 'cancelada', statusLote: 4 }, BASE_TITULOS),
+    ).toEqual({ ...BASE_TITULOS, status: '', statusLote: 4, somentePendentes: false });
   });
 
   it('glosa válida é preservada', () => {

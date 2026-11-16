@@ -41,7 +41,7 @@ import {
 } from '../utils/formato';
 import type { TotaisTitulos } from '../hooks/useContasReceber';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
-import { STATUS_CORES, STATUS_ROTULOS } from '../utils/tituloStatus';
+import { STATUS_ROTULOS, statusExibido } from '../utils/tituloStatus';
 import { STLOT_LABELS } from '../types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
@@ -67,18 +67,13 @@ const TITULO_BASE_PERIODO: Record<BasePeriodoTitulos, string> = {
 // Lista de títulos a receber. O olho de cada linha abre os detalhes (baixas,
 // glosas, alterações, lotes → guias) no painel lateral, TituloPainelLateral.
 
-// Status do LOTE no apLIS (tabela STLOT), não o do título.
-const STATUS_LOTE_OPCOES = [
-  { value: '', label: 'Todos' },
-  ...Object.entries(STLOT_LABELS).map(([codigo, rotulo]) => ({ value: codigo, label: rotulo })),
-];
-
+// Filtro Status: o status do título é o do lote no apLIS (tabela STLOT), mais o
+// cancelamento, que é manual no FlowLab. Valor do apLIS = código STLOT (vai para
+// `statusLote`); 'cancelada' vai para `status`.
 const STATUS_OPCOES = [
   { value: '', label: 'Todos' },
-  ...(Object.keys(STATUS_ROTULOS) as TituloStatus[]).map((status) => ({
-    value: status,
-    label: STATUS_ROTULOS[status],
-  })),
+  ...Object.entries(STLOT_LABELS).map(([codigo, rotulo]) => ({ value: codigo, label: rotulo })),
+  { value: 'cancelada', label: STATUS_ROTULOS.cancelada },
 ];
 
 // Filtro "Glosa": "Com glosa" pega também quem já teve e foi revertida —
@@ -118,8 +113,6 @@ interface Props {
   divergencias: Map<string, DivergenciaAplis> | null;
   /** Falha da conferência: aviso discreto, a lista segue normal. */
   erroConferencia: string | null;
-  /** Falha ao ler o status dos lotes no apLIS, com o filtro "Status do lote" ligado. */
-  erroStatusLote: string | null;
   podeEditar: boolean;
   filtros: {
     desde: string;
@@ -138,7 +131,7 @@ interface Props {
     glosa: FiltroGlosaTitulo;
     /** Só os títulos que divergem do apLIS (ids da conferência). */
     divergenteAplis: boolean;
-    /** Só os títulos com algum lote neste status STLOT no apLIS; vazio = todos. */
+    /** Só os títulos não cancelados com lote neste status STLOT no apLIS; vazio = todos. */
     statusLote: number | '';
     pagina: number;
     tamanho: number;
@@ -269,7 +262,6 @@ const TitulosList: React.FC<Props> = ({
   nfsCanceladasSemTitulo,
   divergencias,
   erroConferencia,
-  erroStatusLote,
   podeEditar,
   filtros,
   onFiltrar,
@@ -427,26 +419,22 @@ const TitulosList: React.FC<Props> = ({
 
           <div className="hidden lg:block w-px self-stretch bg-gray-100 dark:bg-gray-700" />
 
-          <label className="text-xs text-gray-500 dark:text-gray-400">
-            Status
-            <Select
-              value={filtros.status}
-              // Selecionar um status manualmente é um recorte explícito — desliga o
-              // atalho "Somente pendentes" pra não conflitarem (issue 38).
-              onChange={(v) => onFiltrar({ status: v as TituloStatus | '', somentePendentes: false, pagina: 1 })}
-              options={STATUS_OPCOES}
-              controlClass={CAMPO}
-            />
-          </label>
           <label
             className="text-xs text-gray-500 dark:text-gray-400"
-            title="Títulos com algum lote neste status no apLIS (dados até ontem)"
+            title="Status do lote no apLIS, atualizado pela sincronização diária"
           >
-            Status do lote (apLIS)
+            Status
             <Select
-              value={filtros.statusLote === '' ? '' : String(filtros.statusLote)}
-              onChange={(v) => onFiltrar({ statusLote: v ? Number(v) : '', pagina: 1 })}
-              options={STATUS_LOTE_OPCOES}
+              value={filtros.statusLote !== '' ? String(filtros.statusLote) : filtros.status}
+              // Selecionar um status manualmente é um recorte explícito — desliga o
+              // atalho "Somente pendentes" pra não conflitarem (issue 38).
+              onChange={(v) => onFiltrar({
+                status: v === 'cancelada' ? 'cancelada' : '',
+                statusLote: v && v !== 'cancelada' ? Number(v) : '',
+                somentePendentes: false,
+                pagina: 1,
+              })}
+              options={STATUS_OPCOES}
               controlClass={CAMPO}
             />
           </label>
@@ -485,6 +473,7 @@ const TitulosList: React.FC<Props> = ({
                   // Ligar o atalho sobrescreve uma seleção manual de Status anterior — os
                   // dois não fazem sentido juntos (issue 38).
                   status: e.target.checked ? '' : filtros.status,
+                  statusLote: e.target.checked ? '' : filtros.statusLote,
                   pagina: 1,
                 })}
                 className="rounded border-gray-300 dark:border-gray-600"
@@ -652,11 +641,6 @@ const TitulosList: React.FC<Props> = ({
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
-      ) : titulos.length === 0 && filtros.statusLote !== '' && erroStatusLote ? (
-        <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-          Não foi possível consultar o status dos lotes no apLIS ({erroStatusLote}).
-          Escolha "Todos" em "Status do lote (apLIS)" para ver a lista ou tente "Atualizar".
-        </div>
       ) : titulos.length === 0 && filtros.divergenteAplis && erroConferencia ? (
         // Vazia por falta da conferência, não por falta de título: ampliar o
         // período (a dica de baixo) não resolveria.
@@ -671,7 +655,7 @@ const TitulosList: React.FC<Props> = ({
             ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
             : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}
           {filtros.divergenteAplis && ' divergente do apLIS'}
-          {filtros.statusLote !== '' && ` com lote "${STLOT_LABELS[filtros.statusLote]}" no apLIS`}.
+          {filtros.statusLote !== '' && ` com status "${STLOT_LABELS[filtros.statusLote]}"`}.
           {' '}Amplie o período de emissão acima — trocar o Status não muda
           a lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}
@@ -704,6 +688,7 @@ const TitulosList: React.FC<Props> = ({
                 {titulos.map((titulo) => {
                   const aberto = idAberto === titulo.id;
                   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
+                  const statusDoTitulo = statusExibido(titulo);
                   const responsaveis = responsaveisDoTitulo(titulo.lotes);
                   const protocolos = protocolosDoTitulo(titulo.lotes);
                   const divergencia = divergencias?.get(titulo.id);
@@ -823,16 +808,17 @@ const TitulosList: React.FC<Props> = ({
                           {formatCurrency(titulo.valorSaldo)}
                         </td>
                         <td className="px-3 py-2">
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_CORES[titulo.status]}`}>
-                            {STATUS_ROTULOS[titulo.status]}
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusDoTitulo.cor}`}>
+                            {statusDoTitulo.rotulo}
                           </span>
                           {divergencia && <SeloAplis divergencia={divergencia} />}
-                          {/* Mesmos poucos títulos revisitados em dias diferentes mudam de
-                              status (Aberta → Parcial → Recebida) conforme as baixas chegam —
-                              sem isto, a mudança parece uma NF "semelhante" duplicada. */}
-                          <div className="mt-1 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                            atualizado em {formatDataHora(titulo.statusAtualizadoEm)}
-                          </div>
+                          {/* O status muda conforme o lote anda no apLIS — sem a data,
+                              a mudança parece uma NF "semelhante" duplicada. */}
+                          {statusDoTitulo.atualizadoEm && (
+                            <div className="mt-1 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                              atualizado em {formatDataHora(statusDoTitulo.atualizadoEm)}
+                            </div>
+                          )}
                         </td>
                         {podeEditar && (
                           <td className="px-3 py-2">
