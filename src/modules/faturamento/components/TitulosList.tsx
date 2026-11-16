@@ -138,6 +138,8 @@ interface Props {
   };
   onFiltrar: (patch: Partial<Props['filtros']>) => void;
   onAtualizar: () => void;
+  /** Sincronização com o apLIS do "Atualizar" em andamento. */
+  atualizando?: boolean;
   onNovoTitulo: () => void;
   /** Issue 16: abre o modal de gerenciamento das clínicas parceiras. */
   onGerenciarParceiras: () => void;
@@ -266,6 +268,7 @@ const TitulosList: React.FC<Props> = ({
   filtros,
   onFiltrar,
   onAtualizar,
+  atualizando = false,
   onNovoTitulo,
   onGerenciarParceiras,
   onGerenciarRegraNf,
@@ -513,9 +516,12 @@ const TitulosList: React.FC<Props> = ({
             <button
               type="button"
               onClick={onAtualizar}
-              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+              disabled={atualizando}
+              title="Atualiza os títulos com o apLIS (status, dados dos lotes, número da nota e refechamento) e relê a lista"
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+              <RefreshCw className={`w-4 h-4 ${loading || atualizando ? 'animate-spin' : ''}`} />
+              {atualizando ? 'Atualizando…' : 'Atualizar'}
             </button>
           </div>
         </div>

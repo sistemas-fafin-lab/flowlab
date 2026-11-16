@@ -3,9 +3,10 @@ import { AlertTriangle, BarChart3, CheckCheck, GitCompare, DownloadCloud, ListCh
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
-import { useContasReceber } from '../hooks/useContasReceber';
+import { chamarApi, useContasReceber } from '../hooks/useContasReceber';
 import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
 import { periodoEsteMes } from '../utils/formato';
+import { textoSincronizacaoTitulos, type ResumoSincronizacaoTitulos } from '../utils/sincronizacaoTitulos';
 import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
 import { podeVerTela } from '../utils/permissoesTelas';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
@@ -208,12 +209,31 @@ const ContasReceberPage: React.FC = () => {
     }));
   }, []);
 
-  // "Atualizar" da aba Títulos: relê a lista e a conferência e, para quem
-  // edita, aplica a emissão nova dos títulos com lote refechado no apLIS. Uma
-  // falha ao ler o apLIS ou ao aplicar não mexe na lista: só avisa.
+  // "Atualizar" da aba Títulos: roda a sincronização dos títulos com o apLIS (a
+  // mesma da rotina diária: status, dados dos lotes, número da nota e
+  // refechamento), relê a lista e a conferência e, para quem edita, aplica a
+  // emissão nova dos refechamentos que a sincronização não pegou. Uma falha ao
+  // ler o apLIS ou ao aplicar não mexe na lista: só avisa.
+  const [sincronizandoTitulos, setSincronizandoTitulos] = useState(false);
   const atualizarTitulos = useCallback(async () => {
-    void refetch();
     setRefechamentosAplicados([]);
+    setSincronizandoTitulos(true);
+    try {
+      const resumo = await chamarApi<ResumoSincronizacaoTitulos>(
+        '/api/faturamento/titulos-sincronizar-aplis',
+        'Não foi possível atualizar os títulos com o apLIS.',
+        { method: 'POST' },
+      );
+      setAviso({ tipo: 'sucesso', texto: textoSincronizacaoTitulos(resumo) });
+    } catch (err) {
+      setAviso({
+        tipo: 'erro',
+        texto: err instanceof Error ? err.message : 'Não foi possível atualizar os títulos com o apLIS.',
+      });
+    } finally {
+      setSincronizandoTitulos(false);
+    }
+    void refetch();
     try {
       const aplicados = await atualizarConferencia(podeEditar);
       if (aplicados.length === 0) return;
@@ -460,6 +480,7 @@ const ContasReceberPage: React.FC = () => {
           podeEditar={podeEditar}
           filtros={filtros}
           onFiltrar={aplicarFiltro}
+          atualizando={sincronizandoTitulos}
           onAtualizar={() => void atualizarTitulos()}
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
