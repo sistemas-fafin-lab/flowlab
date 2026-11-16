@@ -21,6 +21,10 @@ import CorrecaoLancamentoForm from './CorrecaoLancamentoForm';
 // (motivo obrigatório; a NF anterior entra no histórico de NFs canceladas) ou
 // "Correção de digitação" (só troca). O primeiro preenchimento não pergunta
 // nada (.scratch/faturamento-nf-cancelada).
+//
+// A observação do título tem formulário próprio: antes só dava para escrever
+// observação numa baixa, e a faturista lançava baixa de R$ 0,01 só para guardar
+// o chamado de cobrança aberto no site do convênio.
 
 type TipoTroca = 'cancelada' | 'digitacao';
 
@@ -38,6 +42,8 @@ interface Props {
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
   onCorrigirLancamento: (payload: CorrecaoLancamentoPayload) => Promise<string | null>;
   onExcluirBaixa: (recebimentoId: string, motivo: string) => Promise<string | null>;
+  /** Vazio limpa a observação. */
+  onSalvarObservacoes: (idNota: string, observacoes: string) => Promise<string | null>;
 }
 
 /** Chave do lançamento em edição: id da baixa, ou SEM_BAIXA para o grupo das
@@ -54,6 +60,7 @@ const EditarTituloModal: React.FC<Props> = ({
   buscarGuias,
   onCorrigirLancamento,
   onExcluirBaixa,
+  onSalvarObservacoes,
 }) => {
   const [numeroNota, setNumeroNota] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -71,6 +78,14 @@ const EditarTituloModal: React.FC<Props> = ({
     setMotivoCancelamento('');
     setDataCancelamento(hojeIso());
   };
+
+  // Observação do título: independente das baixas (ex.: chamado aberto no site
+  // do convênio para cobrar o título). `observacoesAtual` é o que está gravado.
+  const [observacoes, setObservacoes] = useState('');
+  const [observacoesAtual, setObservacoesAtual] = useState('');
+  const [salvandoObs, setSalvandoObs] = useState(false);
+  const [erroObs, setErroObs] = useState<string | null>(null);
+  const [obsSalva, setObsSalva] = useState(false);
 
   const [lancamentos, setLancamentos] = useState<LancamentosTitulo | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -113,6 +128,10 @@ const EditarTituloModal: React.FC<Props> = ({
     limparTroca();
     setErro(null);
     setNumeroSalvo(false);
+    setObservacoes(titulo?.observacoes ?? '');
+    setObservacoesAtual(titulo?.observacoes?.trim() ?? '');
+    setErroObs(null);
+    setObsSalva(false);
     setLancamentos(null);
     setGuias([]);
     setEditando(null);
@@ -187,6 +206,23 @@ const EditarTituloModal: React.FC<Props> = ({
     limparTroca();
   };
 
+  const submeterObservacoes = async (evento: React.FormEvent) => {
+    evento.preventDefault();
+    if (!titulo) return;
+    const valor = observacoes.trim();
+    setErroObs(null);
+    setObsSalva(false);
+    setSalvandoObs(true);
+    const falha = await onSalvarObservacoes(titulo.id, valor);
+    setSalvandoObs(false);
+    if (falha) {
+      setErroObs(falha);
+      return;
+    }
+    setObservacoesAtual(valor);
+    setObsSalva(true);
+  };
+
   const salvarCorrecao = async (payload: CorrecaoLancamentoPayload): Promise<string | null> => {
     const falha = await onCorrigirLancamento(payload);
     if (!falha && titulo) {
@@ -219,11 +255,11 @@ const EditarTituloModal: React.FC<Props> = ({
   useEffect(() => {
     if (!titulo) return;
     const fecharNoEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented && !salvando) onFechar();
+      if (e.key === 'Escape' && !e.defaultPrevented && !salvando && !salvandoObs) onFechar();
     };
     document.addEventListener('keydown', fecharNoEsc);
     return () => document.removeEventListener('keydown', fecharNoEsc);
-  }, [titulo, salvando, onFechar]);
+  }, [titulo, salvando, salvandoObs, onFechar]);
 
   if (!titulo) return null;
 
@@ -363,6 +399,48 @@ const EditarTituloModal: React.FC<Props> = ({
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{erro}</span>
               </div>
+            )}
+          </form>
+
+          <form onSubmit={submeterObservacoes} className="space-y-2">
+            <label className="block text-xs text-gray-500 dark:text-gray-400">
+              Observações do título
+              <textarea
+                value={observacoes}
+                onChange={(e) => {
+                  setObservacoes(e.target.value);
+                  setObsSalva(false);
+                }}
+                disabled={cancelado}
+                rows={3}
+                placeholder="Ex.: cobrado no fale conosco em 16/11 — chamado 413912, protocolo 9999…"
+                className={`${CAMPO} disabled:opacity-60`}
+              />
+            </label>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {cancelado
+                  ? 'Título cancelado: a observação fica só para consulta.'
+                  : 'Não depende de baixa. Aparece no detalhe do título, entra na busca e cada troca fica no histórico.'}
+              </p>
+              {!cancelado && (
+                <button
+                  type="submit"
+                  disabled={salvandoObs || observacoes.trim() === observacoesAtual}
+                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {salvandoObs && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Salvar observação
+                </button>
+              )}
+            </div>
+            {obsSalva && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">Observação salva.</p>
+            )}
+            {erroObs && (
+              <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" /> {erroObs}
+              </p>
             )}
           </form>
 

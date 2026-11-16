@@ -299,6 +299,8 @@ interface UseContasReceberResult {
   corrigirLancamento: (payload: CorrecaoLancamentoPayload) => Promise<string | null>;
   /** Exclui uma baixa e as glosas dela, com motivo obrigatório. */
   excluirBaixa: (recebimentoId: string, motivo: string) => Promise<string | null>;
+  /** Grava a observação do título (vazio limpa); a troca vai para o histórico. */
+  atualizarObservacoes: (notaId: string, observacoes: string) => Promise<string | null>;
   criarTitulo: (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -864,6 +866,23 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [refetch]);
 
+  const atualizarObservacoes = useCallback(async (notaId: string, observacoes: string): Promise<string | null> => {
+    setError(null);
+    try {
+      const { error: erro } = await supabase.rpc('fat_atualizar_observacoes_titulo', {
+        p_id_nota: notaId,
+        p_observacoes: observacoes,
+      });
+      if (erro) throw new Error(erro.message);
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível salvar a observação.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
   const excluirBaixa = useCallback(async (recebimentoId: string, motivo: string): Promise<string | null> => {
     setError(null);
     try {
@@ -1047,6 +1066,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     buscarAlteracoes,
     buscarNfsCanceladas,
     corrigirLancamento,
+    atualizarObservacoes,
     excluirBaixa,
     criarTitulo,
     registrarBaixa,

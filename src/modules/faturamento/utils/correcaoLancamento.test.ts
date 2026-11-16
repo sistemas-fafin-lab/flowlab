@@ -241,4 +241,10 @@ describe('descreverAlteracao', () => {
       entidade: 'glosa', campo: 'motivo', valorAnterior: 'Sem assinatura', valorNovo: 'Guia vencida',
     }))).toEqual({ oQue: 'Glosa · motivo', de: 'Sem assinatura', para: 'Guia vencida' });
   });
+
+  it('observação do título sai como texto, com o rótulo do título', () => {
+    expect(descreverAlteracao(alteracao({
+      entidade: 'titulo', campo: 'observacoes', valorAnterior: null, valorNovo: 'Chamado 413912',
+    }))).toEqual({ oQue: 'Título · observações', de: '—', para: 'Chamado 413912' });
+  });
 });

@@ -152,7 +152,7 @@ export function montarCorrecao(entrada: EntradaCorrecao): ResultadoCorrecao {
 
 // ─── Histórico ──────────────────────────────────────────────────────────────
 
-const ENTIDADE_ROTULO: Record<AlteracaoLancamento['entidade'], string> = { baixa: 'Baixa', glosa: 'Glosa' };
+const ENTIDADE_ROTULO: Record<AlteracaoLancamento['entidade'], string> = { baixa: 'Baixa', glosa: 'Glosa', titulo: 'Título' };
 
 /** Colunas gravadas em `notas_lancamentos_audit_logs.campo` (nomes do banco). */
 const CAMPO_ROTULO: Record<string, string> = {

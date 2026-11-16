@@ -182,7 +182,7 @@ const ContasReceberPage: React.FC = () => {
 
   const {
     titulos, operadoras, total, totais, loading, error, erroGlosasAplis, nfsCanceladasSemTitulo, refetch, refetchOperadoras, buscarTitulo,
-    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosasAplis, buscarLancamentos, buscarAlteracoes, buscarNfsCanceladas, corrigirLancamento, excluirBaixa,
+    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosasAplis, buscarLancamentos, buscarAlteracoes, buscarNfsCanceladas, corrigirLancamento, excluirBaixa, atualizarObservacoes,
     criarTitulo, registrarBaixa, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
@@ -598,6 +598,7 @@ const ContasReceberPage: React.FC = () => {
         buscarGuias={buscarGuias}
         onCorrigirLancamento={async (payload) => anotarSalvo(await corrigirLancamento(payload))}
         onExcluirBaixa={async (id, motivo) => anotarSalvo(await excluirBaixa(id, motivo))}
+        onSalvarObservacoes={async (idNota, observacoes) => anotarSalvo(await atualizarObservacoes(idNota, observacoes))}
       />
     </div>
   );

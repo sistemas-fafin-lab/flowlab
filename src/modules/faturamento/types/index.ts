@@ -1414,7 +1414,7 @@ export interface CorrecaoLancamentoPayload {
 /** Linha de `notas_lancamentos_audit_logs`, para a seção "Alterações". */
 export interface AlteracaoLancamento {
   id: string;
-  entidade: 'baixa' | 'glosa';
+  entidade: 'baixa' | 'glosa' | 'titulo';
   acao: 'alteracao' | 'inclusao' | 'exclusao';
   campo: string | null;
   valorAnterior: string | null;
