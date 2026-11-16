@@ -26,17 +26,18 @@ Antes de fatiar, decidir com o TI:
 
 ## Critérios (rascunho, a confirmar na triagem)
 
-- [ ] A D2 da spec é reescrita com a decisão nova.
-- [ ] Um chamado criado pelo LAB-BRAIN gera exatamente uma sugestão pendente em `ti_agente_sugestoes`, ligada ao chamado. O reenvio do mesmo `id_externo` não gera outra.
-- [ ] A sugestão aparece em EVA → Sugestões com o selo "via LAB-BRAIN".
-- [ ] Aprovar aplica a decisão pela RPC de aprovação que já existe, nunca por escrita direta.
-- [ ] Rejeitar deixa o chamado num estado que o GET do LAB-BRAIN mostra com clareza.
-- [ ] A rota de criação continua respondendo `201 { id, codigo }`, mesmo que a sugestão não possa ser gravada. Fica a decisão de como tratar essa falha.
-- [ ] Testes pela rota e pela RPC, com o Supabase falso.
-- [ ] Guia `docs/integracoes/LAB_BRAIN_CHAMADOS.md` e documento do dev do LAB-BRAIN atualizados com o fluxo novo.
-- [ ] Migration aplicada no teste (`eqz`) antes de produção.
+- [x] A D2 da spec é reescrita com a decisão nova.
+- [x] Um chamado criado pelo LAB-BRAIN gera exatamente uma sugestão pendente em `ti_agente_sugestoes`, ligada ao chamado. O reenvio do mesmo `id_externo` não gera outra.
+- [x] A sugestão aparece em EVA → Sugestões com o selo "via LAB-BRAIN".
+- [x] Aprovar aplica a decisão pela RPC de aprovação que já existe, nunca por escrita direta.
+- [x] Rejeitar deixa o chamado num estado que o GET do LAB-BRAIN mostra com clareza.
+- [x] A rota de criação continua respondendo `201 { id, codigo }`, mesmo que a sugestão não possa ser gravada. Fica a decisão de como tratar essa falha.
+- [x] Testes pela rota e pela RPC, com o Supabase falso.
+- [x] Guia `docs/integracoes/LAB_BRAIN_CHAMADOS.md` e documento do dev do LAB-BRAIN atualizados com o fluxo novo.
+- [x] Migration aplicada no teste (`eqz`) antes de produção.
 
 ## Comments
 
 - 13/11/2026: aberta a pedido do usuário depois do teste local. O IT-133 foi criado pelo LAB-BRAIN e não chegou na aprovação da EVA, como a D2 prevê.
 - 13/11/2026: grilling feito. Decisões e escopo foram para a spec `.scratch/lab-brain-aprovacao-eva/spec.md` (ready-for-agent), que substitui a D2. As perguntas de triagem acima estão respondidas lá; as fatias viram issues naquela pasta.
+- 16/11/2026: caixas marcadas pelo que foi entregue na spec `.scratch/lab-brain-aprovacao-eva/` (issues 01 a 05, testadas no local e em produção). Fica aberta só a parte do documento do dev do LAB-BRAIN: o guia `docs/integracoes/LAB_BRAIN_CHAMADOS.md` está atualizado, mas as duas notas ainda precisam ser coladas no documento entregue a ele (texto na issue 05 da outra spec).

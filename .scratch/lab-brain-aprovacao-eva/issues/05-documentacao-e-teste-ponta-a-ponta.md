@@ -9,7 +9,7 @@
 - [x] O guia da integração de chamados do LAB-BRAIN descreve:
   - a sugestão de promoção e o que a aprovação e a rejeição fazem;
   - o `resolucao` no cancelado.
-- [ ] O documento entregue ao dev do LAB-BRAIN ganha as duas notas: o TI avalia cada pedido antes de ele entrar no Kanban, e `resolucao` também aparece no cancelado. (O documento não está no repositório; as notas estão prontas nos Comments, falta colá-las.)
+- [x] O documento entregue ao dev do LAB-BRAIN ganha as duas notas: o TI avalia cada pedido antes de ele entrar no Kanban, e `resolucao` também aparece no cancelado. (O documento não está no repositório; as notas estão prontas nos Comments, falta colá-las.)
 - [x] Os chamados de teste IT-132 e IT-133 são cancelados no banco de teste antes do roteiro.
 - [x] Roteiro local (API em `localhost:3000`, front em `localhost:5173`, banco de teste), conferido passo a passo:
   1. criar o chamado;
@@ -41,3 +41,4 @@
   IT-224 e IT-226 cancelados no fim. O IT-225 já estava cancelado pela rejeição.
 
 - 13/11/2026: produção. As migrations `20261113150000` a `20261113180000` já constavam aplicadas no projeto `jqx`. Push da `main` (`bf03fac`), deploy `Ready` em `flow-lab.vercel.app`. `POST` com o solicitante `tech2.laboratorio.lab@gmail.com` → `201` IT-434, e a consulta mostrou `pending` com `coluna_kanban: null`. O aviso "Chamado do LAB-BRAIN para aprovar" chegou ao sino e o clique abriu a EVA. O usuário rejeitou a sugestão pela tela. A consulta passou a `cancelled`, com o motivo em `resolucao`. O IT-434 ficou cancelado pela rejeição.
+- 16/11/2026: o documento do dev é o doc "FlowLab: integração de chamados de TI para o LAB-BRAIN" (https://claude.ai/artifact/PQfVkSJBh9DRamUiwAuQ1F). Ele só tinha o esqueleto, com as sete seções vazias. Foi preenchido com o contrato atual (visão geral, acesso, abrir, acompanhar, limite e auditoria, erros, fluxo e checklist), com as duas notas: a avaliação do TI na visão geral e o `resolucao` no cancelado em "Acompanhar chamado".

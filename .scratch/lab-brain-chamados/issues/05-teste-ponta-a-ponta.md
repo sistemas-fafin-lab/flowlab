@@ -34,3 +34,4 @@
   ```
 
   A cota é de 10 chamadas por minuto, somando criação e consulta.
+- 16/11/2026: o FlowLab rodou parte do roteiro em produção com a chave, em 13/11 (`bf03fac`): `POST` com `tech2.laboratorio.lab@gmail.com` → `201` IT-434; consulta `pending` com `coluna_kanban: null`; aviso no sino abrindo a EVA; sugestão rejeitada pela tela → consulta `cancelled` com o motivo em `resolucao`. Ver `.scratch/lab-brain-aprovacao-eva/issues/05-documentacao-e-teste-ponta-a-ponta.md`. Em produção ainda não foram conferidos o reenvio do mesmo `id_externo` (`200`, mesmo código) nem a consulta depois de mover o card no Kanban; os dois passaram no local. Os itens ficam abertos até o LAB-BRAIN rodar com a chave dele, provavelmente no primeiro chamado real (solicitante `rh@laboratoriolab.com.br`, a confirmar em Admin → Usuários).

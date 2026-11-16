@@ -6,9 +6,9 @@
 
 **Status:** ready-for-human
 
-- [ ] Gerar uma chave forte (ex.: `openssl rand -hex 32`) e criá-la como variável de ambiente de chamados do LAB-BRAIN no Vercel (Production e Preview) e no ambiente local.
+- [x] Gerar uma chave forte (ex.: `openssl rand -hex 32`) e criá-la como variável de ambiente de chamados do LAB-BRAIN no Vercel (Production e Preview) e no ambiente local. (Só Production e `.env`; Preview não tem.)
 - [ ] Entregar a chave ao LAB-BRAIN por canal separado, nunca pelo Slack.
-- [ ] Responder no Slack com o texto abaixo.
+- [x] Responder no Slack com o texto abaixo.
 
 ## Texto de resposta (Slack)
 
@@ -29,3 +29,4 @@
 - Nome da variável: `LAB_BRAIN_CHAMADOS_API_KEY` (lida em `api/_lib/labBrainChamados.ts`). Ainda não existe na Vercel nem no `.env.local`.
 - Domínio de produção: `https://flow-lab.vercel.app`. O código das rotas (a1fc3dc, 39c5478) já está no deploy de produção.
 - A Vercel só aplica a variável nova a deploys feitos depois de criá-la: é preciso um redeploy de produção antes de o LAB-BRAIN testar.
+- 16/11/2026: `LAB_BRAIN_CHAMADOS_API_KEY` existe na Vercel só em Production, e no `.env` (linha 98), com o mesmo valor: produção aceitou essa chave no teste do IT-434. Preview não tem a variável; só importa para testar num deploy de preview. Os deploys de produção depois da criação já leem a chave: o GET sem chave responde `401`. A resposta do Slack foi enviada (o LAB-BRAIN respondeu a ela). Falta entregar a chave por canal separado; o LAB-BRAIN vai guardá-la no cofre dele.
