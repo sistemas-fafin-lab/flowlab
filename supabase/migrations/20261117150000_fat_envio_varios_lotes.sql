@@ -135,11 +135,14 @@ BEGIN
     CONTINUE WHEN EXISTS (
       SELECT 1 FROM public.fat_envio_agendamentos x WHERE x.lotes_aplis @> ARRAY[c.id_lote]
     );
+    -- Data prevista futura e sem marcação não se confirma (casarLotes já não pede; a
+    -- trava vale também para a API anterior, que roda até o deploy).
     UPDATE public.fat_envio_agendamentos a
        SET lotes_aplis = a.lotes_aplis || c.id_lote,
            confirmado_em = NOW(),
            data_envio = CASE WHEN c.marcar AND a.data_envio IS NULL THEN c.data_envio ELSE a.data_envio END
-     WHERE a.id = c.agendamento_id;
+     WHERE a.id = c.agendamento_id
+       AND (a.data_envio IS NOT NULL OR a.data_prevista <= (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE);
     IF FOUND AND NOT c.agendamento_id = ANY(v_mudou) THEN
       v_mudou := v_mudou || c.agendamento_id;
     END IF;
