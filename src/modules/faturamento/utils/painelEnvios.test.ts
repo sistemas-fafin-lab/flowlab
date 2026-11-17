@@ -26,7 +26,7 @@ const agendamento = (id: string, regraId: string, dataPrevista: string, status: 
   dataEnvio: null,
   marcadoPorNome: null,
   marcadoEm: null,
-  loteAplisConfirmado: null,
+  lotesAplis: [],
   status,
   foraDaJanela: false,
 });

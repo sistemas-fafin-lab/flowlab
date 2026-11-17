@@ -44,7 +44,8 @@ export interface AgendamentoEnvio {
   dataEnvio: string | null;
   marcadoPorNome: string | null;
   marcadoEm: string | null;
-  loteAplisConfirmado: number | null;
+  /** Lotes do backup do apLIS que confirmaram o envio (um envio pode ter vários). */
+  lotesAplis: number[];
 }
 
 export interface FeriadoEnvio {
@@ -103,7 +104,7 @@ interface LinhaAgendamento {
   data_envio: string | null;
   marcado_por_nome: string | null;
   marcado_em: string | null;
-  lote_aplis_confirmado: number | null;
+  lotes_aplis: number[];
 }
 
 const COLUNAS_REGRA =
@@ -125,7 +126,7 @@ interface LinhaAtividade {
 }
 
 const COLUNAS_AGENDAMENTO =
-  'id, regra_id, data_prevista, janela_indice, origem, editado, data_envio, marcado_por_nome, marcado_em, lote_aplis_confirmado';
+  'id, regra_id, data_prevista, janela_indice, origem, editado, data_envio, marcado_por_nome, marcado_em, lotes_aplis';
 
 const falha = (status: number, mensagem: string): FalhaCalendario => ({ erro: { status, mensagem } });
 
@@ -181,7 +182,7 @@ function paraAgendamento(linha: LinhaAgendamento): AgendamentoEnvio {
     dataEnvio: linha.data_envio,
     marcadoPorNome: linha.marcado_por_nome,
     marcadoEm: linha.marcado_em,
-    loteAplisConfirmado: linha.lote_aplis_confirmado,
+    lotesAplis: linha.lotes_aplis,
   };
 }
 
@@ -348,10 +349,10 @@ export async function aplicarSugestao(
 
 /**
  * Grava as confirmações do casamento com o backup (fat_envio_confirmar_aplis,
- * 20261028190000) e devolve quantas mudaram. Com o cliente de serviço: a confirmação
+ * 20261117150000) e devolve quantas mudaram. Com o cliente de serviço: a confirmação
  * roda sem usuário, também quando quem abriu o mês só vê o Calendário, e o histórico
- * ("confirmou_aplis" e, se marcou, "marcou") fica sem autor. Idempotente: agendamento
- * que já tem lote, ou lote já gravado em outro, fica como está.
+ * ("confirmou_aplis" e, se marcou, "marcou") fica sem autor. Idempotente: lote já
+ * gravado em algum agendamento fica onde está.
  */
 export async function gravarConfirmacoes(confirmacoes: ConfirmacaoAplis[]): Promise<number | FalhaCalendario> {
   if (confirmacoes.length === 0) return 0;

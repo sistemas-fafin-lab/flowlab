@@ -23,8 +23,9 @@
  *
  * Confirmação automática (D+1): antes de ler, o GET do mês (até o corrente) lê no
  * backup do apLIS os lotes enviados nele e os casa com os agendamentos (casarLotes):
- * o que ninguém marcou passa a enviado com a data do lote; o marcado à mão só ganha o
- * lote (selo "confirmado no apLIS"). Grava de forma idempotente. Devolve
+ * o que ninguém marcou passa a enviado com a data do lote; o marcado à mão só ganha os
+ * lotes (selo "confirmado no apLIS"). Data prevista que ainda não chegou não é
+ * confirmada. Grava de forma idempotente. Devolve
  * `confirmacaoAplis: { naoPlanejados, aviso }`: os lotes que não casaram (calculados na
  * hora, não gravados) e, se o backup ou a gravação falhou, o aviso; o calendário vem
  * do mesmo jeito, só sem as confirmações novas.
@@ -198,7 +199,7 @@ async function confirmarNoAplis(
     ]);
     if ('erro' in lotes || 'erro' in regras || 'erro' in agendamentos) return { naoPlanejados: [], aviso: AVISO_CONFIRMACAO };
 
-    const { confirmacoes, naoPlanejados } = casarLotes(lotes.lotes, agendamentos, regras, feriados);
+    const { confirmacoes, naoPlanejados } = casarLotes(lotes.lotes, agendamentos, regras, feriados, hoje);
     const gravadas = await gravarConfirmacoes(confirmacoes);
     return {
       naoPlanejados: naoPlanejados.map(({ idLote, nomeFontePagadora, nomesConvenios, dataEnvio }) => ({

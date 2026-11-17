@@ -3,6 +3,7 @@ import { CalendarClock, Check, History, Loader2, Trash2, Undo2, X } from 'lucide
 import { useHistoricoAgendamento } from '../hooks/useCalendarioEnvios';
 import type { AcaoHistoricoAgendamento, AgendamentoEnvio, EventoHistoricoAgendamento, RegraEnvio } from '../types';
 import { formatData, formatDataHora } from '../utils/formato';
+import { textoLotes } from '../utils/lotesAplis';
 import { ESTILO_STATUS } from './estiloStatusEnvio';
 import SeloConfirmadoAplis from './SeloConfirmadoAplis';
 import SeloForaDaJanela from './SeloForaDaJanela';
@@ -37,6 +38,14 @@ const dataDoCampo = (valores: Record<string, unknown> | null, campo: string): st
   return typeof valor === 'string' ? formatData(valor) : null;
 };
 
+/** Os lotes do "confirmou_aplis": lotes_aplis (vários) ou, nas linhas antigas, lote_aplis_confirmado. */
+function descreverLotes(depois: EventoHistoricoAgendamento['depois']): string | null {
+  const lotes = Array.isArray(depois?.lotes_aplis)
+    ? depois.lotes_aplis.map(String)
+    : depois?.lote_aplis_confirmado != null ? [String(depois.lote_aplis_confirmado)] : [];
+  return lotes.length > 0 ? textoLotes(lotes) : null;
+}
+
 /** O que mudou na linha do histórico, em texto. */
 function descreverEvento({ acao, antes, depois }: EventoHistoricoAgendamento): string | null {
   switch (acao) {
@@ -54,7 +63,7 @@ function descreverEvento({ acao, antes, depois }: EventoHistoricoAgendamento): s
     case 'desmarcou':
       return dataDoCampo(antes, 'data_envio') && `estava enviado em ${dataDoCampo(antes, 'data_envio')}`;
     case 'confirmou_aplis':
-      return depois?.lote_aplis_confirmado != null ? `lote ${String(depois.lote_aplis_confirmado)}` : null;
+      return descreverLotes(depois);
     case 'removeu':
       return `previsto para ${dataDoCampo(antes, 'data_prevista') ?? '—'}${depois?.pela_sugestao ? ', ao regerar a sugestão' : ''}`;
   }
@@ -105,7 +114,7 @@ const DetalheAgendamentoModal: React.FC<Props> = ({
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${estilo.pilula}`}>{estilo.nome}</span>
               {agendamento.foraDaJanela && <SeloForaDaJanela />}
-              {agendamento.loteAplisConfirmado !== null && <SeloConfirmadoAplis lote={agendamento.loteAplisConfirmado} />}
+              {agendamento.lotesAplis.length > 0 && <SeloConfirmadoAplis lotes={agendamento.lotesAplis} />}
             </div>
           </div>
           <button
@@ -132,13 +141,15 @@ const DetalheAgendamentoModal: React.FC<Props> = ({
             </Campo>
             <Campo rotulo="Data de envio">{enviado ? formatData(agendamento.dataEnvio) : '—'}</Campo>
             <Campo rotulo="Marcado por">
-              {agendamento.marcadoPorNome ?? (enviado && agendamento.loteAplisConfirmado !== null ? 'Confirmação automática' : '—')}
+              {agendamento.marcadoPorNome ?? (enviado && agendamento.lotesAplis.length > 0 ? 'Confirmação automática' : '—')}
               {agendamento.marcadoEm && (
                 <span className="block text-xs text-gray-500 dark:text-gray-400">{formatDataHora(agendamento.marcadoEm)}</span>
               )}
             </Campo>
-            {agendamento.loteAplisConfirmado !== null && (
-              <Campo rotulo="Lote do apLIS">{agendamento.loteAplisConfirmado}</Campo>
+            {agendamento.lotesAplis.length > 0 && (
+              <Campo rotulo={agendamento.lotesAplis.length > 1 ? 'Lotes do apLIS' : 'Lote do apLIS'}>
+                {agendamento.lotesAplis.join(', ')}
+              </Campo>
             )}
           </dl>
 

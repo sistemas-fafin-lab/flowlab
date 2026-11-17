@@ -59,10 +59,10 @@ const LinhaPainel: React.FC<{
         >
           {nomeConvenio(item)}
         </button>
-        {(atraso || agendamento.foraDaJanela || agendamento.loteAplisConfirmado !== null) && (
+        {(atraso || agendamento.foraDaJanela || agendamento.lotesAplis.length > 0) && (
           <div className="mt-0.5 flex flex-wrap gap-1">
             {atraso && <span className={`px-1.5 py-px text-[10px] font-semibold rounded-full ${estilo.pilula}`}>{estilo.nome}</span>}
-            {agendamento.loteAplisConfirmado !== null && <SeloConfirmadoAplis lote={agendamento.loteAplisConfirmado} />}
+            {agendamento.lotesAplis.length > 0 && <SeloConfirmadoAplis lotes={agendamento.lotesAplis} />}
             {agendamento.foraDaJanela && <SeloForaDaJanela />}
           </div>
         )}

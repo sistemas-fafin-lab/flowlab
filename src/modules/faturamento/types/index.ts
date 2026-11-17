@@ -1666,8 +1666,8 @@ export interface AgendamentoEnvio {
   marcadoPorNome: string | null;
   /** ISO. */
   marcadoEm: string | null;
-  /** Lote do backup do apLIS que confirmou o envio: o selo "confirmado no apLIS". */
-  loteAplisConfirmado: number | null;
+  /** Lotes do backup do apLIS que confirmaram o envio (um envio pode ter vários): o selo "confirmado no apLIS". */
+  lotesAplis: number[];
   /** Classificado pelo servidor em `hoje`; a tela não recalcula. */
   status: StatusAgendamento;
   /** Selo cinza informativo: a data prevista ou a de envio cai fora das janelas da regra no mês. */
@@ -1771,7 +1771,7 @@ export type AcaoHistoricoAgendamento = 'criou' | 'moveu' | 'marcou' | 'desmarcou
 /** Uma linha do histórico de um Agendamento de envio (GET ?historico=<id>). */
 export interface EventoHistoricoAgendamento {
   acao: AcaoHistoricoAgendamento;
-  /** Só os campos que mudaram (data_prevista, data_envio, origem, lote_aplis_confirmado); no "removeu" da sugestão, depois = { pela_sugestao: true }. */
+  /** Só os campos que mudaram (data_prevista, data_envio, origem, lotes_aplis — lote_aplis_confirmado nas linhas antigas); no "removeu" da sugestão, depois = { pela_sugestao: true }. */
   antes: Record<string, unknown> | null;
   depois: Record<string, unknown> | null;
   /** Null na confirmação automática, que roda sem usuário. */

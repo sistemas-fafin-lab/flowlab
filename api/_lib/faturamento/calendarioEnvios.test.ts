@@ -475,8 +475,10 @@ describe('casarLotes', () => {
   const AMIL = { id: 'AMIL', janelas: [{ tipo: 'dias_corridos', de: 1, ate: 15 }] as JanelaEnvio[], fontesPagadoras: [1007], conveniosAplis: [] };
   const FUSEX = { id: 'FUSEX', janelas: [{ tipo: 'dias_fixos', dias: [3, 16] }] as JanelaEnvio[], fontesPagadoras: [1204], conveniosAplis: [] };
   const pendente = (id: string, regraId: string, dataPrevista: string): AgendamentoParaCasar => ({
-    id, regraId, dataPrevista, dataEnvio: null, loteAplisConfirmado: null,
+    id, regraId, dataPrevista, dataEnvio: null, marcadoPorNome: null, lotesAplis: [],
   });
+  // Fim do mês: nas regras abaixo nenhum agendamento é futuro, salvo quando o teste diz.
+  const HOJE = '2026-11-30';
   const lote = (idLote: number, fontePagadora: number, dataEnvio: string, convenios: number[] = []): LoteEnviado => ({
     idLote, fontePagadora, convenios, dataEnvio,
   });
@@ -487,6 +489,7 @@ describe('casarLotes', () => {
       [pendente('a', 'AMIL', '2026-11-04'), pendente('b', 'AMIL', '2026-11-12'), pendente('f', 'FUSEX', '2026-11-10')],
       [AMIL, FUSEX],
       FERIADOS,
+      HOJE,
     );
     expect(confirmacoes).toEqual([{ agendamentoId: 'b', idLote: 7001, dataEnvio: '2026-11-10', marcar: true }]);
     expect(naoPlanejados).toEqual([]);
@@ -500,51 +503,60 @@ describe('casarLotes', () => {
       [pendente('a', 'AMIL', '2026-11-13')],
       [AMIL],
       FERIADOS,
+      HOJE,
     );
     expect(confirmacoes).toEqual([]);
     expect(naoPlanejados).toEqual([atrasado, doMesSeguinte]);
   });
 
-  it('cada agendamento recebe no máximo um lote: o segundo do mesmo dia vai para os não planejados', () => {
-    const segundo = lote(7005, 1007, '2026-11-10');
+  it('o segundo lote do mesmo dia entra no mesmo agendamento: só o primeiro marca', () => {
     const { confirmacoes, naoPlanejados } = casarLotes(
-      [lote(7004, 1007, '2026-11-10'), segundo],
-      [pendente('a', 'AMIL', '2026-11-10')],
-      [AMIL],
-      FERIADOS,
-    );
-    expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7004, dataEnvio: '2026-11-10', marcar: true }]);
-    expect(naoPlanejados).toEqual([segundo]);
-  });
-
-  it('o segundo lote vai para o próximo agendamento pendente mais próximo, se houver', () => {
-    const { confirmacoes } = casarLotes(
       [lote(7004, 1007, '2026-11-10'), lote(7005, 1007, '2026-11-10')],
-      [pendente('a', 'AMIL', '2026-11-10'), pendente('b', 'AMIL', '2026-11-05')],
+      [pendente('a', 'AMIL', '2026-11-10'), pendente('b', 'AMIL', '2026-11-11')],
       [AMIL],
       FERIADOS,
+      HOJE,
     );
-    expect(confirmacoes.map((c) => [c.agendamentoId, c.idLote])).toEqual([['a', 7004], ['b', 7005]]);
+    expect(confirmacoes).toEqual([
+      { agendamentoId: 'a', idLote: 7004, dataEnvio: '2026-11-10', marcar: true },
+      { agendamentoId: 'a', idLote: 7005, dataEnvio: '2026-11-10', marcar: false },
+    ]);
+    expect(naoPlanejados).toEqual([]);
   });
 
-  it('rodar de novo não muda nada: o lote já confirmado não confirma de novo nem vira não planejado', () => {
-    const outro = lote(7005, 1007, '2026-11-10');
-    const { confirmacoes, naoPlanejados } = casarLotes(
-      [lote(7004, 1007, '2026-11-10'), outro],
-      [{ id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-10', dataEnvio: '2026-11-10', loteAplisConfirmado: 7004 }],
+  it('o lote não pula para o agendamento seguinte porque o mais próximo já tem lote', () => {
+    const { confirmacoes } = casarLotes(
+      [lote(7004, 1007, '2026-11-09'), lote(7005, 1007, '2026-11-10')],
+      [pendente('a', 'AMIL', '2026-11-10'), pendente('b', 'AMIL', '2026-11-14')],
       [AMIL],
       FERIADOS,
+      HOJE,
     );
-    expect(confirmacoes).toEqual([]);
-    expect(naoPlanejados).toEqual([outro]);
+    expect(confirmacoes.map((c) => [c.agendamentoId, c.idLote])).toEqual([['a', 7004], ['a', 7005]]);
+  });
+
+  it('rodar de novo não muda nada; o lote novo do mesmo dia junta-se ao agendamento que já tem lote', () => {
+    const { confirmacoes, naoPlanejados } = casarLotes(
+      [lote(7004, 1007, '2026-11-10'), lote(7005, 1007, '2026-11-10')],
+      [
+        { id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-08', dataEnvio: '2026-11-10', marcadoPorNome: null, lotesAplis: [7004] },
+        pendente('b', 'AMIL', '2026-11-11'),
+      ],
+      [AMIL],
+      FERIADOS,
+      HOJE,
+    );
+    expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7005, dataEnvio: '2026-11-10', marcar: false }]);
+    expect(naoPlanejados).toEqual([]);
   });
 
   it('agendamento já marcado à mão só ganha o selo: a data informada pela faturista prevalece', () => {
     const { confirmacoes } = casarLotes(
       [lote(7006, 1007, '2026-11-11')],
-      [{ id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-10', dataEnvio: '2026-11-10', loteAplisConfirmado: null }],
+      [{ id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-10', dataEnvio: '2026-11-10', marcadoPorNome: 'Ana', lotesAplis: [] }],
       [AMIL],
       FERIADOS,
+      HOJE,
     );
     expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7006, dataEnvio: '2026-11-11', marcar: false }]);
   });
@@ -553,13 +565,83 @@ describe('casarLotes', () => {
     const { confirmacoes } = casarLotes(
       [lote(7007, 1007, '2026-11-05')],
       [
-        { id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-03', dataEnvio: '2026-11-05', loteAplisConfirmado: null },
+        { id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-03', dataEnvio: '2026-11-05', marcadoPorNome: 'Ana', lotesAplis: [] },
         pendente('b', 'AMIL', '2026-11-06'),
       ],
       [AMIL],
       FERIADOS,
+      HOJE,
     );
     expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7007, dataEnvio: '2026-11-05', marcar: false }]);
+  });
+
+  it('agendamento desmarcado à mão depois de confirmado não recebe lote nem volta a enviado', () => {
+    const novo = lote(7006, 1007, '2026-11-10');
+    const { confirmacoes, naoPlanejados } = casarLotes(
+      [lote(7004, 1007, '2026-11-10'), novo],
+      [{ id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-10', dataEnvio: null, marcadoPorNome: null, lotesAplis: [7004] }],
+      [AMIL],
+      FERIADOS,
+      HOJE,
+    );
+    expect(confirmacoes).toEqual([]);
+    expect(naoPlanejados).toEqual([novo]);
+  });
+
+  describe('datas futuras', () => {
+    // SAÚDE CAIXA (1101) envia todos os dias; o caso de novembro/2026, visto em 17/11.
+    const SAUDE_CAIXA = { id: 'SC', janelas: [{ tipo: 'todos_os_dias' }] as JanelaEnvio[], fontesPagadoras: [1101], conveniosAplis: [] };
+    const agendamentos = [
+      pendente('d03', 'SC', '2026-11-03'),
+      pendente('d13', 'SC', '2026-11-13'),
+      pendente('d18', 'SC', '2026-11-18'),
+      pendente('d25', 'SC', '2026-11-25'),
+    ];
+    const lotes = [
+      lote(7208, 1101, '2026-11-05'),
+      lote(7231, 1101, '2026-11-09'),
+      lote(7234, 1101, '2026-11-09'),
+      lote(7245, 1101, '2026-11-10'),
+      lote(7248, 1101, '2026-11-11'),
+      lote(7275, 1101, '2026-11-13'),
+      lote(7280, 1101, '2026-11-13'),
+      lote(7294, 1101, '2026-11-16'),
+    ];
+
+    it('agendamento de data que ainda não chegou não é confirmado; o lote mais perto dele espera', () => {
+      const { confirmacoes, naoPlanejados } = casarLotes(lotes, agendamentos, [SAUDE_CAIXA], FERIADOS, '2026-11-17');
+      expect(confirmacoes.map((c) => [c.agendamentoId, c.idLote, c.marcar])).toEqual([
+        ['d03', 7208, true],
+        ['d13', 7231, true],
+        ['d13', 7234, false],
+        ['d13', 7245, false],
+        ['d13', 7248, false],
+        ['d13', 7275, false],
+        ['d13', 7280, false],
+      ]);
+      // O lote de 16/11 é do agendamento de 18/11: espera o dia chegar, sem virar não planejado.
+      expect(naoPlanejados).toEqual([]);
+    });
+
+    it('envio antecipado confirma quando a data prevista chega', () => {
+      const antecipado = [lote(7300, 1101, '2026-11-10')];
+      const so13 = [pendente('d13', 'SC', '2026-11-13')];
+      expect(casarLotes(antecipado, so13, [SAUDE_CAIXA], FERIADOS, '2026-11-11').confirmacoes).toEqual([]);
+      expect(casarLotes(antecipado, so13, [SAUDE_CAIXA], FERIADOS, '2026-11-13').confirmacoes).toEqual([
+        { agendamentoId: 'd13', idLote: 7300, dataEnvio: '2026-11-10', marcar: true },
+      ]);
+    });
+
+    it('o futuro já marcado à mão recebe o lote do dia informado', () => {
+      const { confirmacoes } = casarLotes(
+        [lote(7301, 1101, '2026-11-16')],
+        [{ id: 'd25', regraId: 'SC', dataPrevista: '2026-11-25', dataEnvio: '2026-11-16', marcadoPorNome: 'Ana', lotesAplis: [] }],
+        [SAUDE_CAIXA],
+        FERIADOS,
+        '2026-11-17',
+      );
+      expect(confirmacoes).toEqual([{ agendamentoId: 'd25', idLote: 7301, dataEnvio: '2026-11-16', marcar: false }]);
+    });
   });
 
   describe('agrupador AMHPDF', () => {
@@ -575,6 +657,7 @@ describe('casarLotes', () => {
         [pendente('amhp', 'AMHP', '2026-11-10'), pendente('online', 'ONLINE', '2026-11-10'), pendente('fisica', 'FISICA', '2026-11-12')],
         [AMHP, ONLINE, FISICA],
         FERIADOS,
+        HOJE,
       );
       expect(confirmacoes.map((c) => c.agendamentoId)).toEqual(['fisica']);
     });
@@ -585,6 +668,7 @@ describe('casarLotes', () => {
         [pendente('amhp', 'AMHP', '2026-11-13'), pendente('online', 'ONLINE', '2026-11-10')],
         [AMHP, ONLINE, FISICA],
         FERIADOS,
+        HOJE,
       );
       expect(confirmacoes.map((c) => c.agendamentoId)).toEqual(['amhp']);
     });
@@ -596,6 +680,7 @@ describe('casarLotes', () => {
         [pendente('evida', 'EVIDA', '2026-11-10'), pendente('fisica', 'FISICA', '2026-11-10')],
         [EVIDA, FISICA],
         FERIADOS,
+        HOJE,
       );
       expect(confirmacoes.map((c) => c.agendamentoId)).toEqual(['evida']);
     });
@@ -607,6 +692,7 @@ describe('casarLotes', () => {
         [pendente('amhp', 'AMHP', '2026-11-10')],
         [AMHP, ONLINE, FISICA],
         FERIADOS,
+        HOJE,
       );
       expect(confirmacoes).toEqual([]);
       expect(naoPlanejados).toEqual([membro]);

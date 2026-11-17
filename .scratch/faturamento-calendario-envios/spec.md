@@ -160,16 +160,17 @@ Uma regra tem uma ou mais janelas. As regras de "todos os dias" têm também o c
 
 ### Casamento dos lotes
 
-- Um lote do convênio X com `DtaEnvio` = D casa com o agendamento **pendente** de X mais próximo de D no mesmo mês, desde que D caia dentro da janela daquele agendamento. Cada agendamento recebe no máximo um lote.
+- Um lote do convênio X com `DtaEnvio` = D casa com o agendamento de X mais próximo de D no mesmo mês, desde que D caia dentro da janela daquele agendamento. Um agendamento recebe vários lotes (o convênio manda mais de um no mesmo envio): o lote do mesmo dia de um já casado vai junto, e o mais próximo não empurra o lote para o agendamento seguinte por já ter lote. Só o primeiro lote marca o envio. *(Revisto em 17/11/2026: com um lote por agendamento, a SAÚDE CAIXA teve os envios de 18/11 e 25/11 marcados com lotes de 09/11 e 10/11.)*
+- **Datas futuras não se confirmam.** Agendamento com data prevista depois de hoje e sem marcação não recebe lote; o lote mais perto dele espera o dia chegar e não entra em "Envios não planejados".
 - Os lotes de convênios agrupadores (AMHPDF) casam pelas fontes pagadoras dos convênios membros.
 - Se o agendamento já estava marcado à mão, ele só ganha o selo. A data informada pela faturista prevalece.
-- Lotes de um agendamento que já recebeu lote, e lotes sem agendamento, vão para "Envios não planejados". Essa lista é calculada na hora e não fica gravada.
+- Lotes sem agendamento vão para "Envios não planejados". Essa lista é calculada na hora e não fica gravada.
 - **Quando roda.** Ao carregar o mês, o servidor lê do backup os lotes do mês (status considerados "enviados", como na aba Envios de Contas a Receber) e aplica o casamento. O resultado é gravado e o processo pode rodar várias vezes sem duplicar nada.
 
 ### Dados (Supabase)
 
 - **`fat_envio_regras`:** nome do convênio, convênios membros (texto, só nos agrupadores), fontes pagadoras do apLIS (lista de ids), janelas (jsonb), envios sugeridos no mês, observação, ativo, quem alterou e quando.
-- **`fat_envio_agendamentos`:** regra, data prevista, índice da janela (nulo quando fora da janela), origem (`sugestao`/`manual`), editado, data de envio, quem marcou, quando marcou, lote do apLIS confirmado, data da confirmação.
+- **`fat_envio_agendamentos`:** regra, data prevista, índice da janela (nulo quando fora da janela), origem (`sugestao`/`manual`), editado, data de envio, quem marcou, quando marcou, lotes do apLIS confirmados (`lotes_aplis`), data da confirmação.
 - **`fat_envio_agendamento_historico`:** agendamento, ação (`criou`, `moveu`, `marcou`, `desmarcou`, `confirmou_aplis`, `removeu`), valores antes e depois, quem e quando.
 - **`fat_feriados`:** data, descrição, abrangência (`nacional`/`DF`).
 - **Acesso.** RLS no padrão das tabelas `fat_*`: leitura com permissão de ver o Calendário, escrita com `canManageCalendarioEnvios`.
@@ -264,9 +265,10 @@ Toda escrita grava o histórico.
   - enviado vence atrasado;
   - selo "fora da janela".
 - **Casamento:**
-  - escolhe o pendente mais próximo;
+  - escolhe o agendamento mais próximo;
   - lote fora da janela vai para não planejados;
-  - um agendamento recebe no máximo um lote;
+  - um agendamento recebe vários lotes, e o do mesmo dia vai junto;
+  - data prevista futura e sem marcação não é confirmada;
   - agendamento marcado à mão só ganha o selo e mantém a data informada;
   - agrupador AMHPDF casa pelos membros.
 - **Testes que servem de modelo:** os testes do módulo de pontuação do setor e dos Indicadores no servidor, e o teste de regra de prazo no front. Todos usam vitest com funções puras.

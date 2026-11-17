@@ -425,7 +425,10 @@ export interface AgendamentoParaCasar {
   regraId: string;
   dataPrevista: string;
   dataEnvio: string | null;
-  loteAplisConfirmado: number | null;
+  /** Quem marcou à mão; null quando ninguém marcou ou foi a confirmação automática. */
+  marcadoPorNome: string | null;
+  /** Lotes do backup do apLIS que já confirmaram o agendamento. */
+  lotesAplis: readonly number[];
 }
 
 /** Um lote casado com um agendamento: `marcar` quando ninguém o tinha marcado; senão, só o selo. */
@@ -476,23 +479,37 @@ function regrasDoLote(lote: LoteEnviado, regras: readonly RegraParaCasar[]): Set
 
 /**
  * Casa os lotes enviados do backup do apLIS com os Agendamentos de envio (Casamento dos
- * lotes da spec): cada lote vai para o agendamento ainda sem lote do convênio
- * (regrasDoLote) mais próximo da `DtaEnvio`, desde que ela caia na janela dele
- * (aceitaEnvio). Cada agendamento recebe no máximo um lote. O já marcado à mão só ganha
- * o selo (`marcar` falso) e mantém a data informada.
+ * lotes da spec): cada lote vai para o agendamento do convênio (regrasDoLote) mais
+ * próximo da `DtaEnvio`, desde que ela caia na janela dele (aceitaEnvio). Um agendamento
+ * recebe vários lotes (o convênio manda mais de um no mesmo envio): o lote do mesmo dia
+ * de um já casado vai junto, e o mais próximo que já tem lote não empurra o próximo
+ * lote para o agendamento seguinte. Só o primeiro lote marca (`marcar`); o já marcado à
+ * mão só ganha o selo e mantém a data informada. O desmarcado à mão depois da
+ * confirmação (tem lote e não tem data de envio) não recebe lote.
  *
- * Os lotes que sobram são os "Envios não planejados". O lote já gravado num agendamento
- * (rodada anterior) não confirma de novo nem entra na lista: rodar de novo não muda nada.
+ * Agendamento com data prevista depois de `hoje` e sem marcação não é confirmado: o lote
+ * mais perto dele espera o dia chegar e não entra em lista nenhuma. Os lotes sem
+ * agendamento são os "Envios não planejados". O lote já gravado num agendamento (rodada
+ * anterior) não confirma de novo nem entra na lista: rodar de novo não muda nada.
  */
 export function casarLotes<L extends LoteEnviado>(
   lotes: readonly L[],
   agendamentos: readonly AgendamentoParaCasar[],
   regras: readonly RegraParaCasar[],
   feriados: readonly string[],
+  hoje: string,
 ): { confirmacoes: ConfirmacaoAplis[]; naoPlanejados: L[] } {
   const janelasPorRegra = new Map(regras.map((r) => [r.id, r.janelas]));
-  const jaConfirmados = new Set(agendamentos.flatMap((a) => (a.loteAplisConfirmado === null ? [] : [a.loteAplisConfirmado])));
-  const livres = agendamentos.filter((a) => a.loteAplisConfirmado === null);
+  const dataDoLote = new Map(lotes.map((l) => [l.idLote, l.dataEnvio]));
+  // Os dias dos lotes de cada agendamento (gravados e casados nesta rodada).
+  const diasComLote = new Map(
+    agendamentos.map((a) => [a.id, new Set(a.lotesAplis.flatMap((id) => dataDoLote.get(id) ?? []))]),
+  );
+  const jaConfirmados = new Set(agendamentos.flatMap((a) => a.lotesAplis));
+  const marcados = new Set(agendamentos.filter((a) => a.dataEnvio !== null).map((a) => a.id));
+  // Tem lote e não está marcado: alguém desmarcou depois da confirmação. Fica de fora,
+  // para a confirmação não desfazer o que a faturista decidiu.
+  const casaveis = agendamentos.filter((a) => a.lotesAplis.length === 0 || a.dataEnvio !== null);
   const confirmacoes: ConfirmacaoAplis[] = [];
   const naoPlanejados: L[] = [];
   // Na ordem do envio, para o resultado não depender da ordem da consulta.
@@ -500,21 +517,29 @@ export function casarLotes<L extends LoteEnviado>(
   for (const lote of emOrdem) {
     if (jaConfirmados.has(lote.idLote)) continue;
     const regrasCandidatas = regrasDoLote(lote, regras);
-    // O marcado à mão conta pela data informada: é o dia em que o lote saiu.
-    const distancia = (a: AgendamentoParaCasar) => Math.abs(Date.parse(a.dataEnvio ?? a.dataPrevista) - Date.parse(lote.dataEnvio));
-    // No empate, o previsto mais cedo.
-    const alvo = livres
-      .filter((a) => regrasCandidatas.has(a.regraId) && aceitaEnvio(a, janelasPorRegra.get(a.regraId) ?? [], lote.dataEnvio, feriados))
-      .reduce<AgendamentoParaCasar | undefined>(
-        (melhor, a) => (!melhor || distancia(a) < distancia(melhor) || (distancia(a) === distancia(melhor) && a.dataPrevista < melhor.dataPrevista) ? a : melhor),
-        undefined,
-      );
+    const candidatos = casaveis.filter(
+      (a) => regrasCandidatas.has(a.regraId) && aceitaEnvio(a, janelasPorRegra.get(a.regraId) ?? [], lote.dataEnvio, feriados),
+    );
+    // O marcado à mão conta pela data informada: é o dia em que o lote saiu. O marcado
+    // pela confirmação conta pela prevista, para um lote não puxar o do dia seguinte.
+    const referencia = (a: AgendamentoParaCasar) => (a.marcadoPorNome !== null && a.dataEnvio !== null ? a.dataEnvio : a.dataPrevista);
+    const distancia = (a: AgendamentoParaCasar) => Math.abs(Date.parse(referencia(a)) - Date.parse(lote.dataEnvio));
+    // Lote do mesmo dia de um já casado vai junto; senão, o mais próximo. No empate, o previsto mais cedo.
+    const doMesmoDia = candidatos.filter((a) => diasComLote.get(a.id)?.has(lote.dataEnvio));
+    const alvo = (doMesmoDia.length > 0 ? doMesmoDia : candidatos).reduce<AgendamentoParaCasar | undefined>(
+      (melhor, a) => (!melhor || distancia(a) < distancia(melhor) || (distancia(a) === distancia(melhor) && a.dataPrevista < melhor.dataPrevista) ? a : melhor),
+      undefined,
+    );
     if (!alvo) {
       naoPlanejados.push(lote);
       continue;
     }
-    livres.splice(livres.indexOf(alvo), 1);
-    confirmacoes.push({ agendamentoId: alvo.id, idLote: lote.idLote, dataEnvio: lote.dataEnvio, marcar: alvo.dataEnvio === null });
+    // Data prevista que ainda não chegou só se confirma se alguém já marcou: o lote
+    // espera o dia, sem virar não planejado (no mesmo mês há outros envios do convênio).
+    if (alvo.dataPrevista > hoje && !marcados.has(alvo.id)) continue;
+    confirmacoes.push({ agendamentoId: alvo.id, idLote: lote.idLote, dataEnvio: lote.dataEnvio, marcar: !marcados.has(alvo.id) });
+    marcados.add(alvo.id);
+    diasComLote.get(alvo.id)?.add(lote.dataEnvio);
   }
   return { confirmacoes, naoPlanejados };
 }

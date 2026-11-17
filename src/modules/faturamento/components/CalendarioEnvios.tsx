@@ -35,6 +35,7 @@ import type {
 } from '../types';
 import { formatData } from '../utils/formato';
 import { ANCORA_ATRASADOS, nomeConvenio, organizarCalendario, type ItemAgendado } from '../utils/painelEnvios';
+import { textoLotes } from '../utils/lotesAplis';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
 import AtividadeModal from './AtividadeModal';
 import { ESTILO_ATIVIDADE, ESTILO_STATUS } from './estiloStatusEnvio';
@@ -213,12 +214,12 @@ const ChipAgendamento: React.FC<{
   item: ItemAgendado;
   onAcao: (acao: Acao) => void;
 }> = ({ item, onAcao }) => {
-  const { status, foraDaJanela, dataEnvio, loteAplisConfirmado } = item.agendamento;
+  const { status, foraDaJanela, dataEnvio, lotesAplis } = item.agendamento;
   const enviado = dataEnvio !== null;
   const dica = [
     nomeConvenio(item),
     enviado ? `Enviado em ${formatData(dataEnvio)}` : ESTILO_STATUS[status].nome,
-    loteAplisConfirmado !== null && `confirmado no apLIS (lote ${loteAplisConfirmado})`,
+    lotesAplis.length > 0 && `confirmado no apLIS (${textoLotes(lotesAplis)})`,
     foraDaJanela && 'fora da janela da regra',
     item.regra?.observacao,
   ].filter(Boolean).join(' · ') + (item.regra?.membros ? `\nMembros: ${item.regra.membros}` : '');
@@ -232,7 +233,7 @@ const ChipAgendamento: React.FC<{
       {enviado && <Check className="w-3 h-3 shrink-0" strokeWidth={3} />}
       <span className="truncate">{nomeConvenio(item)}</span>
       <span className="ml-auto flex items-center gap-0.5 shrink-0">
-        {loteAplisConfirmado !== null && (
+        {lotesAplis.length > 0 && (
           <BadgeCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" aria-label="confirmado no apLIS" />
         )}
         {foraDaJanela && <CalendarX className="w-3 h-3 text-gray-500 dark:text-gray-400" aria-label="fora da janela" />}
