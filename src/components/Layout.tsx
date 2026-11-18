@@ -737,9 +737,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       },
       {
         name: 'Sistema',
-        href: '/system',
+        // Quem só configura períodos de solicitação (sem Gerenciar usuários) também vê a
+        // engrenagem; o pai leva direto à única tela que essa pessoa pode abrir.
+        href: isAdmin ? '/system' : '/request-periods',
         icon: Settings,
-        permission: 'canManageUsers',
+        anyOf: ['canManageUsers', 'canConfigureRequestPeriods'],
         category: 'ADMINISTRAÇÃO',
         subItems: [
           { name: 'Configurar Períodos', href: '/request-periods', icon: Clock, permission: 'canConfigureRequestPeriods' },
@@ -766,7 +768,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
     ],
-    [boardAccess, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva, entradaFaturamento, enviosAtrasados]
+    [boardAccess, isAdmin, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva, entradaFaturamento, enviosAtrasados]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
