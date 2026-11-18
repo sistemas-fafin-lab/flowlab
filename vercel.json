@@ -14,6 +14,9 @@
     { "path": "/api/ti/agente-sync-cron", "schedule": "0 12 * * 1-5" },
     { "path": "/api/ti/agente-cobranca-cron", "schedule": "0 11 * * 1-5" },
     { "path": "/api/ti/agente-fechamento-cron", "schedule": "0 21 * * 1-5" },
-    { "path": "/api/faturamento/glosas-recursos-cron", "schedule": "0 9 * * *" }
+    { "path": "/api/faturamento/glosas-recursos-cron", "schedule": "0 9 * * *" },
+    { "path": "/api/faturamento/recebidos-aplis-site-cron", "schedule": "0 10 * * *" },
+    { "path": "/api/faturamento/recebidos-aplis-site-cron", "schedule": "0 15 * * *" },
+    { "path": "/api/faturamento/recebidos-aplis-site-cron", "schedule": "0 20 * * *" }
   ]
 }

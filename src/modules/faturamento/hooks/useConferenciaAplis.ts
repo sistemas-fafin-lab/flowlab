@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { chamarApi } from './useContasReceber';
+import { fontesDaMeta } from '../utils/fontesAplis';
 import type {
   ConferenciaAplis,
   DivergenciaAplis,
+  FontesAplis,
   DivergenciaDispensada,
   RefechamentoAplicado,
   RefechamentoAplis,
@@ -11,20 +13,21 @@ import type {
 
 // Conferência das baixas com o apLIS (.scratch/faturamento-conferencia-baixas-aplis)
 // para a aba Títulos: selo na linha e filtro "Divergente do apLIS". A rota não
-// tem cache — cada leitura é o estado do apLIS (até ontem) contra as baixas de agora.
+// tem cache — cada leitura é o estado do apLIS (retrato do site ou banco de backup,
+// .scratch/faturamento-recebidos-aplis-site) contra as baixas de agora.
 
 const MENSAGEM_PADRAO = 'Não foi possível conferir as baixas com o apLIS.';
 
 /** GET /api/faturamento/titulos-conferencia-aplis. Também usado pelo modal. */
 export async function buscarConferenciaAplis(): Promise<ConferenciaAplis> {
   const body = await chamarApi<{
-    meta?: { dadoAte?: string | null };
+    meta?: Partial<FontesAplis>;
     titulos?: DivergenciaAplis[];
     dispensados?: DivergenciaDispensada[];
     refechamentos?: RefechamentoAplis[];
   }>('/api/faturamento/titulos-conferencia-aplis', MENSAGEM_PADRAO);
   return {
-    dadoAte: body.meta?.dadoAte ?? null,
+    fontes: fontesDaMeta(body.meta),
     titulos: body.titulos ?? [],
     dispensados: body.dispensados ?? [],
     refechamentos: body.refechamentos ?? [],

@@ -222,7 +222,14 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['Cache-Control']).toBe('no-store');
-    expect(res.body.meta).toEqual({ dadoAte: '2026-10-13' });
+    // Sem retrato do site (o mock do Supabase não tem as tabelas): tudo do banco.
+    expect(res.body.meta).toEqual({
+      dadoAte: '2026-10-13',
+      retratoSiteEm: null,
+      bancoIndisponivel: false,
+      lotesDoSite: 0,
+      titulosSemFonte: 0,
+    });
     expect(res.body.titulos).toEqual([{
       idNota: 'so-no-aplis',
       numeroNota: '9127',

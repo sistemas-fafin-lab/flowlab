@@ -12,9 +12,11 @@
  * 13). A glosa do título vem da foto de Glosas e Recursos, e o saldo
  * (`notas.valor_saldo`) já desconta a glosa acatada.
  *
- * Fonte do apLIS: MySQL de backup (`recebidosDosLotes` e `recebidosPorDataDosLotes`),
- * ~1 dia de atraso — `meta.dadoAte` diz até quando.
- * Falha na réplica → 502.
+ * Fonte do apLIS (.scratch/faturamento-recebidos-aplis-site/spec.md): o retrato
+ * lido no site (principal) e o MySQL de backup (reserva), lote a lote — regra em
+ * faturamento/recebidosAplis.ts. `meta` diz de quando é cada um. Banco fora do
+ * ar: segue com o retrato, e o título com lote sem retrato fica fora
+ * (`meta.titulosSemFonte`). Nenhuma das duas → 502.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canManageBilling). Títulos
  * e baixas são lidos com o cliente do usuário, para respeitar o RLS.
@@ -24,15 +26,15 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { recebidosDosLotes, recebidosPorDataDosLotes } from '../faturamento/bdLab.js';
 import type { RecebidoLoteNaData } from '../faturamento/bdLab.js';
+import { recebidosComFontes, recebidosPorDataComFontes } from '../faturamento/recebidosAplisFontes.js';
 import { baixasSugeridas } from '../faturamento/baixasAplis.js';
 import type { BaixaSistema, BaixaSugerida, RecebidoAplisNaData, TipoComBaixa } from '../faturamento/baixasAplis.js';
 import { centavos, conferirTitulo, somaCentavos } from '../faturamento/conferenciaAplis.js';
 import type { DivergenciaAplis } from '../faturamento/conferenciaAplis.js';
 import { ErroSupabase, titulosParaConferir, valorNumerico } from '../faturamento/titulosConferencia.js';
 import type { TituloParaConferir } from '../faturamento/titulosConferencia.js';
-import { getSupabaseUserClient } from '../supabase.js';
+import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
 /** Ids por `.in()`: uuid de 36 caracteres → ~4 KB de URL por bloco. */
 const BLOCO_IDS_NOTA = 100;
@@ -130,17 +132,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const recebidos = await recebidosDosLotes(titulos.flatMap((t) => t.idsLote));
+    const recebidos = await recebidosComFontes(getSupabaseAdminClient(), titulos.flatMap((t) => t.idsLote));
     if ('erro' in recebidos) {
       erroReplica(res, recebidos.erro);
       return;
     }
+    // Banco fora do ar e lote sem retrato: sem como conferir o título.
+    const conferiveis = titulos.filter((t) => !t.idsLote.some((id) => recebidos.semFonte.has(id)));
 
-    const comBaixa = titulos
+    const comBaixa = conferiveis
       .map((titulo) => ({ titulo, divergencia: conferirTitulo(titulo, recebidos.porLote) }))
       .filter((c): c is { titulo: TituloParaConferir; divergencia: DivergenciaComBaixa } => temBaixaSugerida(c.divergencia));
 
-    const porData = await recebidosPorDataDosLotes(comBaixa.flatMap((c) => c.titulo.idsLote));
+    const porData = await recebidosPorDataComFontes(comBaixa.flatMap((c) => c.titulo.idsLote), recebidos);
     if ('erro' in porData) {
       erroReplica(res, porData.erro);
       return;
@@ -188,7 +192,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // Dado financeiro: não deixa ficar em cache de navegador nem de proxy.
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ success: true, meta: { dadoAte: recebidos.dadoAte }, titulos: previa });
+    res.status(200).json({
+      success: true,
+      meta: { ...recebidos.meta, titulosSemFonte: titulos.length - conferiveis.length },
+      titulos: previa,
+    });
   } catch (err) {
     console.error('[faturamento/titulos-baixas-aplis-previa] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });

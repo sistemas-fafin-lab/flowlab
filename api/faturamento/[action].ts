@@ -62,6 +62,8 @@ import faturamentoComparativosConversao from '../_lib/handlers/faturamento-compa
 import faturamentoMetaSugerida from '../_lib/handlers/faturamento-meta-sugerida.js';
 import faturamentoPontuacao from '../_lib/handlers/faturamento-pontuacao.js';
 import faturamentoCalendarioEnvios from '../_lib/handlers/faturamento-calendario-envios.js';
+import faturamentoRecebidosAplisSiteCapturar from '../_lib/handlers/faturamento-recebidos-aplis-site-capturar.js';
+import faturamentoRecebidosAplisSiteCron from '../_lib/handlers/faturamento-recebidos-aplis-site-cron.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -115,6 +117,8 @@ const ROTAS: Record<string, Handler> = {
   'meta-sugerida': faturamentoMetaSugerida,
   pontuacao: faturamentoPontuacao,
   'calendario-envios': faturamentoCalendarioEnvios,
+  'recebidos-aplis-site-capturar': faturamentoRecebidosAplisSiteCapturar,
+  'recebidos-aplis-site-cron': faturamentoRecebidosAplisSiteCron,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

@@ -19,9 +19,12 @@
  * Título com algum lote sem `aplis_id` (criado fora do apLIS) fica de fora: o
  * recebido do apLIS seria só de parte dele.
  *
- * Fonte do apLIS: MySQL de backup (`recebidosDosLotes`), ~1 dia de atraso —
- * `meta.dadoAte` diz até quando. Sem cache. Falha na réplica → erro, nunca
- * lista vazia (seria lida como "tudo certo").
+ * Fonte do apLIS (.scratch/faturamento-recebidos-aplis-site/spec.md): o retrato
+ * lido no site (principal) e o MySQL de backup (reserva), lote a lote — regra em
+ * faturamento/recebidosAplis.ts; `meta` diz de quando é cada um. O refechamento
+ * usa o fechamento do banco (o site não traz). Banco fora do ar: segue com o
+ * retrato, e o título com lote sem retrato fica fora (`meta.titulosSemFonte`).
+ * Nenhuma das duas → erro, nunca lista vazia (seria lida como "tudo certo").
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). Os
  * títulos são lidos com o cliente do usuário, para respeitar o RLS.
@@ -30,7 +33,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { recebidosDosLotes } from '../faturamento/bdLab.js';
 import { conferirTitulo, refechamentoDoTitulo, separarDispensadas } from '../faturamento/conferenciaAplis.js';
 import type {
   DispensaConferencia,
@@ -40,7 +42,8 @@ import type {
   TituloConferencia,
 } from '../faturamento/conferenciaAplis.js';
 import { dispensasAtivas, ErroSupabase, titulosParaConferir } from '../faturamento/titulosConferencia.js';
-import { getSupabaseUserClient } from '../supabase.js';
+import { recebidosComFontes } from '../faturamento/recebidosAplisFontes.js';
+import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
 /** Ordem de exibição: o dinheiro que entrou e não foi lançado primeiro. */
 const ORDEM_TIPO: Record<TipoDivergenciaAplis, number> = {
@@ -84,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const recebidos = await recebidosDosLotes(titulos.flatMap((t) => t.idsLote));
+    const recebidos = await recebidosComFontes(getSupabaseAdminClient(), titulos.flatMap((t) => t.idsLote));
     if ('erro' in recebidos) {
       res.status(recebidos.erro.status).json({
         success: false,
@@ -93,22 +96,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       });
       return;
     }
+    // Banco fora do ar e lote sem retrato: sem como conferir o título.
+    const conferiveis = titulos.filter((t) => !t.idsLote.some((id) => recebidos.semFonte.has(id)));
 
-    const divergentes = titulos
+    const divergentes = conferiveis
       .map((titulo) => conferirTitulo(titulo, recebidos.porLote))
       .filter((d): d is DivergenciaAplis => d !== null)
       .sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo] || diferenca(b) - diferenca(a));
 
     const { ativas, dispensadas } = separarDispensadas(divergentes, dispensas);
 
-    const refechamentos = titulos
+    const refechamentos = conferiveis
       .map((titulo) => refechamentoDoTitulo(titulo, recebidos.porLote))
       .filter((r): r is RefechamentoAplis => r !== null)
       .sort((a, b) => a.emissaoAtual.localeCompare(b.emissaoAtual) || a.lotes[0] - b.lotes[0]);
 
     // Dado financeiro: não deixa ficar em cache de navegador nem de proxy.
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ success: true, meta: { dadoAte: recebidos.dadoAte }, titulos: ativas, dispensados: dispensadas, refechamentos });
+    res.status(200).json({
+      success: true,
+      meta: { ...recebidos.meta, titulosSemFonte: titulos.length - conferiveis.length },
+      titulos: ativas,
+      dispensados: dispensadas,
+      refechamentos,
+    });
   } catch (err) {
     console.error('[faturamento/titulos-conferencia-aplis] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });

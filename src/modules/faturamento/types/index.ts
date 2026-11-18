@@ -274,9 +274,22 @@ export interface DivergenciaDispensada extends DivergenciaAplis {
   dispensa: { justificativa: string; dispensadoPorNome: string | null; dispensadoEm: string };
 }
 
-export interface ConferenciaAplis {
-  /** Último dia que a réplica do apLIS tem (YYYY-MM-DD). */
+/** De onde veio o recebido do apLIS (.scratch/faturamento-recebidos-aplis-site):
+ *  retrato lido no site (principal) e banco de backup (reserva). */
+export interface FontesAplis {
+  /** Último dia que o banco de backup tem (YYYY-MM-DD); null com o banco fora do ar. */
   dadoAte: string | null;
+  /** Fim da última leitura do site (timestamptz); null se nunca houve. */
+  retratoSiteEm: string | null;
+  bancoIndisponivel: boolean;
+  /** Lotes cujo recebido veio do site. */
+  lotesDoSite: number;
+  /** Títulos que ficaram de fora: banco fora do ar e lote sem retrato. */
+  titulosSemFonte: number;
+}
+
+export interface ConferenciaAplis {
+  fontes: FontesAplis;
   /** Divergências ativas (sem as dispensadas). */
   titulos: DivergenciaAplis[];
   dispensados: DivergenciaDispensada[];
@@ -306,7 +319,7 @@ export interface TituloPreviaBaixasAplis {
 }
 
 export interface PreviaBaixasAplis {
-  dadoAte: string | null;
+  fontes: FontesAplis;
   titulos: TituloPreviaBaixasAplis[];
 }
 

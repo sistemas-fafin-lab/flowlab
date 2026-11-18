@@ -7,6 +7,8 @@ import type { ConferenciaAplis, DivergenciaAplis, DivergenciaDispensada, TipoDiv
 import { formatCurrency, formatData, formatDataHora, hojeIso } from '../utils/formato';
 import { COR_TIPO, ROTULO_TIPO, csvConferencia, diferencaAplis, secoesConferencia, statusLoteAplis } from '../utils/conferenciaAplis';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
+import { avisoFontesAplis, textoFontesAplis } from '../utils/fontesAplis';
+import BuscarNoAplisAgora from './BuscarNoAplisAgora';
 
 // "Conferir baixas com o apLIS" (.scratch/faturamento-conferencia-baixas-aplis):
 // títulos cujo recebido no sistema diverge do recebido no apLIS dos seus lotes,
@@ -300,7 +302,8 @@ const ConferenciaAplisModal: React.FC<Props> = ({
   const titulos = conferencia?.titulos ?? [];
   const dispensados = conferencia?.dispensados ?? [];
   const secoes = secoesConferencia(titulos);
-  const dadoAte = conferencia?.dadoAte ? `até ${formatData(conferencia.dadoAte)}` : 'até ontem';
+  const fontes = textoFontesAplis(conferencia?.fontes);
+  const aviso = avisoFontesAplis(conferencia?.fontes);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
@@ -310,9 +313,15 @@ const ConferenciaAplisModal: React.FC<Props> = ({
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Conferir baixas com o apLIS</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Títulos cujo recebido aqui diverge do recebido no apLIS (diferenças abaixo de R$ 1,00 ficam de fora)
-              {' · '}dados do apLIS {dadoAte}
+              {' · '}{fontes}
             </p>
+            {aviso && <p className="text-xs text-amber-700 dark:text-amber-300">{aviso}</p>}
           </div>
+          {podeAbrirTitulo && (
+            <div className="ml-auto mr-4">
+              <BuscarNoAplisAgora onConcluido={() => void carregar()} desabilitado={carregando} />
+            </div>
+          )}
           <button
             type="button"
             onClick={fechar}
@@ -354,7 +363,7 @@ const ConferenciaAplisModal: React.FC<Props> = ({
               <CheckCircle2 className="w-8 h-8 text-green-500 dark:text-green-400" />
               <span className="font-medium text-gray-700 dark:text-gray-200">Nenhuma divergência</span>
               <span>
-                O recebido de todos os títulos bate com o apLIS ({dadoAte})
+                O recebido de todos os títulos bate com o apLIS ({fontes})
                 {dispensados.length > 0 && ', fora as divergências dispensadas'}.
               </span>
             </div>

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { chamarApi, rpcRegistrarBaixa } from '../hooks/useContasReceber';
-import type { PreviaBaixasAplis, TituloPreviaBaixasAplis } from '../types';
+import type { FontesAplis, PreviaBaixasAplis, TituloPreviaBaixasAplis } from '../types';
+import { avisoFontesAplis, fontesDaMeta, textoFontesAplis } from '../utils/fontesAplis';
+import BuscarNoAplisAgora from './BuscarNoAplisAgora';
 import { formatCurrency, formatData, plural } from '../utils/formato';
 import {
   aplicarTitulo,
@@ -41,11 +43,11 @@ interface Props {
 }
 
 async function buscarPrevia(): Promise<PreviaBaixasAplis> {
-  const body = await chamarApi<{ meta?: { dadoAte?: string | null }; titulos?: TituloPreviaBaixasAplis[] }>(
+  const body = await chamarApi<{ meta?: Partial<FontesAplis>; titulos?: TituloPreviaBaixasAplis[] }>(
     '/api/faturamento/titulos-baixas-aplis-previa',
     MENSAGEM_PADRAO,
   );
-  return { dadoAte: body.meta?.dadoAte ?? null, titulos: body.titulos ?? [] };
+  return { fontes: fontesDaMeta(body.meta), titulos: body.titulos ?? [] };
 }
 
 function EstadoTitulo({ resultado, total }: { resultado: ResultadoTitulo | undefined; total: number }) {
@@ -196,13 +198,20 @@ const BaixasAplis: React.FC<Props> = ({ ativo, onFechar, onAlterados, onExecutan
   const concluidos = [...resultados.values()].filter(
     (r) => r.estado !== 'aguardando' && r.estado !== 'lancando',
   ).length;
-  const dadoAte = previa?.dadoAte ? `até ${formatData(previa.dadoAte)}` : 'até ontem';
+  const fontes = textoFontesAplis(previa?.fontes);
+  const aviso = avisoFontesAplis(previa?.fontes);
 
   return (
     <>
-        <p className="px-6 pt-4 text-xs text-gray-500 dark:text-gray-400">
-          Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento · dados do apLIS {dadoAte}
-        </p>
+        <div className="px-6 pt-4 flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento · {fontes}
+            </p>
+            {aviso && <p className="text-xs text-amber-700 dark:text-amber-300">{aviso}</p>}
+          </div>
+          <BuscarNoAplisAgora onConcluido={() => void carregar()} desabilitado={carregando || travado} />
+        </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {/* Sem prévia e sem erro = ainda não respondeu: nunca cai no "nada a lançar". */}
           {!previa && !erro ? (
@@ -226,7 +235,7 @@ const BaixasAplis: React.FC<Props> = ({ ativo, onFechar, onAlterados, onExecutan
               <CheckCircle2 className="w-8 h-8 text-green-500 dark:text-green-400" />
               <span className="font-medium text-gray-700 dark:text-gray-200">Nada a lançar</span>
               <span>
-                Todas as baixas recebidas no apLIS ({dadoAte}) já estão lançadas aqui.
+                Todas as baixas recebidas no apLIS ({fontes}) já estão lançadas aqui.
               </span>
             </div>
           ) : (
