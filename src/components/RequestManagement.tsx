@@ -29,9 +29,26 @@ import {
   isAwaitingMyApprovalParam,
   parseRequestStatusParam,
 } from '../../api/_lib/requestsRoutes.js';
+import { copiarIdentificacaoEpi, type ProdutoComIdentificacaoEpi } from '../modules/qualidade/domain/epiRelatorioMensal';
+import { camposEpiDaLinha, COLUNAS_EPI_PRODUTO } from '../utils/epi';
 import { canSeeRequest, finalizableStatuses, isApproverOf, requestActions, type RequestViewer } from '../utils/requestActions';
 
 const ITEMS_PER_PAGE = 25;
+
+// Identificação do EPI atual dos produtos cadastrados dos itens, para a cópia na finalização
+async function lerIdentificacaoEpiDosProdutos(itens: RequestItem[]): Promise<ProdutoComIdentificacaoEpi[]> {
+  const ids = [...new Set(itens.map(i => i.productId).filter((id): id is string => !!id))];
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase
+    .from('products')
+    .select(`id, ${COLUNAS_EPI_PRODUTO}`)
+    .in('id', ids);
+  if (error) {
+    console.error('Erro ao ler a identificação dos EPIs:', error);
+    throw new Error('Erro ao ler a identificação dos EPIs. A solicitação não foi finalizada.');
+  }
+  return (data || []).map(p => ({ id: p.id, ...camposEpiDaLinha(p) }));
+}
 
 // Departamento dos locais do almoxarifado central ("Estoque" e "Depósito").
 // A quantidade disponível para solicitar/retirar vem só daqui, não do total
@@ -2708,13 +2725,20 @@ const handleCompleteRequest = async (request: Request) => {
             // Verificação final: checar status novamente antes de processar
             const { data: currentRequest, error: checkError } = await supabase
               .from('requests')
-              .select('status')
+              .select('status, items')
               .eq('id', showWithdrawalModal.id)
               .single();
             
             if (checkError || currentRequest?.status === 'completed') {
               throw new Error('Esta solicitação já foi processada por outro usuário.');
             }
+
+            // Na SM, cópia da Identificação do EPI vigente agora, lida direto do cadastro
+            // (não do cache), para que uma troca de CA posterior não altere esta entrega
+            const itensAtuais: RequestItem[] = currentRequest?.items || [];
+            const itensComIdentificacao = showWithdrawalModal.type === 'SM'
+              ? copiarIdentificacaoEpi(itensAtuais, await lerIdentificacaoEpiDosProdutos(itensAtuais))
+              : itensAtuais;
             
             // Primeiro: Salvar assinatura e nome (marcando que está em processo)
             // Só grava se a solicitação ainda estiver numa situação que pode ser finalizada
@@ -2723,6 +2747,7 @@ const handleCompleteRequest = async (request: Request) => {
               .update({
                 receiver_signature: signature,
                 received_by: receiverName,
+                items: itensComIdentificacao,
               })
               .eq('id', showWithdrawalModal.id)
               .in('status', finalizableStatuses(showWithdrawalModal.type))

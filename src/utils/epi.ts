@@ -17,6 +17,40 @@ export interface CamposEpi {
   epiValidade: string;
 }
 
+/** Colunas de EPI da tabela products, para um `select` junto com o id. */
+export const COLUNAS_EPI_PRODUTO = 'is_epi, epi_identificacao_tipo, epi_identificacao_numero, epi_identificacao_validade';
+
+interface LinhaEpiProduto {
+  is_epi?: boolean | null;
+  epi_identificacao_tipo?: string | null;
+  epi_identificacao_numero?: string | null;
+  epi_identificacao_validade?: string | null;
+}
+
+/** Colunas de EPI de uma linha de products → CamposEpi (NULL vira ''; tipo desconhecido vira ''). */
+export function camposEpiDaLinha(linha: LinhaEpiProduto): CamposEpi {
+  const tipo = linha.epi_identificacao_tipo;
+  return {
+    isEpi: linha.is_epi ?? false,
+    epiTipo: tipo === 'CA' || tipo === 'ANVISA' ? tipo : '',
+    epiNumero: linha.epi_identificacao_numero ?? '',
+    epiValidade: linha.epi_identificacao_validade ?? '',
+  };
+}
+
+/**
+ * Cópia da Identificação do EPI gravada no item da solicitação de materiais na finalização
+ * (campo `identificacaoEpi` do item). `null` = não informado no cadastro naquele momento.
+ * A presença da cópia, mesmo toda `null`, quer dizer "foi entregue com esta identificação":
+ * só item sem cópia (entregas anteriores à funcionalidade) usa o cadastro atual do produto.
+ */
+export interface CopiaIdentificacaoEpi {
+  tipo: TipoIdentificacaoEpi | null;
+  numero: string | null;
+  /** YYYY-MM-DD */
+  validade: string | null;
+}
+
 /** "CA 12345", "ANVISA 80495510226", só o número quando falta o tipo, ou '' sem número. */
 export function formatarIdentificacaoEpi(campos: Pick<CamposEpi, 'epiTipo' | 'epiNumero'>): string {
   const numero = campos.epiNumero.trim();

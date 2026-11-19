@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Product, StockMovement, Request, DashboardData, FinancialMetrics, Supplier, Quotation, QuotationItem, ProductChangeLog, StockLocation, ProductStock } from '../types';
 import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
-import type { CamposEpi } from '../utils/epi';
+import { camposEpiDaLinha, type CamposEpi } from '../utils/epi';
 
 type CampoEpi = keyof CamposEpi;
 
@@ -149,10 +149,7 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
       isWithholding: product.iswithholding || false,
       supplierId: product.supplier_id || '',
       supplierName: product.supplier_name || '',
-      isEpi: product.is_epi ?? false,
-      epiTipo: product.epi_identificacao_tipo ?? '',
-      epiNumero: product.epi_identificacao_numero ?? '',
-      epiValidade: product.epi_identificacao_validade ?? '',
+      ...camposEpiDaLinha(product),
     }));
 
     setProducts(formattedProducts);
