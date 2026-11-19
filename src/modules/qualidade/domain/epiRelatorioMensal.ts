@@ -3,8 +3,8 @@
 
 import { formatarIdentificacaoEpi, type CamposEpi, type CopiaIdentificacaoEpi } from '../../../utils/epi.js';
 
-/** O que o domínio precisa de um produto: o id e os campos de EPI do cadastro. */
-export type ProdutoComIdentificacaoEpi = { id: string } & CamposEpi;
+/** O que o domínio precisa de um produto: o id, o nome atual (para os totais do consolidado) e os campos de EPI do cadastro. */
+export type ProdutoComIdentificacaoEpi = { id: string; nome?: string } & CamposEpi;
 
 /**
  * Na finalização de uma solicitação de materiais, cada item cujo produto é EPI recebe a
@@ -114,14 +114,17 @@ const smDoMes = (s: SolicitacaoParaEpi, mes: string, status: ReadonlySet<string>
 const STATUS_ENTREGUE: ReadonlySet<string> = new Set(['completed']);
 const STATUS_NAO_ENTREGUE: ReadonlySet<string> = new Set(['pending', 'approved']);
 
-/** Linhas de todas as áreas do mês (YYYY-MM), cada uma com a sua área, já ordenadas. */
+/** Uma linha do mês com a sua área e o produto EPI do cadastro. */
+type LinhaDoMes = { area: string; produto: ProdutoComIdentificacaoEpi; linha: LinhaRelatorioEpi };
+
+/** Linhas de todas as áreas do mês (YYYY-MM), cada uma com a sua área e o produto, já ordenadas. */
 function linhasDoMes(
   { solicitacoes, produtos, movimentacoes }: DadosRelatorioEpi,
   mes: string,
-): { area: string; linha: LinhaRelatorioEpi }[] {
+): LinhaDoMes[] {
   const porId = produtosPorId(produtos);
   const baixados = new Set(movimentacoes.map((m) => `${m.requestId}|${m.productId}`));
-  const resultado: { area: string; linha: LinhaRelatorioEpi }[] = [];
+  const resultado: LinhaDoMes[] = [];
   for (const s of solicitacoes) {
     if (!smDoMes(s, mes, STATUS_ENTREGUE)) continue;
     for (const item of s.items) {
@@ -129,6 +132,7 @@ function linhasDoMes(
       if (!produto || !baixados.has(`${s.id}|${produto.id}`)) continue;
       resultado.push({
         area: areaDaSolicitacao(s),
+        produto,
         linha: {
           solicitacaoId: s.id,
           itemId: item.id,
@@ -167,21 +171,31 @@ export interface LinhaConsolidadoEpi extends LinhaRelatorioEpi {
 export interface ConsolidadoEpi {
   /** Todas as áreas, ordenadas por área, data e solicitante. */
   linhas: LinhaConsolidadoEpi[];
-  /** Soma das quantidades por produto (o nome gravado no item), em ordem alfabética. */
+  /**
+   * Soma das quantidades por produto (pelo id, para que um produto renomeado não se divida), com
+   * o nome atual do cadastro, em ordem alfabética.
+   */
   totaisPorProduto: { produto: string; quantidade: number }[];
   /** Soma das quantidades por área, em ordem alfabética. */
   totaisPorArea: { area: string; quantidade: number }[];
   totalGeral: number;
 }
 
-/** Soma `quantidade` agrupando pela chave, em ordem alfabética da chave. */
-function somarPor(linhas: LinhaConsolidadoEpi[], chave: (l: LinhaConsolidadoEpi) => string): [string, number][] {
-  const somas = new Map<string, number>();
+/**
+ * Soma `quantidade` agrupando pela chave, com o nome de cada grupo, em ordem alfabética do nome.
+ * Num grupo, vale o nome da última linha (as linhas vêm em ordem de data).
+ */
+function somarPor<L extends { quantidade: number }>(
+  linhas: L[],
+  chave: (l: L) => string,
+  nome: (l: L) => string,
+): { nome: string; quantidade: number }[] {
+  const somas = new Map<string, { nome: string; quantidade: number }>();
   for (const l of linhas) {
     const k = chave(l);
-    somas.set(k, (somas.get(k) ?? 0) + l.quantidade);
+    somas.set(k, { nome: nome(l), quantidade: (somas.get(k)?.quantidade ?? 0) + l.quantidade });
   }
-  return [...somas].sort(([a], [b]) => compararTexto(a, b));
+  return [...somas.values()].sort((a, b) => compararTexto(a.nome, b.nome));
 }
 
 /**
@@ -190,14 +204,21 @@ function somarPor(linhas: LinhaConsolidadoEpi[], chave: (l: LinhaConsolidadoEpi)
  * dados atuais, mesmo com áreas fechadas.
  */
 export function montarConsolidadoEpi(dados: DadosRelatorioEpi, mes: string): ConsolidadoEpi {
-  const linhas = linhasDoMes(dados, mes)
+  const doMes = linhasDoMes(dados, mes);
+  const porProduto = somarPor(
+    doMes.map(({ produto, linha }) => ({ produto, quantidade: linha.quantidade, nomeNoItem: linha.produto })),
+    (l) => l.produto.id,
+    // O nome atual do cadastro; sem ele, o gravado na entrega mais recente.
+    (l) => l.produto.nome?.trim() || l.nomeNoItem,
+  );
+  const linhas = doMes
     .map(({ area, linha }) => ({ area, ...linha }))
     // Estável: dentro da área, mantém a ordem por data e solicitante.
     .sort((a, b) => compararTexto(a.area, b.area));
   return {
     linhas,
-    totaisPorProduto: somarPor(linhas, (l) => l.produto).map(([produto, quantidade]) => ({ produto, quantidade })),
-    totaisPorArea: somarPor(linhas, (l) => l.area).map(([area, quantidade]) => ({ area, quantidade })),
+    totaisPorProduto: porProduto.map(({ nome, quantidade }) => ({ produto: nome, quantidade })),
+    totaisPorArea: somarPor(linhas, (l) => l.area, (l) => l.area).map(({ nome, quantidade }) => ({ area: nome, quantidade })),
     totalGeral: linhas.reduce((soma, l) => soma + l.quantidade, 0),
   };
 }

@@ -568,6 +568,29 @@ describe('montarConsolidadoEpi', () => {
       expect(soma(resultado.totaisPorArea)).toBe(20);
     });
 
+    it('agrupa o produto pelo id, com o nome do cadastro, mesmo gravado com outro nome no item', () => {
+      const renomeada = { ...luva, nome: 'Luva nitrílica M' };
+      const dois = [
+        sm({ id: 'sm-1', items: [{ id: 'i1', productId: 'p-luva', productName: 'Luva nitrílica', quantity: 2 }] }),
+        sm({ id: 'sm-2', items: [{ id: 'i1', productId: 'p-luva', productName: 'Luva nitrilica (antiga)', quantity: 3 }] }),
+      ];
+      const r = montarConsolidadoEpi({ solicitacoes: dois, produtos: [renomeada], movimentacoes: baixas(dois) }, '2026-10');
+
+      expect(r.totaisPorProduto).toEqual([{ produto: 'Luva nitrílica M', quantidade: 5 }]);
+      // As linhas continuam com o nome gravado em cada item.
+      expect(r.linhas.map((l) => l.produto)).toEqual(['Luva nitrílica', 'Luva nitrilica (antiga)']);
+    });
+
+    it('produto sem nome no cadastro: o total leva o nome gravado na entrega mais recente', () => {
+      const dois = [
+        sm({ id: 'sm-1', requestDate: '2026-10-02', items: [{ id: 'i1', productId: 'p-luva', productName: 'Luva antiga', quantity: 2 }] }),
+        sm({ id: 'sm-2', requestDate: '2026-10-20', items: [{ id: 'i1', productId: 'p-luva', productName: 'Luva nova', quantity: 3 }] }),
+      ];
+      const r = montarConsolidadoEpi({ solicitacoes: dois, produtos: [luva], movimentacoes: baixas(dois) }, '2026-10');
+
+      expect(r.totaisPorProduto).toEqual([{ produto: 'Luva nova', quantidade: 5 }]);
+    });
+
     it('mês sem EPI entregue: sem linhas e totais zerados', () => {
       const vazio = montarConsolidadoEpi({ solicitacoes, produtos: comMascara, movimentacoes }, '2026-12');
       expect(vazio).toEqual({ linhas: [], totaisPorProduto: [], totaisPorArea: [], totalGeral: 0 });

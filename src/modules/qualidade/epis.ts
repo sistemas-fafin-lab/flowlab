@@ -46,7 +46,7 @@ export async function buscarDadosRelatorioEpi(mes: string): Promise<DadosRelator
       .eq('type', 'SM')
       .gte('request_date', inicio)
       .lte('request_date', fim),
-    supabase.from('products').select(`id, ${COLUNAS_EPI_PRODUTO}`).eq('is_epi', true),
+    supabase.from('products').select(`id, name, ${COLUNAS_EPI_PRODUTO}`).eq('is_epi', true),
   ]);
   if (solicitacoesRes.error) throw solicitacoesRes.error;
   if (produtosRes.error) throw produtosRes.error;
@@ -67,7 +67,11 @@ export async function buscarDadosRelatorioEpi(mes: string): Promise<DadosRelator
     })),
   }));
 
-  const produtos = (produtosRes.data ?? []).map((p) => ({ id: p.id as string, ...camposEpiDaLinha(p) }));
+  const produtos = (produtosRes.data ?? []).map((p) => ({
+    id: p.id as string,
+    nome: (p.name as string | null) ?? undefined,
+    ...camposEpiDaLinha(p),
+  }));
 
   // Só as concluídas podem ter sido baixadas.
   const concluidas = solicitacoes.filter((s) => s.status === 'completed').map((s) => s.id);
