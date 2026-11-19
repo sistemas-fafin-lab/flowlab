@@ -784,15 +784,21 @@ describe('somarGlosasPorLote', () => {
     return { idLoteFaturamento: 10, glosaFixada: 300, foto: foto(overrides), ...extra };
   }
 
-  it('Glosado: glosa fixada das requisições em status 6, por lote de faturamento', () => {
+  it('Glosado: líquido − recebido das requisições em glosa ainda em disputa (6, 7 e 16), por lote', () => {
     const porLote = somarGlosasPorLote([
-      daFoto({ status: 6, emLoteRecurso: false }, { glosaFixada: 300 }),
-      daFoto({ status: 6, emLoteRecurso: false }, { glosaFixada: 120.5 }),
-      daFoto({ status: 6, emLoteRecurso: false }, { idLoteFaturamento: 20, glosaFixada: 80 }),
-      // Em recurso: não é mais "glosado sem recurso".
-      daFoto({ status: 7, recebido: 700 }, { glosaFixada: 500 }),
+      daFoto({ status: 6, emLoteRecurso: false, liquido: 1000, recebido: 700 }),
+      daFoto({ status: 6, emLoteRecurso: false, liquido: 233.17, recebido: 221.18 }),
+      // 1º e 2º recurso seguem glosados até o resultado.
+      daFoto({ status: 7, liquido: 3419.56, recebido: 0 }),
+      daFoto({ status: 16, liquido: 200, recebido: 150 }),
+      daFoto({ status: 6, emLoteRecurso: false, liquido: 80, recebido: 0 }, { idLoteFaturamento: 20 }),
+      // Fora da disputa: recebido, acatada, indeferido, deferido.
+      daFoto({ status: 5, liquido: 100, recebido: 100 }),
+      daFoto({ status: 18, liquido: 42.35, recebido: 32.64 }),
+      daFoto({ status: 15 }),
+      daFoto({ status: 34, recebido: 1000 }),
     ]);
-    expect(porLote.get(10)?.glosado).toBe(420.5);
+    expect(porLote.get(10)?.glosado).toBe(3781.55);
     expect(porLote.get(20)?.glosado).toBe(80);
   });
 
@@ -810,7 +816,6 @@ describe('somarGlosasPorLote', () => {
       daFoto({ status: 34, recebidoFixacao: null, emLoteRecurso: false }, { glosaFixada: null }),
     ]);
     expect(porLote.get(10)?.glosaRecebida).toBe(450);
-    expect(porLote.get(10)?.glosado).toBe(0);
   });
 
   it('Glosa acatada: o saldo negativo (líquido − recebido) das requisições em 18 e 8', () => {

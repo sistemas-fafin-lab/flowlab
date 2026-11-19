@@ -880,12 +880,15 @@ export interface DashboardReceber {
     /** Títulos que tinham envio e recebimento — a base dos dois prazos acima. */
     prazoBaseTitulos: number;
   };
+  /** Faixas pelo saldo cobrável (saldo − glosa em disputa no apLIS). */
   aging: {
     a_vencer: number;
     d1_30: number;
     d31_60: number;
     d61_90: number;
     d90_mais: number;
+    /** Saldo em glosa sem recurso / 1º / 2º recurso no apLIS: fora das faixas, não é atraso. */
+    em_recurso?: number;
   };
   /** O mesmo aging acima, quebrado por operadora — carteira inteira (não só o
    *  período filtrado), ordenada pelo maior saldo total (`total` = soma dos 5
@@ -898,6 +901,7 @@ export interface DashboardReceber {
     d31_60: number;
     d61_90: number;
     d90_mais: number;
+    em_recurso?: number;
     total: number;
   }[];
   porOperadora: {

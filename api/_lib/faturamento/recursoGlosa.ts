@@ -47,6 +47,17 @@ const STATUS_DEFERIDO_TOTAL: number[] = [STATUS_GLOSA.glosaRecebida, STATUS_GLOS
 /** O laboratório desistiu da glosa: o saldo negativo da requisição é perda. */
 const STATUS_ACATADA: number[] = [STATUS_GLOSA.recebidoAMenorAcatado, STATUS_GLOSA.glosaDefinitivaAcatada];
 
+/**
+ * Glosa ainda em disputa: glosado sem recurso, 1º e 2º recurso. O saldo dessas
+ * requisições não é atraso da operadora — está em glosa/recurso. Mesma lista
+ * de fat_glosa_em_recurso_nota (supabase/migrations/20261119160000_fat_saldo_em_recurso.sql).
+ */
+export const STATUS_EM_DISPUTA: number[] = [
+  STATUS_GLOSA.glosadoSemRecurso,
+  STATUS_GLOSA.primeiroRecurso,
+  STATUS_GLOSA.segundoRecurso,
+];
+
 /** Mês do lote de faturamento original, 'YYYY-MM': o período da tela. */
 export function competenciaValida(valor: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(valor);
@@ -517,7 +528,7 @@ export interface RequisicaoTitulo extends RequisicaoClassificavel {
 
 /** As três colunas de glosa de Contas a Receber → Títulos. */
 export interface GlosasTitulo {
-  /** Σ glosa fixada das requisições em "GLOSADO ainda SEM RECURSO" (6). */
+  /** Σ líquido − recebido das requisições em glosa ainda em disputa: sem recurso (6), 1º (7) e 2º recurso (16). */
   glosado: number;
   /** Σ valor deferido (total ou parcial): o mesmo das Revertidas do Dashboard. */
   glosaRecebida: number;
@@ -533,7 +544,9 @@ export function somarGlosasPorLote(requisicoes: RequisicaoTitulo[]): Map<number,
   const porLote = new Map<number, GlosasTitulo>();
   for (const r of requisicoes) {
     const soma = porLote.get(r.idLoteFaturamento) ?? { ...GLOSAS_ZERADAS };
-    if (r.foto.status === STATUS_GLOSA.glosadoSemRecurso) soma.glosado = centavos(soma.glosado + (r.glosaFixada ?? 0));
+    if (r.foto.status !== null && STATUS_EM_DISPUTA.includes(r.foto.status)) {
+      soma.glosado = centavos(soma.glosado + Math.max(r.foto.liquido - r.foto.recebido, 0));
+    }
     if (statusDashboard(r.foto, r.edicoes) === 'revertida') {
       soma.glosaRecebida = centavos(soma.glosaRecebida + (valorRecebidoGlosa(r.foto, r.edicoes) ?? 0));
     }

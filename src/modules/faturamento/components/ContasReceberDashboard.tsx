@@ -1124,7 +1124,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
         <div key="aging" className="group">
           <Widget
             titulo="Aging da carteira"
-            sub="Saldo em aberto por tempo de atraso e operadora — inclui títulos de qualquer período"
+            sub={`Saldo em aberto por tempo de atraso e operadora — inclui títulos de qualquer período${
+              (data.aging.em_recurso ?? 0) > 0
+                ? `. Fora das faixas: ${formatCurrency(data.aging.em_recurso ?? 0)} em glosa/recurso no apLIS`
+                : ''
+            }`}
           >
             {temAging ? (
               <ResponsiveContainer width="100%" height="100%">

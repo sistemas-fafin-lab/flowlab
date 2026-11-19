@@ -676,7 +676,7 @@ const TitulosList: React.FC<Props> = ({
                   <th className="px-3 py-2">Vencimento</th>
                   <th className="px-3 py-2 text-right">Total</th>
                   <th className="px-3 py-2 text-right">Recebido</th>
-                  <th className="px-3 py-2 text-right" title="Glosa fixada das requisições em &quot;GLOSADO ainda SEM RECURSO&quot; dos lotes do título (apLIS)">Glosado</th>
+                  <th className="px-3 py-2 text-right" title="Glosa ainda em disputa nos lotes do título (apLIS): requisições em &quot;GLOSADO ainda SEM RECURSO&quot;, 1º e 2º recurso (líquido − recebido)">Glosado</th>
                   <th className="px-3 py-2 text-right" title="Valor deferido dos recursos das requisições do título (apLIS)">Glosa recebida</th>
                   <th className="px-3 py-2 text-right" title="Saldo negativo das requisições em &quot;Recebido a menor – acatado&quot; e &quot;Glosa definitiva – acatada diretoria&quot; (apLIS)">Glosa acatada</th>
                   <th className="px-3 py-2 text-right">Saldo</th>

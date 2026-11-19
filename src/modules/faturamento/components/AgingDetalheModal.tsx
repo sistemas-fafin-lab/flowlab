@@ -41,14 +41,15 @@ interface LinhaAging {
   id_nota: string;
   numero_nota: string | null;
   data_vencimento: string | null;
-  valor_saldo: number | string;
+  valor_saldo_cobravel: number | string;
   operadoras: { nome: string } | null;
   nota_lote: { lotes: { codigo_lote: string } | null }[] | null;
 }
 
 // Mesmo recorte de "título em aberto" que a RPC fat_dashboard_receber usa
 // para montar o aging (20260903120000_aging_por_operadora.sql): fora
-// cancelada/recebida/liquidada, com saldo positivo. Tipado em cima de
+// cancelada/recebida/liquidada, com saldo cobrável positivo (saldo sem a
+// glosa em disputa no apLIS — 20261119160000_fat_saldo_em_recurso.sql). Tipado em cima de
 // TituloStatus (não uma string PostgREST solta) para um nome de status errado
 // virar erro de compilação em vez de silenciosamente não excluir nada.
 const STATUS_ENCERRADOS: readonly TituloStatus[] = ['cancelada', 'recebida', 'liquidada'];
@@ -131,11 +132,11 @@ const AgingDetalheModal: React.FC<Props> = ({
         let query = supabase
           .from('notas')
           .select(
-            'id_nota, numero_nota, data_vencimento, valor_saldo, operadoras(nome), nota_lote(lotes(codigo_lote))',
+            'id_nota, numero_nota, data_vencimento, valor_saldo_cobravel, operadoras(nome), nota_lote(lotes(codigo_lote))',
             { count: 'exact' },
           )
           .not('status', 'in', `(${STATUS_ENCERRADOS.join(',')})`)
-          .gt('valor_saldo', 0)
+          .gt('valor_saldo_cobravel', 0)
           .order('data_vencimento', { ascending: true, nullsFirst: true })
           .limit(LIMITE_LINHAS);
 
@@ -167,7 +168,7 @@ const AgingDetalheModal: React.FC<Props> = ({
             .filter((codigo): codigo is string => Boolean(codigo)),
           operadoraNome: linha.operadoras?.nome ?? null,
           dataVencimento: linha.data_vencimento,
-          valorSaldo: Number(linha.valor_saldo ?? 0),
+          valorSaldo: Number(linha.valor_saldo_cobravel ?? 0),
           diasAtraso: diasDeAtraso(linha.data_vencimento),
         })));
         setTotal(count ?? 0);
