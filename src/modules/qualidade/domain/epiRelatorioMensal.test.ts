@@ -6,6 +6,7 @@ import {
   historicoFechamentoEpi,
   linhasDoRelatorioEpi,
   listarAreasEpiDoMes,
+  montarConsolidadoEpi,
   montarLinhasEpi,
   transicaoFechamentoEpi,
   type FechamentoEpi,
@@ -486,5 +487,90 @@ describe('validarPdfAssinadoEpi', () => {
     [{ name: 'grande.pdf', type: 'application/pdf', size: 21 * MB }, '"grande.pdf" passa do limite de 20 MB.'],
   ])('recusa %o', (arquivo, erro) => {
     expect(validarPdfAssinadoEpi(arquivo)).toBe(erro);
+  });
+});
+
+// ─── Consolidado do mês ──────────────────────────────────────────────────────
+
+const consolidado = (solicitacoes: SolicitacaoParaEpi[], mes = '2026-10', movimentacoes = baixas(solicitacoes)) =>
+  montarConsolidadoEpi({ solicitacoes, produtos, movimentacoes }, mes);
+
+describe('montarConsolidadoEpi', () => {
+  it('junta as linhas de todas as áreas, cada uma com a sua área, ordenadas por área e data', () => {
+    const resultado = consolidado([
+      sm({ id: 'sm-rec', department: 'Recepção', requestDate: '2026-10-03' }),
+      sm({ id: 'sm-lab-2', department: 'Laboratório', requestDate: '2026-10-20' }),
+      sm({ id: 'sm-lab-1', department: 'Laboratório', requestDate: '2026-10-08' }),
+      sm({ id: 'sm-sem', department: null, requestDate: '2026-10-01' }),
+    ]);
+
+    expect(resultado.linhas.map((l) => [l.area, l.data, l.solicitacaoId])).toEqual([
+      ['Laboratório', '2026-10-08', 'sm-lab-1'],
+      ['Laboratório', '2026-10-20', 'sm-lab-2'],
+      ['Recepção', '2026-10-03', 'sm-rec'],
+      ['Sem setor', '2026-10-01', 'sm-sem'],
+    ]);
+    expect(resultado.linhas[0]).toEqual({
+      area: 'Laboratório',
+      solicitacaoId: 'sm-lab-1',
+      itemId: 'i1',
+      data: '2026-10-08',
+      produto: 'Luva nitrílica',
+      identificacao: 'CA 12345',
+      quantidade: 2,
+      solicitante: 'Ana',
+    });
+  });
+
+  describe('totais', () => {
+    const mascara: ProdutoComIdentificacaoEpi = { id: 'p-mascara', isEpi: true, epiTipo: 'ANVISA', epiNumero: '804', epiValidade: '' };
+    const comMascara = [luva, papel, mascara];
+    const itemLuva = (id: string, quantity: number) => ({ id, productId: 'p-luva', productName: 'Luva nitrílica', quantity });
+    const itemMascara = (id: string, quantity: number) => ({ id, productId: 'p-mascara', productName: 'Máscara PFF2', quantity });
+
+    const solicitacoes = [
+      sm({ id: 'sm-rec', department: 'Recepção', items: [itemLuva('i1', 2), itemMascara('i2', 10)] }),
+      sm({ id: 'sm-lab', department: 'Laboratório', items: [itemLuva('i1', 3)] }),
+      sm({
+        id: 'sm-lab-2',
+        department: 'Laboratório',
+        items: [itemMascara('i1', 5), { id: 'i2', productId: 'p-papel', productName: 'Papel A4', quantity: 50 }],
+      }),
+      // Fora pelas regras de inclusão: não concluída, de outro mês, de compra e sem baixa no estoque.
+      sm({ id: 'sm-pendente', status: 'pending', department: 'Recepção', items: [itemLuva('i1', 7)] }),
+      sm({ id: 'sm-setembro', requestDate: '2026-09-30', department: 'Recepção', items: [itemLuva('i1', 7)] }),
+      sm({ id: 'sc-1', type: 'SC', department: 'Recepção', items: [itemLuva('i1', 7)] }),
+      sm({ id: 'sm-sem-baixa', department: 'Copa', items: [itemLuva('i1', 7)] }),
+    ];
+    const movimentacoes = baixas(solicitacoes).filter((m) => m.requestId !== 'sm-sem-baixa');
+    const resultado = montarConsolidadoEpi({ solicitacoes, produtos: comMascara, movimentacoes }, '2026-10');
+
+    it('soma a quantidade por produto, em ordem alfabética', () => {
+      expect(resultado.totaisPorProduto).toEqual([
+        { produto: 'Luva nitrílica', quantidade: 5 },
+        { produto: 'Máscara PFF2', quantidade: 15 },
+      ]);
+    });
+
+    it('soma a quantidade por área, em ordem alfabética', () => {
+      expect(resultado.totaisPorArea).toEqual([
+        { area: 'Laboratório', quantidade: 8 },
+        { area: 'Recepção', quantidade: 12 },
+      ]);
+    });
+
+    it('o total geral é a soma das linhas', () => {
+      expect(resultado.linhas).toHaveLength(4);
+      expect(resultado.totalGeral).toBe(20);
+      const soma = (q: { quantidade: number }[]) => q.reduce((t, x) => t + x.quantidade, 0);
+      expect(soma(resultado.linhas)).toBe(20);
+      expect(soma(resultado.totaisPorProduto)).toBe(20);
+      expect(soma(resultado.totaisPorArea)).toBe(20);
+    });
+
+    it('mês sem EPI entregue: sem linhas e totais zerados', () => {
+      const vazio = montarConsolidadoEpi({ solicitacoes, produtos: comMascara, movimentacoes }, '2026-12');
+      expect(vazio).toEqual({ linhas: [], totaisPorProduto: [], totaisPorArea: [], totalGeral: 0 });
+    });
   });
 });

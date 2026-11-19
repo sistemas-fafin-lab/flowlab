@@ -2,13 +2,27 @@
 // de EPI do mês ainda não entregues) e gera o PDF do Relatório mensal de EPI de cada área,
 // calculado na hora ou, com a área fechada, das linhas congeladas. Quem tem "Fechar relatórios
 // de EPI" fecha e reabre a área, com motivo, e anexa o PDF assinado e digitalizado; quem tem
-// "Ver relatórios de EPI" abre qualquer PDF assinado (.scratch/epi-relatorio-mensal/spec.md,
-// histórias 16–42).
+// "Ver relatórios de EPI" abre qualquer PDF assinado e baixa o consolidado do mês, de todas as
+// áreas e sempre dos dados atuais, em PDF e Excel (.scratch/epi-relatorio-mensal/spec.md,
+// histórias 16–47).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FileCheck2, FileDown, HardHat, History, Loader2, Lock, Paperclip, Unlock, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  FileCheck2,
+  FileDown,
+  FileSpreadsheet,
+  HardHat,
+  History,
+  Loader2,
+  Lock,
+  Paperclip,
+  Unlock,
+  X,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { anoAtual } from '../anoAtual.js';
@@ -17,16 +31,26 @@ import {
   historicoFechamentoEpi,
   linhasDoRelatorioEpi,
   listarAreasEpiDoMes,
+  montarConsolidadoEpi,
   montarLinhasEpi,
   TAMANHO_MAXIMO_PDF_ASSINADO_EPI,
   transicaoFechamentoEpi,
   validarPdfAssinadoEpi,
   type AcaoFechamentoEpi,
   type AreaEpiDoMes,
+  type ConsolidadoEpi,
   type EventoFechamentoEpi,
   type SituacaoAreaEpi,
 } from '../domain/epiRelatorioMensal.js';
-import { mesPorExtenso, montarPdfRelatorioEpi, nomeArquivoRelatorioEpi } from '../domain/pdfRelatorioEpi.js';
+import {
+  mesPorExtenso,
+  montarPdfConsolidadoEpi,
+  montarPdfRelatorioEpi,
+  nomeArquivoConsolidadoEpi,
+  nomeArquivoRelatorioEpi,
+  type FormatoConsolidadoEpi,
+} from '../domain/pdfRelatorioEpi.js';
+import { montarPlanilhaConsolidadoEpi } from '../domain/planilhaConsolidadoEpi.js';
 import {
   anexarRelatorioEpi,
   buscarDadosRelatorioEpi,
@@ -101,6 +125,24 @@ async function abrirPdfAssinado(caminho: string): Promise<string | null> {
 
 const SEM_EPI_ENTREGUE = 'Nenhum EPI entregue nesta área no mês';
 
+type FormatoConsolidado = { rotulo: string; Icone: typeof Lock; baixar: (mes: string, c: ConsolidadoEpi) => void };
+
+/** Os dois formatos do consolidado do mês: o rótulo do botão, o ícone e como baixar. */
+const CONSOLIDADO: Record<FormatoConsolidadoEpi, FormatoConsolidado> = {
+  pdf: {
+    rotulo: 'Consolidado (PDF)',
+    Icone: FileDown,
+    baixar: (mes, consolidado) =>
+      montarPdfConsolidadoEpi({ mes, consolidado }).save(nomeArquivoConsolidadoEpi(mes, 'pdf')),
+  },
+  xlsx: {
+    rotulo: 'Consolidado (Excel)',
+    Icone: FileSpreadsheet,
+    baixar: (mes, consolidado) =>
+      XLSX.writeFile(montarPlanilhaConsolidadoEpi(consolidado), nomeArquivoConsolidadoEpi(mes, 'xlsx')),
+  },
+};
+
 /** Consultas da tela: os dados do mês (solicitações, produtos, movimentações) e os fechamentos. */
 const consultaDadosEpi = (mes: string) => ({
   queryKey: ['qualidade-epis', mes],
@@ -144,6 +186,10 @@ export function Epis() {
   );
   const visiveis = filtroArea === TODAS ? areas : areas.filter((a) => a.area === filtroArea);
   const pronto = Boolean(data && fechamentos);
+
+  // Sem fechamento: o consolidado sai sempre dos dados atuais.
+  const consolidado = useMemo(() => (data ? montarConsolidadoEpi(data, mes) : null), [data, mes]);
+  const semConsolidado = !consolidado || consolidado.linhas.length === 0;
 
   function gerarPdf(area: string) {
     if (!data) return;
@@ -197,17 +243,38 @@ export function Epis() {
 
       {mes && pronto && areas.length > 0 && (
         <div className="space-y-3">
-          <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-gray-500 dark:text-slate-400">
-            Área
-            <select className={campoFiltro} value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
-              <option value={TODAS}>Todas as áreas</option>
-              {areas.map((a) => (
-                <option key={a.area} value={a.area}>
-                  {a.area}
-                </option>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <label className="flex w-full max-w-xs flex-col gap-1 text-xs font-medium text-gray-500 dark:text-slate-400">
+              Área
+              <select className={campoFiltro} value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
+                <option value={TODAS}>Todas as áreas</option>
+                {areas.map((a) => (
+                  <option key={a.area} value={a.area}>
+                    {a.area}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(CONSOLIDADO).map(([formato, { rotulo, Icone, baixar }]) => (
+                <button
+                  key={formato}
+                  type="button"
+                  onClick={() => consolidado && baixar(mes, consolidado)}
+                  disabled={semConsolidado}
+                  title={
+                    semConsolidado
+                      ? 'Nenhum EPI entregue no mês'
+                      : 'Todas as áreas, com os totais por produto e por área, dos dados atuais'
+                  }
+                  className={botaoSecundario}
+                >
+                  <Icone className="h-4 w-4" aria-hidden />
+                  {rotulo}
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
 
           {erroAbrir && (
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">

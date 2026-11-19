@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { textoDoPdf } from '../../gerador-orcamento/domain/textoDoPdf.testHelper.js';
-import type { LinhaRelatorioEpi } from './epiRelatorioMensal.js';
-import { montarPdfRelatorioEpi } from './pdfRelatorioEpi.js';
+import type { ConsolidadoEpi, LinhaRelatorioEpi } from './epiRelatorioMensal.js';
+import { montarPdfConsolidadoEpi, montarPdfRelatorioEpi, nomeArquivoConsolidadoEpi } from './pdfRelatorioEpi.js';
 
 const linha = (sobre: Partial<LinhaRelatorioEpi>): LinhaRelatorioEpi => ({
   solicitacaoId: 'sm-1',
@@ -71,5 +71,63 @@ describe('montarPdfRelatorioEpi', () => {
     expect(texto.match(/Responsável da área/g)).toHaveLength(doc.getNumberOfPages());
     expect(texto).toContain(`Página ${doc.getNumberOfPages()} de ${doc.getNumberOfPages()}`);
     for (let i = 0; i < 40; i++) expect(texto).toContain(`Colaborador ${i} `);
+  });
+});
+
+const consolidado: ConsolidadoEpi = {
+  linhas: [
+    { ...linha({}), area: 'Laboratório' },
+    { ...linha({ itemId: 'i2', data: '2026-10-12', produto: 'Máscara PFF2', identificacao: 'ANVISA 80495510226', quantidade: 10, solicitante: 'Bruno Lima' }), area: 'Recepção' },
+  ],
+  totaisPorProduto: [
+    { produto: 'Luva nitrílica', quantidade: 2 },
+    { produto: 'Máscara PFF2', quantidade: 10 },
+  ],
+  totaisPorArea: [
+    { area: 'Laboratório', quantidade: 2 },
+    { area: 'Recepção', quantidade: 10 },
+  ],
+  totalGeral: 12,
+};
+
+describe('montarPdfConsolidadoEpi', () => {
+  const doc = montarPdfConsolidadoEpi({ mes: '2026-10', consolidado });
+  const texto = textoDoPdf(doc);
+
+  it('é A4 na horizontal, com o cabeçalho do consolidado e o mês por extenso', () => {
+    expect(Math.round(doc.internal.pageSize.getWidth())).toBe(297);
+    expect(texto).toContain('EPIs \x97 Consolidado \x97 Outubro/2026');
+  });
+
+  it('tem as colunas Área, Data, Produto, Identificação, Qtd. e Solicitante, sem assinatura', () => {
+    expect(texto).toContain('Área Data Produto Identificação Qtd. Solicitante');
+    expect(texto).not.toContain('Assinatura');
+    expect(texto).not.toContain('Responsável da área');
+  });
+
+  it('tem uma linha por item, com a área', () => {
+    expect(texto).toContain('Laboratório 05/10/2026 Luva nitrílica CA 12345 2 Ana Souza');
+    expect(texto).toContain('Recepção 12/10/2026 Máscara PFF2 ANVISA 80495510226 10 Bruno Lima');
+  });
+
+  it('tem os quadros de totais por produto e por área, com o total geral', () => {
+    expect(texto).toContain('Totais por produto');
+    expect(texto).toContain('Produto Qtd.');
+    expect(texto).toContain('Máscara PFF2 10');
+    expect(texto).toContain('Totais por área');
+    expect(texto).toContain('Área Qtd.');
+    expect(texto).toContain('Recepção 10');
+    expect(texto).toContain('Total 12');
+  });
+
+  it('tem o número da página', () => {
+    expect(texto).toContain('Página 1 de 1');
+  });
+});
+
+describe('nomeArquivoConsolidadoEpi', () => {
+  it('leva o mês e a extensão', () => {
+    expect(nomeArquivoConsolidadoEpi('2026-10', 'pdf')).toBe('epis-consolidado-2026-10.pdf');
+    expect(nomeArquivoConsolidadoEpi('2026-10', 'xlsx')).toBe('epis-consolidado-2026-10.xlsx');
   });
 });

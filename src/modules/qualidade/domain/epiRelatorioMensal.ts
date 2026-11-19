@@ -157,6 +157,51 @@ export function montarLinhasEpi(dados: DadosRelatorioEpi, { area, mes }: { area:
     .map((l) => l.linha);
 }
 
+// ─── Consolidado do mês ──────────────────────────────────────────────────────
+
+/** Uma linha do consolidado: a linha do relatório por área, com a área. */
+export interface LinhaConsolidadoEpi extends LinhaRelatorioEpi {
+  area: string;
+}
+
+export interface ConsolidadoEpi {
+  /** Todas as áreas, ordenadas por área, data e solicitante. */
+  linhas: LinhaConsolidadoEpi[];
+  /** Soma das quantidades por produto (o nome gravado no item), em ordem alfabética. */
+  totaisPorProduto: { produto: string; quantidade: number }[];
+  /** Soma das quantidades por área, em ordem alfabética. */
+  totaisPorArea: { area: string; quantidade: number }[];
+  totalGeral: number;
+}
+
+/** Soma `quantidade` agrupando pela chave, em ordem alfabética da chave. */
+function somarPor(linhas: LinhaConsolidadoEpi[], chave: (l: LinhaConsolidadoEpi) => string): [string, number][] {
+  const somas = new Map<string, number>();
+  for (const l of linhas) {
+    const k = chave(l);
+    somas.set(k, (somas.get(k) ?? 0) + l.quantidade);
+  }
+  return [...somas].sort(([a], [b]) => compararTexto(a, b));
+}
+
+/**
+ * Consolidado do mês (YYYY-MM): as linhas de todas as áreas, pelas mesmas regras de inclusão do
+ * relatório por área, e os totais por produto e por área. Sem fechamento: sempre calculado dos
+ * dados atuais, mesmo com áreas fechadas.
+ */
+export function montarConsolidadoEpi(dados: DadosRelatorioEpi, mes: string): ConsolidadoEpi {
+  const linhas = linhasDoMes(dados, mes)
+    .map(({ area, linha }) => ({ area, ...linha }))
+    // Estável: dentro da área, mantém a ordem por data e solicitante.
+    .sort((a, b) => compararTexto(a.area, b.area));
+  return {
+    linhas,
+    totaisPorProduto: somarPor(linhas, (l) => l.produto).map(([produto, quantidade]) => ({ produto, quantidade })),
+    totaisPorArea: somarPor(linhas, (l) => l.area).map(([area, quantidade]) => ({ area, quantidade })),
+    totalGeral: linhas.reduce((soma, l) => soma + l.quantidade, 0),
+  };
+}
+
 /**
  * Situação de uma área no mês: aberto (nunca fechada ou reaberta, calculada na hora), fechado
  * (linhas congeladas) ou assinado (com PDF assinado anexado ao fechamento atual).
