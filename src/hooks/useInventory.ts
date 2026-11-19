@@ -2,6 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Product, StockMovement, Request, DashboardData, FinancialMetrics, Supplier, Quotation, QuotationItem, ProductChangeLog, StockLocation, ProductStock } from '../types';
 import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
+import type { CamposEpi } from '../utils/epi';
+
+type CampoEpi = keyof CamposEpi;
+
+// Campos de EPI presentes em `dados` → colunas de products ('' vira NULL).
+function colunasEpi(dados: Partial<CamposEpi>): Record<string, unknown> {
+  const colunas: Record<string, unknown> = {};
+  if (dados.isEpi !== undefined) colunas.is_epi = dados.isEpi;
+  if (dados.epiTipo !== undefined) colunas.epi_identificacao_tipo = dados.epiTipo || null;
+  if (dados.epiNumero !== undefined) colunas.epi_identificacao_numero = dados.epiNumero || null;
+  if (dados.epiValidade !== undefined) colunas.epi_identificacao_validade = dados.epiValidade || null;
+  return colunas;
+}
 
 const CACHE_KEYS = {
   products: 'inventory:products',
@@ -136,6 +149,10 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
       isWithholding: product.iswithholding || false,
       supplierId: product.supplier_id || '',
       supplierName: product.supplier_name || '',
+      isEpi: product.is_epi ?? false,
+      epiTipo: product.epi_identificacao_tipo ?? '',
+      epiNumero: product.epi_identificacao_numero ?? '',
+      epiValidade: product.epi_identificacao_validade ?? '',
     }));
 
     setProducts(formattedProducts);
@@ -520,11 +537,14 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
   // §6.1: quantity nasce derivada (0). O recebimento inicial é feito via receiveStock
   // pelo chamador, para manter a trilha de auditoria e o invariante do cache.
   // Retorna o id do produto criado.
-  const addProduct = async (product: Omit<Product, 'id'>): Promise<string | undefined> => {
+  // Os campos de EPI só vão quando informados: sem "Gerir EPI" o chamador os retira
+  // (respeitarPermissaoEpi) e o banco usa o padrão (não é EPI, sem identificação).
+  const addProduct = async (product: Omit<Product, 'id' | CampoEpi> & Partial<CamposEpi>): Promise<string | undefined> => {
     try {
       const { data, error } = await supabase
         .from('products')
         .insert({
+          ...colunasEpi(product),
           name: product.name,
           code: product.code,
           category: product.category,
@@ -571,6 +591,7 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
       if (updates.unitPrice !== undefined) updateData.unit_price = updates.unitPrice;
       if (updates.invoiceNumber !== undefined) updateData.invoicenumber = updates.invoiceNumber;
       if (updates.isWithholding !== undefined) updateData.iswithholding = updates.isWithholding;
+      Object.assign(updateData, colunasEpi(updates));
 
       const { error } = await supabase
         .from('products')

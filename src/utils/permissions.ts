@@ -10,6 +10,10 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string; d
   { key: 'canDeleteProducts', label: 'Excluir Produtos', group: 'Produtos' },
   { key: 'canViewMovements', label: 'Visualizar Movimentações', group: 'Movimentações' },
   { key: 'canAddMovements', label: 'Adicionar Movimentações', group: 'Movimentações' },
+  // Marcação de EPI e Identificação do EPI (CA ou Registro ANVISA) no cadastro de produtos
+  // (.scratch/epi-relatorio-mensal/spec.md). Quem só edita produtos vê esses campos, mas não
+  // os altera; o trigger products_guard_epi confere a mesma chave.
+  { key: 'canManageEpi', label: 'Gerir EPI', group: 'Produtos', description: 'Marcar produtos como EPI e informar o CA ou o Registro ANVISA e a validade.' },
   // ── Estoque Departamental (Fase 5) ───────────────────────────────────────────
   { key: 'canViewStockDepart', label: 'Visualizar Estoque Departamental', group: 'Estoque Departamental' },
   { key: 'canConsumeStockDepart', label: 'Registrar Consumo do Setor', group: 'Estoque Departamental' },

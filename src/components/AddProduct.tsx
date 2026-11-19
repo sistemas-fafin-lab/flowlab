@@ -9,11 +9,17 @@ import { useNotification } from '../hooks/useNotification';
 import Notification from './Notification';
 import UnitSelect from './UnitSelect';
 import Select from './Select';
+import FormularioEpi from './FormularioEpi';
+import { respeitarPermissaoEpi, type CamposEpi } from '../utils/epi';
+import { hasPermission } from '../utils/permissions';
+
+const EPI_VAZIO: CamposEpi = { isEpi: false, epiTipo: '', epiNumero: '', epiValidade: '' };
 
 const AddProduct: React.FC = () => {
   const { addProduct, locations, receiveStock, products } = useInventory();
   const { userProfile } = useAuth();
   const location = useLocation();
+  const podeGerirEpi = hasPermission(userProfile?.permissions ?? [], 'canManageEpi');
   const prefilledData = location.state?.prefilledData;
   const { notification, showSuccess, showError, hideNotification } = useNotification();
 
@@ -69,7 +75,8 @@ const AddProduct: React.FC = () => {
     invoiceNumber: '',
     isWithholding: false,
     supplierId: '',
-    supplierName: ''
+    supplierName: '',
+    ...EPI_VAZIO,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -151,7 +158,7 @@ const AddProduct: React.FC = () => {
       const principal = locations.find(l => l.isPrincipal);
 
       const newId = await addProduct({
-        ...formData,
+        ...respeitarPermissaoEpi(formData, podeGerirEpi),
         location: principal?.nome ?? formData.location,
         category: formData.category as 'general' | 'technical',
         status,
@@ -197,7 +204,8 @@ const AddProduct: React.FC = () => {
         invoiceNumber: '',
         isWithholding: false,
         supplierId: '',
-        supplierName: ''
+        supplierName: '',
+        ...EPI_VAZIO,
       });
 
     } catch (error) {
@@ -477,6 +485,12 @@ const AddProduct: React.FC = () => {
                 <label htmlFor="isWithholding" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">Produto com retenção?</label>
               </div>
 
+              <FormularioEpi
+                value={formData}
+                onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+                podeEditar={podeGerirEpi}
+              />
+
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fornecedor</label>
@@ -551,7 +565,8 @@ const AddProduct: React.FC = () => {
                 invoiceNumber: '',
                 isWithholding: false,
                 supplierId: '',
-                supplierName: ''
+                supplierName: '',
+                ...EPI_VAZIO,
               })}
               className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
             >

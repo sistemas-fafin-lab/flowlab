@@ -1,6 +1,8 @@
 import type { RequestStatus } from '../../api/_lib/requestsRoutes.js';
+import type { CamposEpi } from '../utils/epi';
 
-export interface Product {
+/** Os campos de EPI (isEpi, epiTipo, epiNumero, epiValidade) vêm de CamposEpi (src/utils/epi.ts). */
+export interface Product extends CamposEpi {
   id: string;
   name: string;
   code: string;

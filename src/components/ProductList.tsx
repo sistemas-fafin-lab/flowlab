@@ -13,6 +13,10 @@ import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import InputDialog from './InputDialog';
 import AddStockModal from './AddStockModal';
+import FormularioEpi from './FormularioEpi';
+import { hasPermission } from '../utils/permissions';
+import { dayKey } from '../utils/datas';
+import { FiltroEpi, formatarIdentificacaoEpi, identificacaoEpiVencida, passaFiltroEpi, respeitarPermissaoEpi } from '../utils/epi';
 
 // Departamento dos locais do almoxarifado central ("Estoque" e "Depósito").
 const CENTRAL_STOCK_DEPARTMENT = 'Estoque';
@@ -20,6 +24,7 @@ const CENTRAL_STOCK_DEPARTMENT = 'Estoque';
 const ProductList: React.FC = () => {
   const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading, locations, receiveStock, fetchProductStock, fetchStockByLocations } = useInventory();
   const { userProfile } = useAuth();
+  const podeGerirEpi = hasPermission(userProfile?.permissions ?? [], 'canManageEpi');
   const navigate = useNavigate();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm, inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
@@ -31,6 +36,8 @@ const ProductList: React.FC = () => {
   // Escopo do saldo exibido: 'all' = total do produto (todos os locais);
   // 'central' = só o que está no almoxarifado (Estoque + Depósito).
   const [stockScope, setStockScope] = useState<'all' | 'central'>('all');
+  const [epiFilter, setEpiFilter] = useState<FiltroEpi>('todos');
+  const hoje = dayKey(new Date());
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editFormData, setEditFormData] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,8 +165,9 @@ const ProductList: React.FC = () => {
       product.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
     const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
+    const matchesEpi = passaFiltroEpi(product, epiFilter, hoje);
 
-    return matchesSearch && matchesCategory && matchesStatus;
+    return matchesSearch && matchesCategory && matchesStatus && matchesEpi;
   });
 
   const getStatusBadge = (status: Product['status']) => {
@@ -303,8 +311,13 @@ const ProductList: React.FC = () => {
       minStock: 'Estoque Mínimo',
       unitPrice: 'Preço Unitário',
       invoiceNumber: 'Nota fiscal',
-      isWithholding: 'Produto com Retenção'
+      isWithholding: 'Produto com Retenção',
+      isEpi: 'EPI',
+      epiTipo: 'Tipo da identificação do EPI',
+      epiNumero: 'Número da identificação do EPI',
+      epiValidade: 'Validade da identificação do EPI'
     };
+    const camposSimNao = ['isWithholding', 'isEpi'];
 
     Object.keys(fieldLabels).forEach(key => {
       let originalValue: string;
@@ -314,9 +327,9 @@ const ProductList: React.FC = () => {
       if (key === 'invoiceNumber') {
         originalValue = String(original.invoiceNumber || '');
         updatedValue = String(updated.invoiceNumber || '');
-      } else if (key === 'isWithholding') {
-        originalValue = String(original.isWithholding || false);
-        updatedValue = String(updated.isWithholding || false);
+      } else if (camposSimNao.includes(key)) {
+        originalValue = String(original[key as keyof Product] || false);
+        updatedValue = String(updated[key as keyof Product] || false);
       } else {
         originalValue = String(original[key as keyof Product] || '');
         updatedValue = String(updated[key as keyof Product] || '');
@@ -326,10 +339,10 @@ const ProductList: React.FC = () => {
         changes.push({
           field: fieldLabels[key],
           oldValue: key === 'unitPrice' ? formatCurrency(Number(originalValue)) :
-            key === 'isWithholding' ? (originalValue === 'true' ? 'Sim' : 'Não') :
+            camposSimNao.includes(key) ? (originalValue === 'true' ? 'Sim' : 'Não') :
               originalValue,
           newValue: key === 'unitPrice' ? formatCurrency(Number(updatedValue)) :
-            key === 'isWithholding' ? (updatedValue === 'true' ? 'Sim' : 'Não') :
+            camposSimNao.includes(key) ? (updatedValue === 'true' ? 'Sim' : 'Não') :
               updatedValue
         });
       }
@@ -341,7 +354,9 @@ const ProductList: React.FC = () => {
 const handleSaveChanges = async () => {
   if (!editingProduct || !editFormData) return;
 
-  const changes = getFieldChanges(editingProduct, editFormData);
+  // Sem "Gerir EPI", a marcação e a identificação não vão no salvamento (nem no changelog).
+  const dadosSalvos = respeitarPermissaoEpi({ ...editFormData }, podeGerirEpi);
+  const changes = getFieldChanges(editingProduct, { ...editingProduct, ...dadosSalvos });
   if (changes.length === 0) {
     showError('Nenhuma alteração foi feita.');
     return;
@@ -425,7 +440,7 @@ const handleSaveChanges = async () => {
     }
 
     // quantity fica de fora: quem manda nela é o product_stock (via trigger).
-    const fieldsToUpdate: Partial<Product> = { ...editFormData };
+    const fieldsToUpdate: Partial<Product> = { ...dadosSalvos };
     delete fieldsToUpdate.quantity;
     await updateProduct(editingProduct.id, fieldsToUpdate);
     await fetchProducts();
@@ -927,6 +942,35 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 </button>
               );
             })}
+            {/* EPI: clicar no chip ativo volta para "todos" */}
+            {(
+              [
+                { value: 'epi',               label: 'EPIs' },
+                { value: 'sem-identificacao', label: 'EPI sem identificação' },
+                { value: 'vencida',           label: 'Identificação vencida' },
+              ] as const
+            ).map(opt => {
+              const count = products.filter(p => passaFiltroEpi(p, opt.value, hoje)).length;
+              const isActive = epiFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setEpiFilter(isActive ? 'todos' : opt.value)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200 ${
+                    isActive
+                      ? 'bg-teal-500 text-white border-transparent shadow-lg shadow-teal-500/25'
+                      : 'bg-white/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {opt.label}
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-md text-[11px] font-bold ${
+                    isActive ? 'bg-white/25' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
             {/* Escopo do saldo: total do produto × só almoxarifado (Estoque + Depósito) */}
             <button
               onClick={() => setStockScope(s => (s === 'central' ? 'all' : 'central'))}
@@ -998,6 +1042,23 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   <div className="flex items-center gap-1.5 mb-4 flex-wrap">
                     {getStatusBadge(product.status)}
                     {getCategoryBadge(product.category)}
+                    {product.isEpi && (
+                      <span
+                        title={formatarIdentificacaoEpi(product) || 'EPI sem identificação'}
+                        className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20 rounded-full"
+                      >
+                        EPI
+                      </span>
+                    )}
+                    {identificacaoEpiVencida(product, hoje) && (
+                      <span
+                        title={`Validade da identificação: ${product.epiValidade.split('-').reverse().join('/')}`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-500/20 rounded-full"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        identificação vencida
+                      </span>
+                    )}
                   </div>
 
                   {/* Quantidade em destaque + barra de progresso de estoque */}
@@ -1563,6 +1624,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   />
                   <label className="text-sm text-gray-700 dark:text-gray-300">Produto com retenção?</label>
                 </div>
+
+                <FormularioEpi
+                  value={editFormData}
+                  onChange={(patch) => setEditFormData((prev) => (prev ? { ...prev, ...patch } : prev))}
+                  podeEditar={podeGerirEpi}
+                />
               </div>
             </div>
 
