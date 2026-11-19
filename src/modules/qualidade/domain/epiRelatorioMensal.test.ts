@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   copiarIdentificacaoEpi,
+  identificacaoInicialDoItem,
   anexoMaisRecenteEpi,
   validarPdfAssinadoEpi,
   historicoFechamentoEpi,
@@ -81,6 +82,61 @@ describe('copiarIdentificacaoEpi', () => {
 
     expect(resultado.map((i) => i.id)).toEqual(['i1', 'i2', 'i3']);
     expect(resultado.map((i) => 'identificacaoEpi' in i)).toEqual([false, true, false]);
+  });
+
+  it('identificação conferida na retirada, igual à do cadastro, mantém a validade do cadastro', () => {
+    const itens = [{ id: 'i1', productId: 'p-luva', productName: 'Luva', quantity: 2, category: 'general' }];
+
+    const [resultado] = copiarIdentificacaoEpi(itens, [luva], { i1: { tipo: 'CA', numero: ' 12345 ' } });
+
+    expect(resultado.identificacaoEpi).toEqual({ tipo: 'CA', numero: '12345', validade: '2027-03-31' });
+  });
+
+  it('identificação corrigida na retirada prevalece sobre o cadastro, sem a validade do outro CA', () => {
+    const itens = [{ id: 'i1', productId: 'p-luva', productName: 'Luva', quantity: 2, category: 'general' }];
+
+    const [resultado] = copiarIdentificacaoEpi(itens, [luva], { i1: { tipo: 'CA', numero: '99999' } });
+
+    expect(resultado.identificacaoEpi).toEqual({ tipo: 'CA', numero: '99999', validade: null });
+  });
+
+  it('EPI sem identificação no cadastro recebe a que o estoquista informou na retirada', () => {
+    const mascara: ProdutoComIdentificacaoEpi = { id: 'p-mascara', isEpi: true, epiTipo: '', epiNumero: '', epiValidade: '' };
+    const itens = [{ id: 'i1', productId: 'p-mascara', productName: 'Máscara', quantity: 1, category: 'general' }];
+
+    const [resultado] = copiarIdentificacaoEpi(itens, [mascara], { i1: { tipo: 'ANVISA', numero: '80495510226' } });
+
+    expect(resultado.identificacaoEpi).toEqual({ tipo: 'ANVISA', numero: '80495510226', validade: null });
+  });
+
+  it('identificação apagada na retirada fica vazia, mesmo com CA no cadastro', () => {
+    const itens = [{ id: 'i1', productId: 'p-luva', productName: 'Luva', quantity: 2, category: 'general' }];
+
+    const [resultado] = copiarIdentificacaoEpi(itens, [luva], { i1: { tipo: '', numero: '' } });
+
+    expect(resultado.identificacaoEpi).toEqual({ tipo: null, numero: null, validade: null });
+  });
+
+  it('identificação informada para item que não é EPI é ignorada', () => {
+    const item = { id: 'i1', productId: 'p-papel', productName: 'Papel A4', quantity: 5, category: 'general' };
+    const papel: ProdutoComIdentificacaoEpi = { id: 'p-papel', isEpi: false, epiTipo: '', epiNumero: '', epiValidade: '' };
+
+    const [resultado] = copiarIdentificacaoEpi([item], [papel], { i1: { tipo: 'CA', numero: '1' } });
+
+    expect(resultado).not.toHaveProperty('identificacaoEpi');
+  });
+});
+
+describe('identificacaoInicialDoItem', () => {
+  it('vem do cadastro quando o produto tem identificação', () => {
+    expect(identificacaoInicialDoItem(luva)).toEqual({ tipo: 'CA', numero: '12345' });
+  });
+
+  it('vem vazia quando o produto ainda não tem identificação', () => {
+    expect(identificacaoInicialDoItem({ isEpi: true, epiTipo: '', epiNumero: '', epiValidade: '' })).toEqual({
+      tipo: '',
+      numero: '',
+    });
   });
 });
 

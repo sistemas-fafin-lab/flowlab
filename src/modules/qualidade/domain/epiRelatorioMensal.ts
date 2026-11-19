@@ -1,30 +1,59 @@
 // Domínio do Relatório mensal de EPI (CONTEXT.md, seção Estoque e Qualidade;
 // .scratch/epi-relatorio-mensal/spec.md). Regras puras, sem banco e sem tela.
 
-import { formatarIdentificacaoEpi, type CamposEpi, type CopiaIdentificacaoEpi } from '../../../utils/epi.js';
+import {
+  formatarIdentificacaoEpi,
+  type CamposEpi,
+  type CopiaIdentificacaoEpi,
+  type TipoIdentificacaoEpi,
+} from '../../../utils/epi.js';
 
 /** O que o domínio precisa de um produto: o id, o nome atual (para os totais do consolidado) e os campos de EPI do cadastro. */
 export type ProdutoComIdentificacaoEpi = { id: string; nome?: string } & CamposEpi;
 
+/** Identificação do EPI que o estoquista conferiu ou informou na retirada, por item. */
+export interface IdentificacaoInformadaEpi {
+  tipo: TipoIdentificacaoEpi | '';
+  numero: string;
+}
+
+/**
+ * Valor inicial do campo de identificação de um item na tela de retirada: a do cadastro do
+ * produto, quando existe; vazio quando o produto ainda não tem identificação.
+ */
+export function identificacaoInicialDoItem(produto: CamposEpi): IdentificacaoInformadaEpi {
+  return { tipo: produto.epiTipo, numero: produto.epiNumero.trim() };
+}
+
 /**
  * Na finalização de uma solicitação de materiais, cada item cujo produto é EPI recebe a
- * cópia da Identificação do EPI vigente, para que uma troca de CA posterior não altere a
+ * cópia da Identificação do EPI da entrega, para que uma troca de CA posterior não altere a
  * entrega. Itens sem produto cadastrado e de produtos que não são EPI ficam intactos.
+ *
+ * `informadas` (por id do item) é o que o estoquista conferiu ou digitou na retirada e
+ * prevalece sobre o cadastro. A validade só vem do cadastro e só é copiada quando a
+ * identificação entregue é a mesma do cadastro: a de outro CA não vale para este.
+ * O cadastro do produto não é alterado.
  */
-export function copiarIdentificacaoEpi<T extends { productId: string | null }>(
+export function copiarIdentificacaoEpi<T extends { id: string; productId: string | null }>(
   itens: T[],
   produtos: ProdutoComIdentificacaoEpi[],
+  informadas: Record<string, IdentificacaoInformadaEpi> = {},
 ): (T & { identificacaoEpi?: CopiaIdentificacaoEpi })[] {
   const porId = produtosPorId(produtos);
   return itens.map((item) => {
     const produto = produtoEpiDoItem(porId, item.productId);
     if (!produto) return item;
+    const cadastro = identificacaoInicialDoItem(produto);
+    const informada = informadas[item.id];
+    const entregue = informada ? { tipo: informada.tipo, numero: informada.numero.trim() } : cadastro;
+    const mesmaDoCadastro = entregue.tipo === cadastro.tipo && entregue.numero === cadastro.numero;
     return {
       ...item,
       identificacaoEpi: {
-        tipo: produto.epiTipo || null,
-        numero: produto.epiNumero.trim() || null,
-        validade: produto.epiValidade || null,
+        tipo: entregue.tipo || null,
+        numero: entregue.numero || null,
+        validade: (mesmaDoCadastro && produto.epiValidade) || null,
       },
     };
   });

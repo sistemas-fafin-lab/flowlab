@@ -16,7 +16,7 @@ O fluxo de solicitação e fornecimento **não muda**: o supervisor continua con
 ## Solution
 
 1. **No cadastro de produtos do Estoque**, o Compras marca o produto como **EPI**. Quando a marcação está ligada, ele informa a Identificação do EPI: tipo (CA ou Registro ANVISA), número e validade, todos opcionais. A lista de produtos mostra um selo "EPI" e um aviso "identificação vencida" quando for o caso. O aviso não bloqueia nada.
-2. **Na finalização de uma solicitação de materiais**, o sistema copia a Identificação do EPI vigente para cada item que é EPI. Se o Compras trocar o CA depois, as entregas antigas continuam com o CA da época.
+2. **Na finalização de uma solicitação de materiais**, a tela de retirada mostra a Identificação do EPI (tipo e número) de cada EPI entregue. Se o produto já tem identificação no cadastro, ela vem preenchida e o estoquista só confere, podendo corrigir. Se não tem, o campo vem vazio e o estoquista informa. O campo é opcional e vale só para aquela entrega: o cadastro do produto não muda. O sistema grava essa identificação no item. Se o Compras trocar o CA depois, as entregas antigas continuam com o CA da época.
 3. **Na Qualidade**, uma aba nova **"EPIs"**:
    - Escolhendo o mês, aparece a lista das áreas com a situação de cada uma: aberto, fechado ou assinado.
    - Também aparece um aviso quando uma área tem pedidos de EPI daquele mês ainda não entregues.
@@ -43,7 +43,7 @@ O fluxo de solicitação e fornecimento **não muda**: o supervisor continua con
 ### Finalização da solicitação de materiais (Estoque)
 
 11. Como estoquista, quero finalizar a solicitação de materiais exatamente como faço hoje, para que a rotina operacional não mude.
-12. Como estoquista, quero que o sistema grave sozinho a identificação de cada EPI entregue, sem que eu precise digitar nada.
+12. Como estoquista, quero conferir na retirada a identificação de cada EPI entregue, que vem do cadastro, e informá-la quando o cadastro não tiver, para que a entrega registre o CA do EPI que saiu de fato do estoque. O campo é opcional e não altera o cadastro do produto.
 13. Como Qualidade, quero que a identificação gravada seja a vigente no momento da entrega, para que uma troca de CA posterior não altere entregas passadas.
 14. Como estoquista, quero que a finalização de uma solicitação pendente grave o nome e a assinatura de quem recebeu, assim como acontece com uma aprovada.
 15. Como estoquista, quero ver um erro quando a gravação do recebedor e da assinatura falhar, em vez de ver a solicitação concluída sem assinatura.
@@ -107,7 +107,7 @@ Os termos **EPI**, **Identificação do EPI**, **Relatório mensal de EPI** e **
   - **Montar as linhas de uma área e mês.** Recebe as solicitações, os produtos e as movimentações de estoque e devolve as linhas ordenadas.
   - **Listar as áreas do mês.** Devolve a situação de cada área e a contagem de pedidos de EPI ainda não entregues.
   - **Montar o consolidado do mês.** Devolve as linhas com a área e os totais por produto e por área.
-  - **Copiar a Identificação do EPI para os itens na finalização.** Recebe os itens e os produtos e devolve os itens, com a cópia da identificação nos que são EPI.
+  - **Copiar a Identificação do EPI para os itens na finalização.** Recebe os itens, os produtos e a identificação conferida ou informada pelo estoquista em cada item, e devolve os itens com a cópia da identificação nos que são EPI. A informada prevalece sobre o cadastro. A validade vem do cadastro e só é copiada quando a identificação entregue é igual à do cadastro.
   - **Regras de fechamento.** Diz quais transições são válidas a partir de cada situação:
     - fechar: de aberto para fechado;
     - reabrir: de fechado ou assinado para aberto, com motivo obrigatório;

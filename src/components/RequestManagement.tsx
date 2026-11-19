@@ -2713,11 +2713,12 @@ const handleCompleteRequest = async (request: Request) => {
         items={showWithdrawalModal.items}
         products={products}
         stockByProductId={centralStock}
+        informarIdentificacaoEpi={showWithdrawalModal.type === 'SM'}
         onClose={() => {
           setShowWithdrawalModal(null);
           setProcessingRequestId(null);
         }}
-        onConfirm={async (signature, receiverName, itemsToDeduct, onItemProcessed) => {
+        onConfirm={async (signature, receiverName, itemsToDeduct, onItemProcessed, identificacoesEpi) => {
           // Marcar como em processamento
           setProcessingRequestId(showWithdrawalModal.id);
           
@@ -2733,11 +2734,12 @@ const handleCompleteRequest = async (request: Request) => {
               throw new Error('Esta solicitação já foi processada por outro usuário.');
             }
 
-            // Na SM, cópia da Identificação do EPI vigente agora, lida direto do cadastro
-            // (não do cache), para que uma troca de CA posterior não altere esta entrega
+            // Na SM, cópia da Identificação do EPI desta entrega: a que o estoquista conferiu ou
+            // informou na retirada, com o cadastro lido direto (não do cache) para saber o que é EPI
+            // e a validade. Uma troca de CA posterior no cadastro não altera esta entrega.
             const itensAtuais: RequestItem[] = currentRequest?.items || [];
             const itensComIdentificacao = showWithdrawalModal.type === 'SM'
-              ? copiarIdentificacaoEpi(itensAtuais, await lerIdentificacaoEpiDosProdutos(itensAtuais))
+              ? copiarIdentificacaoEpi(itensAtuais, await lerIdentificacaoEpiDosProdutos(itensAtuais), identificacoesEpi)
               : itensAtuais;
             
             // Primeiro: Salvar assinatura e nome (marcando que está em processo)

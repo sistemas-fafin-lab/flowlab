@@ -1,9 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Package, AlertTriangle, Loader2, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { X, Check, Package, AlertTriangle, Loader2, CheckCircle2, XCircle, Info, ShieldCheck } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
 import { RequestItem, Product } from '../types';
 import SignatureCanvasField, { SignatureCanvasFieldHandle } from './SignatureCanvasField';
+import { TIPOS_IDENTIFICACAO_EPI, type TipoIdentificacaoEpi } from '../utils/epi';
+import {
+  identificacaoInicialDoItem,
+  type IdentificacaoInformadaEpi,
+} from '../modules/qualidade/domain/epiRelatorioMensal';
 
 interface WithdrawalItem extends RequestItem {
   currentStock: number;
@@ -22,11 +27,14 @@ interface StockWithdrawalModalProps {
   // Saldo por produto restrito ao almoxarifado central (Estoque/Depósito),
   // usado para validar a retirada em vez do total geral do produto.
   stockByProductId: Record<string, number>;
+  /** Na solicitação de materiais, o estoquista confere ou informa a Identificação do EPI de cada EPI entregue. */
+  informarIdentificacaoEpi?: boolean;
   onConfirm: (
     signature: string,
     receiverName: string,
     itemsToDeduct: WithdrawalItem[],
-    onItemProcessed: (itemId: string, success: boolean, error?: string) => void
+    onItemProcessed: (itemId: string, success: boolean, error?: string) => void,
+    identificacoesEpi: Record<string, IdentificacaoInformadaEpi>
   ) => Promise<void>;
   onClose: () => void;
 }
@@ -38,6 +46,7 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
   items,
   products,
   stockByProductId,
+  informarIdentificacaoEpi = false,
   onConfirm,
   onClose,
 }) => {
@@ -78,6 +87,22 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
   const itemsWithIssues = withdrawalItems.filter(item => !item.willDeduct && item.productId !== null);
   const unregisteredItems = withdrawalItems.filter(item => item.productId === null);
   
+  // EPIs que serão entregues: o campo vem com a identificação do cadastro (o estoquista confere)
+  // ou vazio, quando o produto ainda não tem (o estoquista informa). Opcional; não altera o cadastro.
+  const produtoEpi = (item: WithdrawalItem) => {
+    const product = products.find(p => p.id === item.productId);
+    return product?.isEpi ? product : undefined;
+  };
+  const epiItems = informarIdentificacaoEpi ? itemsToDeduct.filter(item => produtoEpi(item)) : [];
+  const [identificacoesEpi, setIdentificacoesEpi] = useState<Record<string, IdentificacaoInformadaEpi>>(() => {
+    const iniciais: Record<string, IdentificacaoInformadaEpi> = {};
+    for (const item of epiItems) iniciais[item.id] = identificacaoInicialDoItem(produtoEpi(item)!);
+    return iniciais;
+  });
+  const alterarIdentificacao = (itemId: string, campos: Partial<IdentificacaoInformadaEpi>) => {
+    setIdentificacoesEpi(prev => ({ ...prev, [itemId]: { ...prev[itemId], ...campos } }));
+  };
+
   // Verifica se todos os itens são não cadastrados (permite confirmar sem dedução de estoque)
   const allItemsUnregistered = unregisteredItems.length === withdrawalItems.length && withdrawalItems.length > 0;
   
@@ -137,7 +162,8 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
         signatureData!,
         receiverName.trim(),
         itemsToDeduct,
-        handleItemProcessed
+        handleItemProcessed,
+        identificacoesEpi
       );
       
       setProcessingComplete(true);
@@ -248,6 +274,57 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Identificação dos EPIs entregues */}
+          {epiItems.length > 0 && !processingComplete && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center">
+                <ShieldCheck className="w-4 h-4 text-blue-500 mr-2" />
+                Identificação dos EPIs ({epiItems.length})
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Confira o CA ou o Registro ANVISA de cada EPI entregue e, se faltar, informe. Vale só para esta entrega; o cadastro do produto não muda.
+              </p>
+              <div className="border border-gray-200 dark:border-gray-600 rounded-xl divide-y divide-gray-200 dark:divide-gray-600">
+                {epiItems.map((item) => {
+                  const produto = produtoEpi(item)!;
+                  const identificacao = identificacoesEpi[item.id];
+                  const temNoCadastro = !!produto.epiNumero.trim();
+                  return (
+                    <div key={item.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{item.productName}</p>
+                        <p className={`text-xs ${temNoCadastro ? 'text-gray-500 dark:text-gray-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {temNoCadastro ? 'Do cadastro: confira' : 'Sem identificação no cadastro: informe'}
+                        </p>
+                      </div>
+                      <select
+                        aria-label={`Tipo da identificação de ${item.productName}`}
+                        value={identificacao.tipo}
+                        onChange={(e) => alterarIdentificacao(item.id, { tipo: e.target.value as TipoIdentificacaoEpi | '' })}
+                        disabled={isProcessing}
+                        className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 disabled:opacity-60"
+                      >
+                        <option value="">Tipo</option>
+                        {TIPOS_IDENTIFICACAO_EPI.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        aria-label={`Número da identificação de ${item.productName}`}
+                        placeholder="Número"
+                        value={identificacao.numero}
+                        onChange={(e) => alterarIdentificacao(item.id, { numero: e.target.value })}
+                        disabled={isProcessing}
+                        className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm sm:w-40 bg-white dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400 disabled:opacity-60"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -53,7 +53,7 @@ Produto do estoque marcado como Equipamento de Proteção Individual (`products.
 _Avoid_: material de proteção, EPC (proteção coletiva é outra coisa)
 
 **Identificação do EPI**:
-O tipo (CA, que é o Certificado de Aprovação do Ministério do Trabalho, ou Registro ANVISA), o número e a validade de um EPI. É copiada para o item da solicitação na finalização, e o relatório usa essa cópia, não o cadastro atual.
+O tipo (CA, que é o Certificado de Aprovação do Ministério do Trabalho, ou Registro ANVISA), o número e a validade de um EPI. O cadastro do produto guarda a identificação de referência. Na retirada de uma solicitação de materiais, o estoquista confere essa identificação ou a informa, e ela é gravada no item da entrega; o relatório usa essa cópia, não o cadastro atual.
 _Avoid_: código ECA, código do produto (`products.code` é o código interno)
 
 **Relatório mensal de EPI**:
