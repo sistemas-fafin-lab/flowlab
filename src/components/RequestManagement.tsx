@@ -13,7 +13,6 @@ import { supabase } from '../lib/supabase';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import RequestChat, { ChatButton } from './RequestChat';
-import SignatureModal from './SignatureModal';
 import SignatureViewModal from './SignatureViewModal';
 import StockWithdrawalModal from './StockWithdrawalModal';
 import { PenTool, Loader2 } from 'lucide-react';
@@ -223,8 +222,6 @@ const RequestManagement: React.FC = () => {
 
   const [chatRequestId, setChatRequestId] = useState<string | null>(null);
 
-  const [showSignatureModal, setShowSignatureModal] = useState<null | Request>(null);
-  
   // Estado para controlar o modal de baixa de estoque seguro
   const [showWithdrawalModal, setShowWithdrawalModal] = useState<null | Request>(null);
   // Solicitações com "Iniciar Cotação" em andamento. O ref trava já no 2º clique (o state só
@@ -2687,43 +2684,6 @@ const handleCompleteRequest = async (request: Request) => {
         requestId={chatRequestId}
         currentUser={{ id: user?.id || '', name: userProfile?.name || '' }}
         onClose={() => setChatRequestId(null)}
-      />
-    )}
-    
-    {showSignatureModal && (
-      <SignatureModal
-        requestId={showSignatureModal.id}
-        items={showSignatureModal.items}
-        onClose={() => setShowSignatureModal(null)}
-        onConfirm={async (signature, receiverName) => {
-          try {
-            // Salva assinatura e nome de quem recebeu
-            await supabase
-              .from('requests')
-              .update({
-                receiver_signature: signature,
-                received_by: receiverName,
-              })
-              .eq('id', showSignatureModal.id);
-    
-            // Criar movimentação para cada item (UMA ÚNICA VEZ) — §4.2: transfer/out
-            const sigRequest = requests.find(r => r.id === showSignatureModal.id);
-            for (const item of showSignatureModal.items) {
-              const product = products.find(p => p.id === item.productId);
-              if (product) {
-                await processRetirada(item, product, sigRequest, showSignatureModal.approvedBy);
-              }
-            }
-    
-            // Atualiza status da solicitação
-            await updateRequestStatus(showSignatureModal.id, 'completed');
-            showSuccess('Retirada finalizada com sucesso!');
-            setShowSignatureModal(null);
-          } catch (error) {
-            console.error(error);
-            showError('Erro ao finalizar solicitação. Tente novamente.');
-          }
-        }}
       />
     )}
     
