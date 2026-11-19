@@ -98,6 +98,9 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string; d
   // ── Qualidade ──────────────────────────────────────────────────────────────
   { key: 'canViewQualidade', label: 'Visualizar Qualidade', group: 'Qualidade' },
   { key: 'canManageQualidade', label: 'Gerenciar Qualidade (curadoria e sincronização)', group: 'Qualidade' },
+  // Aba EPIs da Qualidade (.scratch/epi-relatorio-mensal/spec.md): independente de
+  // canViewQualidade, para o Estoque gerar os relatórios sem ver o resto da Qualidade.
+  { key: 'canViewEpiReport', label: 'Ver relatórios de EPI', group: 'Qualidade', description: 'Abrir a aba EPIs da Qualidade e gerar o Relatório mensal de EPI de cada área.' },
   // ── Board (Kanban multi-departamento) ──────────────────────────────────────
   // Visualizar o próprio board não é uma permission: é implícito a qualquer
   // cargo com custom_roles.board_id preenchido (ver domain/resolveBoardAccess).

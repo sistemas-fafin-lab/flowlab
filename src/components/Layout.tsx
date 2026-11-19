@@ -54,6 +54,7 @@ import {
   Sparkles,
   Bot,
   KeyRound,
+  HardHat,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -492,7 +493,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/inicio', '/it/eva', '/it/eva/reunioes', '/it/eva/membros', '/it/eva/configuracoes', '/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/', '/it/gastos', '/it/gastos/despesas', '/it/gastos/mes-a-mes', '/it/gastos/orcamento'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
-    if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
+    if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores', '/qualidade/epis'].includes(path)) return ['Qualidade'];
     if (['/rh/colaboradores', '/rh/departamentos', '/rh/holerites'].includes(path)) return ['RH'];
     if ([GERADOR_ORCAMENTO_PATH, RESETAR_SENHA_CLINICA_PATH].includes(path)) return ['Atendimento'];
     return [];
@@ -692,7 +693,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         name: 'Qualidade',
         href: '/qualidade',
         icon: Shield,
-        anyOf: ['canViewQualidade', 'canManageQualidade'],
+        anyOf: ['canViewQualidade', 'canManageQualidade', 'canViewEpiReport'],
         category: 'OPERAÇÕES',
         subItems: [
           { name: 'Painel', href: '/qualidade', icon: Shield, anyOf: ['canViewQualidade', 'canManageQualidade'] },
@@ -702,6 +703,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Registro de Câncer', href: '/qualidade/cancer', icon: Stethoscope, anyOf: ['canViewQualidade', 'canManageQualidade'] },
           { name: 'Riscos', href: '/qualidade/riscos', icon: AlertOctagon, anyOf: ['canViewQualidade', 'canManageQualidade'] },
           { name: 'Indicadores', href: '/qualidade/indicadores', icon: BarChart3, anyOf: ['canViewQualidade', 'canManageQualidade'] },
+          { name: 'EPIs', href: '/qualidade/epis', icon: HardHat, permission: 'canViewEpiReport' },
         ],
       },
       {
@@ -847,6 +849,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const hasAccessibleSubItems = accessibleSubItems.length > 0;
     const isExpanded = expandedItems.includes(item.name);
     const isActive = isItemActive(item.href, item.subItems);
+    // Quando a tela do item pai é um dos subitens e o usuário não a acessa (ex.: só "Ver
+    // relatórios de EPI" na Qualidade, sem o Painel), o pai leva ao primeiro subitem que ele
+    // acessa, em vez de cair numa rota bloqueada. Pais cuja tela não é subitem não mudam.
+    const telaDoPaiBloqueada =
+      !!item.subItems?.some((sub) => sub.href === item.href) &&
+      !accessibleSubItems.some((sub) => sub.href === item.href);
+    const destino = telaDoPaiBloqueada && hasAccessibleSubItems ? accessibleSubItems[0].href : item.href;
 
     // ── Collapsed mode ──
     if (collapsed) {
@@ -888,7 +897,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <div className="flex items-center">
           <Link
-            to={item.href}
+            to={destino}
             onClick={isMobile ? () => setSidebarOpen(false) : undefined}
             className={`flex items-center flex-1 px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 ${
               isActive

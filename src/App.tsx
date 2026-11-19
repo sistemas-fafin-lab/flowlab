@@ -48,6 +48,7 @@ import {
   RiscosMatrizPage,
   ContingenciasPage,
   CorrelacaoRiscosOcorrenciasPage,
+  EpisPage as QualidadeEpisPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
 import { ColaboradoresPage, DepartamentosPage, HoleritesPage, MeuPerfilPage } from './modules/rh';
@@ -487,6 +488,17 @@ const AuthenticatedApp: React.FC = () => {
             <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
               <QualidadeProviders>
                 <CorrelacaoRiscosOcorrenciasPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        {/* Aba EPIs: só com "Ver relatórios de EPI", independente de canViewQualidade. */}
+        <Route
+          path="/qualidade/epis"
+          element={
+            <ProtectedRoute permission="canViewEpiReport" permissions={userPermissions}>
+              <QualidadeProviders>
+                <QualidadeEpisPage />
               </QualidadeProviders>
             </ProtectedRoute>
           }

@@ -27,6 +27,7 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canGerirAtendimento: '20261106120000_atendimento_gerir_permissao.sql',
   canResetarSenhaClinica: '20261111160000_atendimento_reset_senha_clinica.sql',
   canManageEpi: '20261119100000_produtos_epi_identificacao.sql',
+  canViewEpiReport: '20261119110000_epi_relatorio_permissao.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

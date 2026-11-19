@@ -22,3 +22,5 @@ export { RiscosDashboard as RiscosDashboardPage } from './components/RiscosDashb
 export { Riscos as RiscosMatrizPage } from './components/RiscosPage';
 export { Contingencias as ContingenciasPage } from './components/ContingenciasPage';
 export { CorrelacaoRiscosOcorrencias as CorrelacaoRiscosOcorrenciasPage } from './components/CorrelacaoRiscosOcorrenciasPage';
+
+export { Epis as EpisPage } from './components/EpisPage';
