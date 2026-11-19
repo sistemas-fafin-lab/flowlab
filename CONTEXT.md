@@ -46,6 +46,24 @@ _Avoid_: meta calculada, meta automática (a meta salva nunca muda sozinha)
 A glosa que o financeiro leva para a DRE, por mês de solicitação: soma de (líquido − recebido) das cobranças (`fatrequisicaoprocedimento`) com motivo de glosa preenchido e saldo positivo, de requisições cobráveis. É a conta que ele faz sobre a Análise de Faturamento do apLIS; aparece no bloco "Glosa por mês de solicitação" da aba Comparativos. É um saldo: o valor de um mês cai conforme os recursos são pagos.
 _Avoid_: glosa total do funil (é por mês de emissão do título e soma recuperada + acatada + em disputa), glosa da tabela `glosas` (lançamentos importados de planilha)
 
+### Estoque e Qualidade
+
+**EPI**:
+Produto do estoque marcado como Equipamento de Proteção Individual (`products.is_epi`), cadastrado pelo Compras. Só ele entra no Relatório mensal de EPI.
+_Avoid_: material de proteção, EPC (proteção coletiva é outra coisa)
+
+**Identificação do EPI**:
+O tipo (CA, que é o Certificado de Aprovação do Ministério do Trabalho, ou Registro ANVISA), o número e a validade de um EPI. É copiada para o item da solicitação na finalização, e o relatório usa essa cópia, não o cadastro atual.
+_Avoid_: código ECA, código do produto (`products.code` é o código interno)
+
+**Relatório mensal de EPI**:
+O PDF de uma área num mês, com uma linha por item de EPI de solicitação de materiais entregue (data da solicitação, produto, Identificação do EPI, quantidade e solicitante) e uma assinatura por linha. É impresso, assinado e anexado digitalizado na aba EPIs da Qualidade, pelas regras de `.scratch/epi-relatorio-mensal/spec.md`. O consolidado do mês junta todas as áreas, sem assinatura.
+_Avoid_: ficha de EPI individual (o documento é por área, não por colaborador)
+
+**Fechamento do relatório de EPI**:
+O ato da Qualidade de congelar o Relatório mensal de EPI de uma área num mês (situações: aberto, fechado, assinado). Para reabrir é preciso informar um motivo.
+_Avoid_: Fechamento da pontuação (é do Faturamento)
+
 ### Atendimento
 
 **Gerador de Orçamento**:
