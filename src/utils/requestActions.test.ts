@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSeeRequest, requestActions, type RequestForActions, type RequestViewer } from './requestActions';
+import { canSeeRequest, finalizableStatuses, requestActions, type RequestForActions, type RequestViewer } from './requestActions';
 
 const sc = (r: Partial<RequestForActions> = {}): RequestForActions => ({
   type: 'SC',
@@ -49,6 +49,15 @@ describe('requestActions', () => {
   it('SM continua como hoje: comprador finaliza a pendente e inicia cotação na aprovada', () => {
     expect(requestActions(sc({ type: 'SM', approverId: null }), mateus)).toMatchObject({ canStartQuotation: false, canFinalize: true });
     expect(requestActions(sc({ type: 'SM', approverId: null, status: 'approved' }), mateus)).toMatchObject({ canStartQuotation: true, canFinalize: true });
+  });
+
+  it('solicitação de materiais pendente pode ser finalizada', () => {
+    expect(finalizableStatuses('SM')).toEqual(['pending', 'approved']);
+    expect(requestActions(sc({ type: 'SM', approverId: null }), mateus).canFinalize).toBe(true);
+  });
+
+  it('solicitação de compra só pode ser finalizada depois de aprovada', () => {
+    expect(finalizableStatuses('SC')).toEqual(['approved']);
   });
 
   it('aprovador sem canApproveRequests não ganha o operacional de Compras', () => {

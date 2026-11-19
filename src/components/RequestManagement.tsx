@@ -30,7 +30,7 @@ import {
   isAwaitingMyApprovalParam,
   parseRequestStatusParam,
 } from '../../api/_lib/requestsRoutes.js';
-import { canSeeRequest, isApproverOf, requestActions, type RequestViewer } from '../utils/requestActions';
+import { canSeeRequest, finalizableStatuses, isApproverOf, requestActions, type RequestViewer } from '../utils/requestActions';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -2757,17 +2757,20 @@ const handleCompleteRequest = async (request: Request) => {
             }
             
             // Primeiro: Salvar assinatura e nome (marcando que está em processo)
-            const { error: signatureError } = await supabase
+            // Só grava se a solicitação ainda estiver numa situação que pode ser finalizada
+            const { data: signedRows, error: signatureError } = await supabase
               .from('requests')
               .update({
                 receiver_signature: signature,
                 received_by: receiverName,
               })
               .eq('id', showWithdrawalModal.id)
-              .eq('status', 'approved'); // Só atualiza se ainda estiver aprovado
-            
-            if (signatureError) {
-              throw new Error('Erro ao salvar assinatura. Possível processamento concorrente.');
+              .in('status', finalizableStatuses(showWithdrawalModal.type))
+              .select('id');
+
+            if (signatureError || !signedRows?.length) {
+              if (signatureError) console.error('Erro ao gravar recebedor e assinatura:', signatureError);
+              throw new Error('Erro ao salvar o recebedor e a assinatura. A solicitação não foi finalizada.');
             }
             
             // Processar cada item individualmente com tratamento de erro

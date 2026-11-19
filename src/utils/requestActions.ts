@@ -21,6 +21,15 @@ export interface RequestActions {
 }
 
 /**
+ * Situações em que a solicitação pode ser finalizada: a SM direto da pendente
+ * ou da aprovada; a SC só depois de aprovada. É a mesma regra do botão
+ * Finalizar e da gravação do recebedor e da assinatura.
+ */
+export function finalizableStatuses(type: Request['type']): Request['status'][] {
+  return type === 'SM' ? ['pending', 'approved'] : ['approved'];
+}
+
+/**
  * Ações que o usuário tem sobre uma solicitação. A SC é decidida pelo
  * approver_id; quem tem canApproveRequests só decide quando ela não tem
  * aprovador, e só inicia cotação/finaliza depois de aprovada. A SM segue como
@@ -31,12 +40,13 @@ export function requestActions(request: RequestForActions, viewer: RequestViewer
   const pending = request.status === 'pending';
   const approved = request.status === 'approved';
   const { canApproveRequests } = viewer;
+  const canFinalize = canApproveRequests && finalizableStatuses(request.type).includes(request.status);
   if (request.type === 'SM') {
     return {
       canDecide: pending && canApproveRequests,
       decidesWithoutApprover: false,
       canStartQuotation: canApproveRequests && approved,
-      canFinalize: canApproveRequests && (pending || approved),
+      canFinalize,
     };
   }
   const decidesWithoutApprover = !request.approverId && canApproveRequests;
@@ -44,7 +54,7 @@ export function requestActions(request: RequestForActions, viewer: RequestViewer
     canDecide: pending && (isApproverOf(request, viewer.userId) || decidesWithoutApprover),
     decidesWithoutApprover,
     canStartQuotation: canApproveRequests && approved,
-    canFinalize: canApproveRequests && approved,
+    canFinalize,
   };
 }
 
