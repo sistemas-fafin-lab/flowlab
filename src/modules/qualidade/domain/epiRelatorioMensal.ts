@@ -234,17 +234,24 @@ export function linhasDoRelatorioEpi(
   return congelado(fechamento) ? fechamento.linhas : montarLinhasEpi(dados, filtro);
 }
 
-export type AcaoFechamentoEpi = { tipo: 'fechar' } | { tipo: 'reabrir'; motivo: string };
+export type AcaoFechamentoEpi = { tipo: 'fechar' } | { tipo: 'reabrir'; motivo: string } | { tipo: 'anexar' };
 
 export type ResultadoTransicaoEpi = { ok: true; situacao: SituacaoAreaEpi } | { ok: false; erro: string };
 
 /**
  * Regras de fechamento: fechar vai de aberto para fechado; reabrir vai de fechado ou assinado
- * para aberto e exige motivo. Qualquer outra transição é recusada com a mensagem para a tela.
+ * para aberto e exige motivo; anexar o PDF assinado vai de fechado ou assinado para assinado,
+ * para que o documento assinado corresponda ao conteúdo congelado. Qualquer outra transição é
+ * recusada com a mensagem para a tela.
  */
 export function transicaoFechamentoEpi(situacao: SituacaoAreaEpi, acao: AcaoFechamentoEpi): ResultadoTransicaoEpi {
   if (acao.tipo === 'fechar') {
     return situacao === 'aberto' ? { ok: true, situacao: 'fechado' } : { ok: false, erro: 'A área já está fechada.' };
+  }
+  if (acao.tipo === 'anexar') {
+    return situacao === 'aberto'
+      ? { ok: false, erro: 'Feche a área antes de anexar o PDF assinado.' }
+      : { ok: true, situacao: 'assinado' };
   }
   if (situacao === 'aberto') return { ok: false, erro: 'A área já está aberta.' };
   if (!acao.motivo.trim()) return { ok: false, erro: 'Informe o motivo da reabertura.' };
@@ -267,26 +274,63 @@ export interface ReaberturaEpi {
   reabertoEm: string;
 }
 
+/** Um PDF assinado e digitalizado anexado ao fechamento. Anexos nunca são apagados. */
+export interface AnexoAssinadoEpi {
+  /** Caminho no armazenamento privado dos PDFs assinados. */
+  caminho: string;
+  nomeArquivo: string;
+  enviadoPor: string;
+  enviadoEm: string;
+}
+
 export type EventoFechamentoEpi =
   | { tipo: 'fechou'; por: string; em: string }
-  | { tipo: 'reabriu'; por: string; em: string; motivo: string };
+  | { tipo: 'reabriu'; por: string; em: string; motivo: string }
+  | { tipo: 'anexou'; por: string; em: string; caminho: string; nomeArquivo: string };
 
 /**
  * Histórico de uma área no mês, do mais antigo ao mais recente: cada fechamento desfeito e a
- * reabertura que o desfez (com o motivo) e, se a área está fechada ou assinada, o fechamento atual.
+ * reabertura que o desfez (com o motivo), cada PDF assinado anexado (mesmo os de fechamentos
+ * já desfeitos) e, se a área está fechada ou assinada, o fechamento atual.
  */
 export function historicoFechamentoEpi(
   atual: UltimoFechamentoEpi | undefined,
   reaberturas: ReaberturaEpi[],
+  anexos: AnexoAssinadoEpi[] = [],
 ): EventoFechamentoEpi[] {
-  const eventos: EventoFechamentoEpi[] = [...reaberturas]
-    .sort((a, b) => a.reabertoEm.localeCompare(b.reabertoEm))
-    .flatMap((r): EventoFechamentoEpi[] => [
-      { tipo: 'fechou', por: r.fechadoPor, em: r.fechadoEm },
-      { tipo: 'reabriu', por: r.reabertoPor, em: r.reabertoEm, motivo: r.motivo },
-    ]);
+  const eventos: EventoFechamentoEpi[] = reaberturas.flatMap((r): EventoFechamentoEpi[] => [
+    { tipo: 'fechou', por: r.fechadoPor, em: r.fechadoEm },
+    { tipo: 'reabriu', por: r.reabertoPor, em: r.reabertoEm, motivo: r.motivo },
+  ]);
   if (atual && atual.situacao !== 'aberto') {
     eventos.push({ tipo: 'fechou', por: atual.fechadoPor, em: atual.fechadoEm });
   }
-  return eventos;
+  for (const a of anexos) {
+    eventos.push({ tipo: 'anexou', por: a.enviadoPor, em: a.enviadoEm, caminho: a.caminho, nomeArquivo: a.nomeArquivo });
+  }
+  return eventos.sort((a, b) => a.em.localeCompare(b.em));
+}
+
+/** O PDF assinado enviado por último (o que "Ver assinado" abre), ou undefined sem anexo. */
+export function anexoMaisRecenteEpi(anexos: AnexoAssinadoEpi[]): AnexoAssinadoEpi | undefined {
+  return anexos.reduce<AnexoAssinadoEpi | undefined>(
+    (maisRecente, a) => (!maisRecente || a.enviadoEm > maisRecente.enviadoEm ? a : maisRecente),
+    undefined,
+  );
+}
+
+/** Limite do PDF assinado (o mesmo do armazenamento, migration 20261119140000). */
+export const TAMANHO_MAXIMO_PDF_ASSINADO_EPI = 20 * 1024 * 1024;
+
+/**
+ * O PDF assinado e digitalizado: só PDF (pelo tipo ou, sem tipo, pela extensão), não vazio, até 20 MB. O armazenamento recusa o resto
+ * também; validar aqui só evita subir o arquivo para ouvir "não" no fim.
+ */
+export function validarPdfAssinadoEpi(arquivo: { name: string; type: string; size: number }): string | null {
+  // Alguns navegadores e sistemas não informam o tipo: vale a extensão (o envio declara application/pdf).
+  const ehPdf = arquivo.type === 'application/pdf' || (!arquivo.type && /\.pdf$/i.test(arquivo.name));
+  if (!ehPdf) return `"${arquivo.name}": só PDF.`;
+  if (arquivo.size === 0) return `"${arquivo.name}" está vazio.`;
+  if (arquivo.size > TAMANHO_MAXIMO_PDF_ASSINADO_EPI) return `"${arquivo.name}" passa do limite de 20 MB.`;
+  return null;
 }

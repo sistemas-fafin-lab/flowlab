@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   copiarIdentificacaoEpi,
+  anexoMaisRecenteEpi,
+  validarPdfAssinadoEpi,
   historicoFechamentoEpi,
   linhasDoRelatorioEpi,
   listarAreasEpiDoMes,
@@ -340,6 +342,17 @@ describe('transicaoFechamentoEpi', () => {
       erro: 'A área já está aberta.',
     });
   });
+
+  it.each(['fechado', 'assinado'] as const)('anexar: de %s para assinado', (situacao) => {
+    expect(transicaoFechamentoEpi(situacao, { tipo: 'anexar' })).toEqual({ ok: true, situacao: 'assinado' });
+  });
+
+  it('anexar com a área aberta é recusado', () => {
+    expect(transicaoFechamentoEpi('aberto', { tipo: 'anexar' })).toEqual({
+      ok: false,
+      erro: 'Feche a área antes de anexar o PDF assinado.',
+    });
+  });
 });
 
 describe('linhasDoRelatorioEpi', () => {
@@ -394,6 +407,40 @@ describe('historicoFechamentoEpi', () => {
     ]);
   });
 
+  it('anexos entram em ordem e continuam no histórico depois de reabrir e fechar de novo', () => {
+    const anexo = (enviadoEm: string, enviadoPor: string) => ({
+      caminho: `f-1/${enviadoEm}.pdf`,
+      nomeArquivo: 'recepcao-assinado.pdf',
+      enviadoPor,
+      enviadoEm,
+    });
+    expect(
+      historicoFechamentoEpi(
+        { situacao: 'assinado', fechadoPor: 'Qualidade 2', fechadoEm: '2026-11-05T08:00:00Z' },
+        [reabertura],
+        [anexo('2026-11-06T10:00:00Z', 'Qualidade 2'), anexo('2026-11-03T15:00:00Z', 'Qualidade 1')],
+      ),
+    ).toEqual([
+      { tipo: 'fechou', por: 'Qualidade 1', em: '2026-11-03T10:00:00Z' },
+      {
+        tipo: 'anexou',
+        por: 'Qualidade 1',
+        em: '2026-11-03T15:00:00Z',
+        caminho: 'f-1/2026-11-03T15:00:00Z.pdf',
+        nomeArquivo: 'recepcao-assinado.pdf',
+      },
+      { tipo: 'reabriu', por: 'Qualidade 2', em: '2026-11-04T09:00:00Z', motivo: 'Faltou a luva da Bia' },
+      { tipo: 'fechou', por: 'Qualidade 2', em: '2026-11-05T08:00:00Z' },
+      {
+        tipo: 'anexou',
+        por: 'Qualidade 2',
+        em: '2026-11-06T10:00:00Z',
+        caminho: 'f-1/2026-11-06T10:00:00Z.pdf',
+        nomeArquivo: 'recepcao-assinado.pdf',
+      },
+    ]);
+  });
+
   it('reaberta e ainda aberta: o fechamento desfeito não aparece duas vezes', () => {
     expect(
       historicoFechamentoEpi({ situacao: 'aberto', fechadoPor: 'Qualidade 1', fechadoEm: '2026-11-03T10:00:00Z' }, [
@@ -403,5 +450,41 @@ describe('historicoFechamentoEpi', () => {
       { tipo: 'fechou', por: 'Qualidade 1', em: '2026-11-03T10:00:00Z' },
       { tipo: 'reabriu', por: 'Qualidade 2', em: '2026-11-04T09:00:00Z', motivo: 'Faltou a luva da Bia' },
     ]);
+  });
+});
+
+describe('anexoMaisRecenteEpi', () => {
+  const anexo = (enviadoEm: string) => ({ caminho: `f-1/${enviadoEm}.pdf`, nomeArquivo: 'a.pdf', enviadoPor: 'Q', enviadoEm });
+
+  it('sem anexo: nenhum', () => {
+    expect(anexoMaisRecenteEpi([])).toBeUndefined();
+  });
+
+  it('o enviado por último, em qualquer ordem', () => {
+    expect(
+      anexoMaisRecenteEpi([anexo('2026-11-03T15:00:00Z'), anexo('2026-11-06T10:00:00Z'), anexo('2026-11-04T09:00:00Z')])
+        ?.caminho,
+    ).toBe('f-1/2026-11-06T10:00:00Z.pdf');
+  });
+});
+
+describe('validarPdfAssinadoEpi', () => {
+  const MB = 1024 * 1024;
+
+  it('aceita um PDF', () => {
+    expect(validarPdfAssinadoEpi({ name: 'recepcao.pdf', type: 'application/pdf', size: 2 * MB })).toBeNull();
+  });
+
+  it('aceita um .pdf sem tipo informado pelo navegador', () => {
+    expect(validarPdfAssinadoEpi({ name: 'Recepcao.PDF', type: '', size: MB })).toBeNull();
+  });
+
+  it.each([
+    [{ name: 'foto.jpg', type: 'image/jpeg', size: MB }, '"foto.jpg": só PDF.'],
+    [{ name: 'sem-tipo.docx', type: '', size: MB }, '"sem-tipo.docx": só PDF.'],
+    [{ name: 'vazio.pdf', type: 'application/pdf', size: 0 }, '"vazio.pdf" está vazio.'],
+    [{ name: 'grande.pdf', type: 'application/pdf', size: 21 * MB }, '"grande.pdf" passa do limite de 20 MB.'],
+  ])('recusa %o', (arquivo, erro) => {
+    expect(validarPdfAssinadoEpi(arquivo)).toBe(erro);
   });
 });

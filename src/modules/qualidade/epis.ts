@@ -1,17 +1,20 @@
 // Dados do Relatório mensal de EPI (aba EPIs da Qualidade). Lê direto do Supabase as
 // solicitações de materiais do mês, os produtos EPI e as movimentações dessas solicitações;
 // as regras de inclusão ficam no domínio (domain/epiRelatorioMensal.ts). Também lê e grava o
-// Fechamento do relatório de EPI (migration 20261119120000_epi_relatorio_fechamento.sql).
+// Fechamento do relatório de EPI (migration 20261119120000_epi_relatorio_fechamento.sql) e os
+// PDFs assinados anexados (migration 20261119140000_epi_relatorio_anexos.sql).
 
 import { supabase } from '../../lib/supabase.js';
 import { camposEpiDaLinha, COLUNAS_EPI_PRODUTO, type CopiaIdentificacaoEpi } from '../../utils/epi.js';
-import type {
-  DadosRelatorioEpi,
-  FechamentoEpi,
-  LinhaRelatorioEpi,
-  ReaberturaEpi,
-  SolicitacaoParaEpi,
-  UltimoFechamentoEpi,
+import {
+  validarPdfAssinadoEpi,
+  type AnexoAssinadoEpi,
+  type DadosRelatorioEpi,
+  type FechamentoEpi,
+  type LinhaRelatorioEpi,
+  type ReaberturaEpi,
+  type SolicitacaoParaEpi,
+  type UltimoFechamentoEpi,
 } from './domain/epiRelatorioMensal.js';
 
 /** Ids por consulta de movimentações: mantém a URL do `in(...)` curta. */
@@ -85,7 +88,17 @@ export async function buscarDadosRelatorioEpi(mes: string): Promise<DadosRelator
 
 /** O fechamento de uma área no mês com quem fechou por último e as reaberturas. */
 export interface FechamentoEpiGravado extends FechamentoEpi, UltimoFechamentoEpi {
+  id: string;
   reaberturas: ReaberturaEpi[];
+  /** Todos os PDFs assinados, também os de fechamentos já desfeitos. */
+  anexos: AnexoAssinadoEpi[];
+}
+
+interface AnexoLinha {
+  caminho: string;
+  nome_arquivo: string;
+  enviado_por_nome: string | null;
+  enviado_em: string;
 }
 
 interface ReaberturaLinha {
@@ -103,11 +116,12 @@ export async function buscarFechamentosEpi(mes: string): Promise<FechamentoEpiGr
   const { data, error } = await supabase
     .from('epi_relatorio_fechamentos')
     .select(
-      'area, situacao, linhas, fechado_por_nome, fechado_em, epi_relatorio_reaberturas(motivo, fechado_por_nome, fechado_em, reaberto_por_nome, reaberto_em)',
+      'id, area, situacao, linhas, fechado_por_nome, fechado_em, epi_relatorio_reaberturas(motivo, fechado_por_nome, fechado_em, reaberto_por_nome, reaberto_em), epi_relatorio_anexos(caminho, nome_arquivo, enviado_por_nome, enviado_em)',
     )
     .eq('mes', mes);
   if (error) throw error;
   return (data ?? []).map((f) => ({
+    id: f.id,
     area: f.area,
     situacao: f.situacao,
     linhas: (Array.isArray(f.linhas) ? f.linhas : []) as LinhaRelatorioEpi[],
@@ -119,6 +133,12 @@ export async function buscarFechamentosEpi(mes: string): Promise<FechamentoEpiGr
       fechadoEm: r.fechado_em,
       reabertoPor: r.reaberto_por_nome ?? SEM_NOME,
       reabertoEm: r.reaberto_em,
+    })),
+    anexos: ((f.epi_relatorio_anexos ?? []) as AnexoLinha[]).map((a) => ({
+      caminho: a.caminho,
+      nomeArquivo: a.nome_arquivo,
+      enviadoPor: a.enviado_por_nome ?? SEM_NOME,
+      enviadoEm: a.enviado_em,
     })),
   }));
 }
@@ -133,4 +153,45 @@ export async function fecharRelatorioEpi(area: string, mes: string, linhas: Linh
 export async function reabrirRelatorioEpi(area: string, mes: string, motivo: string): Promise<void> {
   const { error } = await supabase.rpc('epi_reabrir_relatorio', { p_area: area, p_mes: mes, p_motivo: motivo });
   if (error) throw new Error(error.message);
+}
+
+// ─── PDF assinado ────────────────────────────────────────────────────────────
+
+/** Bucket privado dos PDFs assinados (só PDF; sem substituir nem apagar). */
+export const BUCKET_EPI_ASSINADOS = 'epi-relatorios-assinados';
+
+/**
+ * Anexa o PDF assinado ao fechamento da área no mês: envia o arquivo para
+ * "<fechamento_id>/<uuid>.pdf" e registra o anexo pela RPC, que confere a permissão, a
+ * transição (fechado ou assinado → assinado) e que o arquivo está no bucket.
+ */
+export async function anexarRelatorioEpi(
+  fechamento: Pick<FechamentoEpiGravado, 'id' | 'area'>,
+  mes: string,
+  arquivo: File,
+): Promise<void> {
+  const invalido = validarPdfAssinadoEpi(arquivo);
+  if (invalido) throw new Error(invalido);
+
+  const caminho = `${fechamento.id}/${crypto.randomUUID()}.pdf`;
+  const envio = await supabase.storage
+    .from(BUCKET_EPI_ASSINADOS)
+    .upload(caminho, arquivo, { contentType: 'application/pdf', upsert: false });
+  if (envio.error) throw new Error(`O PDF não foi enviado (${envio.error.message}).`);
+
+  const { error } = await supabase.rpc('epi_anexar_relatorio', {
+    p_area: fechamento.area,
+    p_mes: mes,
+    p_caminho: caminho,
+    p_nome_arquivo: arquivo.name,
+  });
+  // Sem delete exposto no bucket: o arquivo enviado fica sem registro, e o erro vai para a tela.
+  if (error) throw new Error(error.message);
+}
+
+/** Signed URL de 60 s para abrir um PDF assinado: o caminho nunca vai direto para o HTML. */
+export async function urlPdfAssinadoEpi(caminho: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(BUCKET_EPI_ASSINADOS).createSignedUrl(caminho, 60);
+  if (error || !data?.signedUrl) throw new Error('Não foi possível abrir o PDF assinado.');
+  return data.signedUrl;
 }

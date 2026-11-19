@@ -1,29 +1,41 @@
 // Aba EPIs da Qualidade: escolhe o mês, vê as áreas com EPI entregue (e o aviso de pedidos
 // de EPI do mês ainda não entregues) e gera o PDF do Relatório mensal de EPI de cada área,
 // calculado na hora ou, com a área fechada, das linhas congeladas. Quem tem "Fechar relatórios
-// de EPI" fecha e reabre a área, com motivo (.scratch/epi-relatorio-mensal/spec.md,
-// histórias 16–36).
+// de EPI" fecha e reabre a área, com motivo, e anexa o PDF assinado e digitalizado; quem tem
+// "Ver relatórios de EPI" abre qualquer PDF assinado (.scratch/epi-relatorio-mensal/spec.md,
+// histórias 16–42).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FileDown, HardHat, History, Loader2, Lock, Unlock, X } from 'lucide-react';
+import { AlertTriangle, FileCheck2, FileDown, HardHat, History, Loader2, Lock, Paperclip, Unlock, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { anoAtual } from '../anoAtual.js';
 import {
+  anexoMaisRecenteEpi,
   historicoFechamentoEpi,
   linhasDoRelatorioEpi,
   listarAreasEpiDoMes,
   montarLinhasEpi,
+  TAMANHO_MAXIMO_PDF_ASSINADO_EPI,
   transicaoFechamentoEpi,
+  validarPdfAssinadoEpi,
   type AcaoFechamentoEpi,
   type AreaEpiDoMes,
   type EventoFechamentoEpi,
   type SituacaoAreaEpi,
 } from '../domain/epiRelatorioMensal.js';
 import { mesPorExtenso, montarPdfRelatorioEpi, nomeArquivoRelatorioEpi } from '../domain/pdfRelatorioEpi.js';
-import { buscarDadosRelatorioEpi, buscarFechamentosEpi, fecharRelatorioEpi, reabrirRelatorioEpi } from '../epis.js';
+import {
+  anexarRelatorioEpi,
+  buscarDadosRelatorioEpi,
+  buscarFechamentosEpi,
+  fecharRelatorioEpi,
+  reabrirRelatorioEpi,
+  urlPdfAssinadoEpi,
+  type FechamentoEpiGravado,
+} from '../epis.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
 import { Skeleton } from './ui/Skeleton.js';
@@ -61,9 +73,31 @@ type TipoAcao = AcaoFechamentoEpi['tipo'];
 const ACAO: Record<TipoAcao, { rotulo: string; Icone: typeof Lock }> = {
   fechar: { rotulo: 'Fechar', Icone: Lock },
   reabrir: { rotulo: 'Reabrir', Icone: Unlock },
+  anexar: { rotulo: 'Anexar assinado', Icone: Paperclip },
 };
 
-type Dialogo = { tipo: TipoAcao; area: AreaEpiDoMes } | null;
+type Dialogo = { tipo: TipoAcao; area: AreaEpiDoMes; fechamento?: FechamentoEpiGravado } | null;
+
+/**
+ * Abre o PDF assinado numa aba nova por signed URL. A aba abre já no clique (antes do await):
+ * aberta depois, o navegador bloqueia como pop-up. Devolve a mensagem de erro, se houver.
+ */
+async function abrirPdfAssinado(caminho: string): Promise<string | null> {
+  const janela = window.open('', '_blank');
+  try {
+    const url = await urlPdfAssinadoEpi(caminho);
+    if (janela) {
+      janela.opener = null;
+      janela.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+    return null;
+  } catch (e) {
+    janela?.close();
+    return e instanceof Error ? e.message : 'Não foi possível abrir o PDF assinado.';
+  }
+}
 
 const SEM_EPI_ENTREGUE = 'Nenhum EPI entregue nesta área no mês';
 
@@ -83,6 +117,11 @@ export function Epis() {
 
   const [dialogo, setDialogo] = useState<Dialogo>(null);
   const [historicoAberto, setHistoricoAberto] = useState<string | null>(null);
+  const [erroAbrir, setErroAbrir] = useState<string | null>(null);
+  const abrir = async (caminho: string) => {
+    setErroAbrir(null);
+    setErroAbrir(await abrirPdfAssinado(caminho));
+  };
   const mes = periodo.inicio && periodo.fim ? periodo.inicio.slice(0, 7) : '';
   const { userProfile } = useAuth();
   const podeFechar = hasPermission(userProfile?.permissions || [], 'canCloseEpiReport');
@@ -170,13 +209,23 @@ export function Epis() {
             </select>
           </label>
 
+          {erroAbrir && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {erroAbrir}
+            </p>
+          )}
+
           <ul className="space-y-2">
             {visiveis.map((a) => {
               const fechamento = fechamentoPorArea.get(a.area);
-              const historico = historicoFechamentoEpi(fechamento, fechamento?.reaberturas ?? []);
-              const podeFecharArea = transicaoFechamentoEpi(a.situacao, {
-                tipo: 'fechar',
-              }).ok;
+              const historico = historicoFechamentoEpi(
+                fechamento,
+                fechamento?.reaberturas ?? [],
+                fechamento?.anexos ?? [],
+              );
+              const podeFecharArea = transicaoFechamentoEpi(a.situacao, { tipo: 'fechar' }).ok;
+              const podeAnexarArea = transicaoFechamentoEpi(a.situacao, { tipo: 'anexar' }).ok;
+              const assinado = a.situacao === 'assinado' ? anexoMaisRecenteEpi(fechamento?.anexos ?? []) : undefined;
               const mostrarHistorico = historicoAberto === a.area;
               return (
                 <li key={a.area} className="glass-surface rounded-2xl px-4 py-3">
@@ -235,6 +284,27 @@ export function Epis() {
                             Reabrir
                           </button>
                         ))}
+                      {podeFechar && podeAnexarArea && fechamento && (
+                        <button
+                          type="button"
+                          onClick={() => setDialogo({ tipo: 'anexar', area: a, fechamento })}
+                          className={botaoSecundario}
+                        >
+                          <Paperclip className="h-4 w-4" aria-hidden />
+                          Anexar assinado
+                        </button>
+                      )}
+                      {assinado && (
+                        <button
+                          type="button"
+                          onClick={() => abrir(assinado.caminho)}
+                          title={`${assinado.nomeArquivo}, enviado por ${assinado.enviadoPor} em ${dataHora(assinado.enviadoEm)}`}
+                          className={botaoSecundario}
+                        >
+                          <FileCheck2 className="h-4 w-4" aria-hidden />
+                          Ver assinado
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => gerarPdf(a.area)}
@@ -247,7 +317,7 @@ export function Epis() {
                       </button>
                     </div>
                   </div>
-                  {mostrarHistorico && <HistoricoArea eventos={historico} />}
+                  {mostrarHistorico && <HistoricoArea eventos={historico} aoAbrir={abrir} />}
                 </li>
               );
             })}
@@ -256,20 +326,43 @@ export function Epis() {
       )}
 
       {dialogo && (
-        <DialogoFechamento tipo={dialogo.tipo} area={dialogo.area} mes={mes} aoFechar={() => setDialogo(null)} />
+        <DialogoFechamento
+          tipo={dialogo.tipo}
+          area={dialogo.area}
+          fechamento={dialogo.fechamento}
+          mes={mes}
+          aoFechar={() => setDialogo(null)}
+        />
       )}
     </div>
   );
 }
 
-function HistoricoArea({ eventos }: { eventos: EventoFechamentoEpi[] }) {
+const EVENTO: Record<EventoFechamentoEpi['tipo'], string> = {
+  fechou: 'Fechado',
+  reabriu: 'Reaberto',
+  anexou: 'PDF assinado anexado',
+};
+
+function HistoricoArea({ eventos, aoAbrir }: { eventos: EventoFechamentoEpi[]; aoAbrir: (caminho: string) => void }) {
   return (
     <ol className="mt-3 space-y-1.5 border-t border-slate-200/60 pt-3 text-xs text-slate-600 dark:border-white/10 dark:text-slate-300">
       {eventos.map((e, i) => (
         <li key={i}>
-          <span className="font-medium">{e.tipo === 'fechou' ? 'Fechado' : 'Reaberto'}</span> por {e.por} em{' '}
-          {dataHora(e.em)}
+          <span className="font-medium">{EVENTO[e.tipo]}</span> por {e.por} em {dataHora(e.em)}
           {e.tipo === 'reabriu' && <span className="text-slate-500 dark:text-slate-400"> — motivo: {e.motivo}</span>}
+          {e.tipo === 'anexou' && (
+            <>
+              {' — '}
+              <button
+                type="button"
+                onClick={() => aoAbrir(e.caminho)}
+                className="font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400"
+              >
+                {e.nomeArquivo}
+              </button>
+            </>
+          )}
         </li>
       ))}
     </ol>
@@ -279,18 +372,25 @@ function HistoricoArea({ eventos }: { eventos: EventoFechamentoEpi[] }) {
 interface DialogoFechamentoProps {
   tipo: TipoAcao;
   area: AreaEpiDoMes;
+  /** O fechamento a que o PDF assinado é anexado (só para anexar). */
+  fechamento?: FechamentoEpiGravado;
   mes: string;
   aoFechar: () => void;
 }
 
-function DialogoFechamento({ tipo, area, mes, aoFechar }: DialogoFechamentoProps) {
+function DialogoFechamento({ tipo, area, fechamento, mes, aoFechar }: DialogoFechamentoProps) {
   const queryClient = useQueryClient();
   const [motivo, setMotivo] = useState('');
+  const [arquivo, setArquivo] = useState<File | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   const mutacao = useMutation({
     mutationFn: async () => {
       if (tipo === 'reabrir') return reabrirRelatorioEpi(area.area, mes, motivo.trim());
+      if (tipo === 'anexar') {
+        if (!fechamento || !arquivo) throw new Error('Escolha o PDF assinado.');
+        return anexarRelatorioEpi(fechamento, mes, arquivo);
+      }
       // Congela o conteúdo atual: busca de novo, sem confiar no cache da tela.
       const dados = await queryClient.fetchQuery({ ...consultaDadosEpi(mes), staleTime: 0 });
       return fecharRelatorioEpi(area.area, mes, montarLinhasEpi(dados, { area: area.area, mes }));
@@ -303,10 +403,18 @@ function DialogoFechamento({ tipo, area, mes, aoFechar }: DialogoFechamentoProps
   });
 
   function confirmar() {
-    const transicao = transicaoFechamentoEpi(area.situacao, tipo === 'fechar' ? { tipo } : { tipo, motivo });
+    const acao: AcaoFechamentoEpi = tipo === 'reabrir' ? { tipo, motivo } : { tipo };
+    const transicao = transicaoFechamentoEpi(area.situacao, acao);
     if ('erro' in transicao) {
       setErro(transicao.erro);
       return;
+    }
+    if (tipo === 'anexar') {
+      const invalido = arquivo ? validarPdfAssinadoEpi(arquivo) : 'Escolha o PDF assinado.';
+      if (invalido) {
+        setErro(invalido);
+        return;
+      }
     }
     setErro(null);
     mutacao.mutate();
@@ -368,6 +476,25 @@ function DialogoFechamento({ tipo, area, mes, aoFechar }: DialogoFechamentoProps
                   e não {area.pendentes === 1 ? 'entrará' : 'entrarão'} no relatório fechado.
                 </p>
               )}
+            </div>
+          ) : tipo === 'anexar' ? (
+            <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+              <p>
+                Anexe o PDF do relatório impresso, assinado e digitalizado. A área passa para assinado; os PDFs
+                anexados antes continuam no histórico.
+              </p>
+              <label className="flex flex-col gap-1 font-medium text-slate-700 dark:text-slate-200">
+                PDF assinado (até {TAMANHO_MAXIMO_PDF_ASSINADO_EPI / (1024 * 1024)} MB)
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => {
+                    setErro(null);
+                    setArquivo(e.target.files?.[0] ?? null);
+                  }}
+                  className="text-sm font-normal text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 dark:text-slate-300 dark:file:bg-blue-500/10 dark:file:text-blue-300"
+                />
+              </label>
             </div>
           ) : (
             <label className="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
