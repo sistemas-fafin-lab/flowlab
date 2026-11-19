@@ -157,7 +157,10 @@ export function montarLinhasEpi(dados: DadosRelatorioEpi, { area, mes }: { area:
     .map((l) => l.linha);
 }
 
-/** Situação de uma área no mês. Nesta fatia, sem fechamento, toda área está aberta. */
+/**
+ * Situação de uma área no mês: aberto (nunca fechada ou reaberta, calculada na hora), fechado
+ * (linhas congeladas) ou assinado (com PDF assinado anexado ao fechamento atual).
+ */
 export type SituacaoAreaEpi = 'aberto' | 'fechado' | 'assinado';
 
 export interface AreaEpiDoMes {
@@ -170,10 +173,28 @@ export interface AreaEpiDoMes {
 }
 
 /**
- * Áreas do mês (YYYY-MM) com EPI entregue ou com pedido de EPI ainda não entregue, em ordem
- * alfabética. A contagem de pendentes avisa para não fechar o relatório antes da hora.
+ * O fechamento de uma área no mês, como está gravado: a situação atual e as linhas congeladas
+ * no último fechamento (ignoradas quando a área foi reaberta).
  */
-export function listarAreasEpiDoMes(dados: DadosRelatorioEpi, mes: string): AreaEpiDoMes[] {
+export interface FechamentoEpi {
+  area: string;
+  situacao: SituacaoAreaEpi;
+  linhas: LinhaRelatorioEpi[];
+}
+
+/** Área fechada ou assinada: o conteúdo é o congelado. Aberta (ou sem fechamento): calculado na hora. */
+const congelado = (f: FechamentoEpi | undefined): f is FechamentoEpi => Boolean(f && f.situacao !== 'aberto');
+
+/**
+ * Áreas do mês (YYYY-MM) com EPI entregue, com pedido de EPI ainda não entregue ou com
+ * fechamento, em ordem alfabética. Área fechada conta as linhas congeladas. A contagem de
+ * pendentes avisa para não fechar o relatório antes da hora.
+ */
+export function listarAreasEpiDoMes(
+  dados: DadosRelatorioEpi,
+  mes: string,
+  fechamentos: FechamentoEpi[] = [],
+): AreaEpiDoMes[] {
   const porArea = new Map<string, AreaEpiDoMes>();
   const daArea = (area: string) => {
     let a = porArea.get(area);
@@ -181,7 +202,15 @@ export function listarAreasEpiDoMes(dados: DadosRelatorioEpi, mes: string): Area
     return a;
   };
 
-  for (const { area } of linhasDoMes(dados, mes)) daArea(area).linhas++;
+  const fechamentoPorArea = new Map(fechamentos.map((f) => [f.area, f]));
+  for (const { area } of linhasDoMes(dados, mes)) {
+    if (!congelado(fechamentoPorArea.get(area))) daArea(area).linhas++;
+  }
+  for (const f of fechamentos) {
+    const a = daArea(f.area);
+    a.situacao = f.situacao;
+    if (congelado(f)) a.linhas = f.linhas.length;
+  }
 
   const porId = produtosPorId(dados.produtos);
   for (const s of dados.solicitacoes) {
@@ -190,4 +219,74 @@ export function listarAreasEpiDoMes(dados: DadosRelatorioEpi, mes: string): Area
   }
 
   return [...porArea.values()].sort((a, b) => compararTexto(a.area, b.area));
+}
+
+// ─── Fechamento do relatório de EPI ──────────────────────────────────────────
+/**
+ * As linhas que vão para o PDF da área: as congeladas, se a área está fechada ou assinada;
+ * senão (sem fechamento ou reaberta), calculadas na hora por `montarLinhasEpi`.
+ */
+export function linhasDoRelatorioEpi(
+  dados: DadosRelatorioEpi,
+  filtro: { area: string; mes: string },
+  fechamento?: FechamentoEpi,
+): LinhaRelatorioEpi[] {
+  return congelado(fechamento) ? fechamento.linhas : montarLinhasEpi(dados, filtro);
+}
+
+export type AcaoFechamentoEpi = { tipo: 'fechar' } | { tipo: 'reabrir'; motivo: string };
+
+export type ResultadoTransicaoEpi = { ok: true; situacao: SituacaoAreaEpi } | { ok: false; erro: string };
+
+/**
+ * Regras de fechamento: fechar vai de aberto para fechado; reabrir vai de fechado ou assinado
+ * para aberto e exige motivo. Qualquer outra transição é recusada com a mensagem para a tela.
+ */
+export function transicaoFechamentoEpi(situacao: SituacaoAreaEpi, acao: AcaoFechamentoEpi): ResultadoTransicaoEpi {
+  if (acao.tipo === 'fechar') {
+    return situacao === 'aberto' ? { ok: true, situacao: 'fechado' } : { ok: false, erro: 'A área já está fechada.' };
+  }
+  if (situacao === 'aberto') return { ok: false, erro: 'A área já está aberta.' };
+  if (!acao.motivo.trim()) return { ok: false, erro: 'Informe o motivo da reabertura.' };
+  return { ok: true, situacao: 'aberto' };
+}
+
+/** A situação atual de uma área e quem a fechou por último (vale também depois de reaberta). */
+export interface UltimoFechamentoEpi {
+  situacao: SituacaoAreaEpi;
+  fechadoPor: string;
+  fechadoEm: string;
+}
+
+/** Uma reabertura gravada: o motivo, quem reabriu e quando, e o fechamento que ela desfez. */
+export interface ReaberturaEpi {
+  motivo: string;
+  fechadoPor: string;
+  fechadoEm: string;
+  reabertoPor: string;
+  reabertoEm: string;
+}
+
+export type EventoFechamentoEpi =
+  | { tipo: 'fechou'; por: string; em: string }
+  | { tipo: 'reabriu'; por: string; em: string; motivo: string };
+
+/**
+ * Histórico de uma área no mês, do mais antigo ao mais recente: cada fechamento desfeito e a
+ * reabertura que o desfez (com o motivo) e, se a área está fechada ou assinada, o fechamento atual.
+ */
+export function historicoFechamentoEpi(
+  atual: UltimoFechamentoEpi | undefined,
+  reaberturas: ReaberturaEpi[],
+): EventoFechamentoEpi[] {
+  const eventos: EventoFechamentoEpi[] = [...reaberturas]
+    .sort((a, b) => a.reabertoEm.localeCompare(b.reabertoEm))
+    .flatMap((r): EventoFechamentoEpi[] => [
+      { tipo: 'fechou', por: r.fechadoPor, em: r.fechadoEm },
+      { tipo: 'reabriu', por: r.reabertoPor, em: r.reabertoEm, motivo: r.motivo },
+    ]);
+  if (atual && atual.situacao !== 'aberto') {
+    eventos.push({ tipo: 'fechou', por: atual.fechadoPor, em: atual.fechadoEm });
+  }
+  return eventos;
 }

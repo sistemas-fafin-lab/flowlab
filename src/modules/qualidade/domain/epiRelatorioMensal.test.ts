@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   copiarIdentificacaoEpi,
+  historicoFechamentoEpi,
+  linhasDoRelatorioEpi,
   listarAreasEpiDoMes,
   montarLinhasEpi,
+  transicaoFechamentoEpi,
+  type FechamentoEpi,
+  type LinhaRelatorioEpi,
   type MovimentacaoParaEpi,
   type ProdutoComIdentificacaoEpi,
   type SolicitacaoParaEpi,
@@ -204,6 +209,17 @@ describe('montarLinhasEpi', () => {
   });
 });
 
+/** Linha congelada num fechamento, diferente de qualquer linha calculada na hora. */
+const congelada: LinhaRelatorioEpi = {
+  solicitacaoId: 'sm-antiga',
+  itemId: 'i1',
+  data: '2026-10-01',
+  produto: 'Luva nitrílica',
+  identificacao: 'CA 999',
+  quantidade: 1,
+  solicitante: 'Caio',
+};
+
 describe('listarAreasEpiDoMes', () => {
   const areas = (solicitacoes: SolicitacaoParaEpi[], mes = '2026-10', movimentacoes = baixas(solicitacoes)) =>
     listarAreasEpiDoMes({ solicitacoes, produtos, movimentacoes }, mes);
@@ -248,5 +264,144 @@ describe('listarAreasEpiDoMes', () => {
 
   it('mês sem nenhum EPI não tem área', () => {
     expect(areas([sm()], '2026-12')).toEqual([]);
+  });
+
+  describe('com fechamento', () => {
+    const comFechamentos = (solicitacoes: SolicitacaoParaEpi[], fechamentos: FechamentoEpi[]) =>
+      listarAreasEpiDoMes({ solicitacoes, produtos, movimentacoes: baixas(solicitacoes) }, '2026-10', fechamentos);
+
+    it('área fechada mostra a situação e conta as linhas congeladas, não as atuais', () => {
+      const solicitacoes = [sm({ id: 'r1' }), sm({ id: 'r2' }), sm({ id: 'l1', department: 'Laboratório' })];
+
+      expect(
+        comFechamentos(solicitacoes, [{ area: 'Recepção', situacao: 'fechado', linhas: [congelada] }]),
+      ).toEqual([
+        { area: 'Laboratório', situacao: 'aberto', linhas: 1, pendentes: 0 },
+        { area: 'Recepção', situacao: 'fechado', linhas: 1, pendentes: 0 },
+      ]);
+    });
+
+    it('área assinada mostra a situação assinado', () => {
+      const [area] = comFechamentos([sm()], [{ area: 'Recepção', situacao: 'assinado', linhas: [congelada] }]);
+      expect(area.situacao).toBe('assinado');
+    });
+
+    it('área fechada aparece mesmo que as solicitações tenham mudado e não haja mais linha atual', () => {
+      expect(comFechamentos([], [{ area: 'Copa', situacao: 'fechado', linhas: [congelada] }])).toEqual([
+        { area: 'Copa', situacao: 'fechado', linhas: 1, pendentes: 0 },
+      ]);
+    });
+
+    it('área reaberta sem nenhuma linha atual continua na lista, para o histórico ficar acessível', () => {
+      expect(comFechamentos([], [{ area: 'Copa', situacao: 'aberto', linhas: [congelada] }])).toEqual([
+        { area: 'Copa', situacao: 'aberto', linhas: 0, pendentes: 0 },
+      ]);
+    });
+
+    it('área reaberta volta a contar as linhas calculadas na hora', () => {
+      const solicitacoes = [sm({ id: 'r1' }), sm({ id: 'r2' })];
+
+      expect(comFechamentos(solicitacoes, [{ area: 'Recepção', situacao: 'aberto', linhas: [congelada] }])).toEqual([
+        { area: 'Recepção', situacao: 'aberto', linhas: 2, pendentes: 0 },
+      ]);
+    });
+  });
+});
+
+describe('transicaoFechamentoEpi', () => {
+  it('fechar: de aberto para fechado', () => {
+    expect(transicaoFechamentoEpi('aberto', { tipo: 'fechar' })).toEqual({ ok: true, situacao: 'fechado' });
+  });
+
+  it.each(['fechado', 'assinado'] as const)('fechar com a área %s é recusado', (situacao) => {
+    expect(transicaoFechamentoEpi(situacao, { tipo: 'fechar' })).toEqual({
+      ok: false,
+      erro: 'A área já está fechada.',
+    });
+  });
+
+  it.each(['fechado', 'assinado'] as const)('reabrir: de %s para aberto, com motivo', (situacao) => {
+    expect(transicaoFechamentoEpi(situacao, { tipo: 'reabrir', motivo: 'Faltou a luva da Bia' })).toEqual({
+      ok: true,
+      situacao: 'aberto',
+    });
+  });
+
+  it.each(['', '   '])('reabrir sem motivo é recusado (motivo %j)', (motivo) => {
+    expect(transicaoFechamentoEpi('fechado', { tipo: 'reabrir', motivo })).toEqual({
+      ok: false,
+      erro: 'Informe o motivo da reabertura.',
+    });
+  });
+
+  it('reabrir uma área aberta é recusado', () => {
+    expect(transicaoFechamentoEpi('aberto', { tipo: 'reabrir', motivo: 'Correção' })).toEqual({
+      ok: false,
+      erro: 'A área já está aberta.',
+    });
+  });
+});
+
+describe('linhasDoRelatorioEpi', () => {
+  const doRelatorio = (solicitacoes: SolicitacaoParaEpi[], fechamento?: FechamentoEpi) =>
+    linhasDoRelatorioEpi(
+      { solicitacoes, produtos, movimentacoes: baixas(solicitacoes) },
+      { area: 'Recepção', mes: '2026-10' },
+      fechamento,
+    );
+
+  it('sem fechamento, calcula na hora', () => {
+    expect(doRelatorio([sm()]).map((l) => l.solicitacaoId)).toEqual(['sm-1']);
+  });
+
+  it.each(['fechado', 'assinado'] as const)(
+    'área %s sai das linhas congeladas, mesmo que as solicitações tenham mudado',
+    (situacao) => {
+      const fechamento: FechamentoEpi = { area: 'Recepção', situacao, linhas: [congelada] };
+      expect(doRelatorio([sm(), sm({ id: 'sm-2' })], fechamento)).toEqual([congelada]);
+    },
+  );
+
+  it('área reaberta volta a calcular na hora', () => {
+    expect(
+      doRelatorio([sm()], { area: 'Recepção', situacao: 'aberto', linhas: [congelada] }).map((l) => l.solicitacaoId),
+    ).toEqual(['sm-1']);
+  });
+});
+
+describe('historicoFechamentoEpi', () => {
+  const reabertura = {
+    motivo: 'Faltou a luva da Bia',
+    fechadoPor: 'Qualidade 1',
+    fechadoEm: '2026-11-03T10:00:00Z',
+    reabertoPor: 'Qualidade 2',
+    reabertoEm: '2026-11-04T09:00:00Z',
+  };
+
+  it('nunca fechada: sem histórico', () => {
+    expect(historicoFechamentoEpi(undefined, [])).toEqual([]);
+  });
+
+  it('fechada, reaberta e fechada de novo: cada fechamento e a reabertura com o motivo, em ordem', () => {
+    expect(
+      historicoFechamentoEpi({ situacao: 'fechado', fechadoPor: 'Qualidade 2', fechadoEm: '2026-11-05T08:00:00Z' }, [
+        reabertura,
+      ]),
+    ).toEqual([
+      { tipo: 'fechou', por: 'Qualidade 1', em: '2026-11-03T10:00:00Z' },
+      { tipo: 'reabriu', por: 'Qualidade 2', em: '2026-11-04T09:00:00Z', motivo: 'Faltou a luva da Bia' },
+      { tipo: 'fechou', por: 'Qualidade 2', em: '2026-11-05T08:00:00Z' },
+    ]);
+  });
+
+  it('reaberta e ainda aberta: o fechamento desfeito não aparece duas vezes', () => {
+    expect(
+      historicoFechamentoEpi({ situacao: 'aberto', fechadoPor: 'Qualidade 1', fechadoEm: '2026-11-03T10:00:00Z' }, [
+        reabertura,
+      ]),
+    ).toEqual([
+      { tipo: 'fechou', por: 'Qualidade 1', em: '2026-11-03T10:00:00Z' },
+      { tipo: 'reabriu', por: 'Qualidade 2', em: '2026-11-04T09:00:00Z', motivo: 'Faltou a luva da Bia' },
+    ]);
   });
 });
