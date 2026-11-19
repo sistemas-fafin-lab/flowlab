@@ -7,7 +7,7 @@ import { AlertTriangle, FileDown, HardHat } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { anoAtual } from '../anoAtual.js';
 import { listarAreasEpiDoMes, montarLinhasEpi, type SituacaoAreaEpi } from '../domain/epiRelatorioMensal.js';
-import { mesAnoBR, montarPdfRelatorioEpi, nomeArquivoRelatorioEpi } from '../domain/pdfRelatorioEpi.js';
+import { mesPorExtenso, montarPdfRelatorioEpi, nomeArquivoRelatorioEpi } from '../domain/pdfRelatorioEpi.js';
 import { buscarDadosRelatorioEpi } from '../epis.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
@@ -85,7 +85,7 @@ export function Epis() {
       )}
 
       {mes && data && areas.length === 0 && (
-        <p className="text-sm text-gray-500 dark:text-slate-400">Nenhum EPI entregue nem pedido em {mesAnoBR(mes)}.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">Nenhum EPI entregue nem pedido em {mesPorExtenso(mes)}.</p>
       )}
 
       {mes && data && areas.length > 0 && (

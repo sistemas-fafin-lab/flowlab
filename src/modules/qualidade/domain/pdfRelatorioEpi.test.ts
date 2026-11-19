@@ -31,7 +31,14 @@ describe('montarPdfRelatorioEpi', () => {
 
   it('tem o cabeçalho com a área e o mês/ano', () => {
     // O "—" vai como 0x97 (travessão na WinAnsiEncoding da fonte padrão); textoDoPdf lê em latin1.
-    expect(textoDoPdf(pdf())).toContain('EPIs \x97 Recepção \x97 10/2026');
+    expect(textoDoPdf(pdf())).toContain('EPIs \x97 Recepção \x97 Outubro/2026');
+  });
+
+  it('escreve o mês por extenso no cabeçalho', () => {
+    const titulo = (mes: string) => textoDoPdf(montarPdfRelatorioEpi({ area: 'Copa', mes, linhas: [] }));
+    expect(titulo('2026-01')).toContain('Copa \x97 Janeiro/2026');
+    expect(titulo('2026-03')).toContain('Copa \x97 Março/2026');
+    expect(titulo('2025-12')).toContain('Copa \x97 Dezembro/2025');
   });
 
   it('tem as colunas Data, Produto, Identificação, Qtd., Solicitante e Assinatura', () => {

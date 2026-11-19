@@ -25,14 +25,19 @@ const dataBR = (data: string) => {
   return `${dia}/${mes}/${ano}`;
 };
 
-/** YYYY-MM → MM/YYYY */
-export const mesAnoBR = (mes: string) => {
+const NOMES_DOS_MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+/** YYYY-MM → "Outubro/2026" */
+export const mesPorExtenso = (mes: string) => {
   const [ano, m] = mes.split('-');
-  return `${m}/${ano}`;
+  return `${NOMES_DOS_MESES[Number(m) - 1]}/${ano}`;
 };
 
-/** "EPIs — <Área> — <Mês>/<Ano>" */
-export const tituloRelatorioEpi = (area: string, mes: string) => `EPIs — ${area} — ${mesAnoBR(mes)}`;
+/** "EPIs — <Área> — <Mês por extenso>/<Ano>" */
+export const tituloRelatorioEpi = (area: string, mes: string) => `EPIs — ${area} — ${mesPorExtenso(mes)}`;
 
 /** Nome do arquivo baixado: sem acentos nem caracteres que o sistema de arquivos recuse. */
 export function nomeArquivoRelatorioEpi(area: string, mes: string): string {
