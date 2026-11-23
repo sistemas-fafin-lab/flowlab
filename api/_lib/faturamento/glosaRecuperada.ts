@@ -22,7 +22,7 @@
 // aqui fica só o recorte "revertida" e a constante revisável.
 
 import {
-  classificarRequisicao,
+  valorPerdaDefinitiva,
   STATUS_GLOSA,
   statusDashboard,
   valorRecebidoGlosa,
@@ -47,7 +47,8 @@ export function valorRecuperado(requisicao: RequisicaoClassificavel): number {
  * Classe e valor da requisição no funil, ou null quando ela não entra (indeferida, em
  * tratativas sem retorno, lote de recurso ainda não enviado...). Cada requisição cai em
  * uma classe só:
- *  - acatada: status 18 e 8, valor líquido − recebido (a mesma regra que abate o saldo);
+ *  - acatada: perda definitiva (18, 8 e recurso não acatado 15), valor líquido − recebido
+ *    (a mesma regra que abate o saldo);
  *  - em disputa: glosa aberta (6) ou em recurso (7, 16), valor = glosa fixada;
  *  - recuperada: ver `valorRecuperado`.
  */
@@ -56,8 +57,8 @@ export function classificarParaFunil(
   glosaFixada: number | null,
 ): { classe: ClasseGlosaFunil; valor: number } | null {
   const { foto, edicoes = {} } = requisicao;
-  const classificacao = classificarRequisicao(foto, edicoes);
-  if (classificacao?.classe === 'acatada') return { classe: 'acatada', valor: classificacao.valor };
+  const perda = valorPerdaDefinitiva(foto);
+  if (perda !== null) return { classe: 'acatada', valor: perda };
 
   const status = statusDashboard(foto, edicoes);
   if (status === 'aberta' || status === 'em-recurso') return { classe: 'em-disputa', valor: glosaFixada ?? 0 };

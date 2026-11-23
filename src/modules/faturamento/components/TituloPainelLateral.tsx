@@ -445,9 +445,9 @@ const TituloPainelLateral: React.FC<Props> = ({
                           {glosa.glosaAcatada !== null && (
                             <div
                               className="mt-0.5 tabular-nums text-rose-600 dark:text-rose-400 whitespace-nowrap"
-                              title="Glosa acatada: sai do saldo do título"
+                              title="Perda definitiva da glosa: sai do saldo do título"
                             >
-                              acatada {formatCurrency(glosa.glosaAcatada)}
+                              {glosa.statusAplis === 15 ? 'perda' : 'acatada'} {formatCurrency(glosa.glosaAcatada)}
                             </div>
                           )}
                         </td>

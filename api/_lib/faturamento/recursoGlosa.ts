@@ -48,6 +48,21 @@ const STATUS_DEFERIDO_TOTAL: number[] = [STATUS_GLOSA.glosaRecebida, STATUS_GLOS
 const STATUS_ACATADA: number[] = [STATUS_GLOSA.recebidoAMenorAcatado, STATUS_GLOSA.glosaDefinitivaAcatada];
 
 /**
+ * Perda definitiva da glosa: acatada pelo laboratório (18, 8) ou recurso não
+ * acatado pela operadora (15). O líquido − recebido dessas requisições sai do
+ * saldo do título e entra na coluna Acatado. Mesma lista de
+ * fat_glosa_acatada_nota (supabase/migrations/20261123100000_fat_perda_recurso_nao_acatado.sql).
+ * O Dashboard de Glosas e Recursos continua separando acatada de indeferido.
+ */
+export const STATUS_PERDA_DEFINITIVA: number[] = [...STATUS_ACATADA, STATUS_GLOSA.recursoNaoAcatado];
+
+/** Líquido − recebido da requisição em perda definitiva; null fora desses status. */
+export function valorPerdaDefinitiva(foto: Pick<RequisicaoFoto, 'status' | 'liquido' | 'recebido'>): number | null {
+  if (foto.status === null || !STATUS_PERDA_DEFINITIVA.includes(foto.status)) return null;
+  return centavos(foto.liquido - foto.recebido);
+}
+
+/**
  * Glosa ainda em disputa: glosado sem recurso, 1º e 2º recurso. O saldo dessas
  * requisições não é atraso da operadora — está em glosa/recurso. Mesma lista
  * de fat_glosa_em_recurso_nota (supabase/migrations/20261119160000_fat_saldo_em_recurso.sql).
@@ -532,7 +547,7 @@ export interface GlosasTitulo {
   glosado: number;
   /** Σ valor deferido (total ou parcial): o mesmo das Revertidas do Dashboard. */
   glosaRecebida: number;
-  /** Σ líquido − recebido das requisições em 18 e 8: o que foi dado como perdido. */
+  /** Σ líquido − recebido das requisições em 18, 8 e 15: o que foi dado como perdido. */
   glosaAcatada: number;
 }
 
@@ -550,8 +565,8 @@ export function somarGlosasPorLote(requisicoes: RequisicaoTitulo[]): Map<number,
     if (statusDashboard(r.foto, r.edicoes) === 'revertida') {
       soma.glosaRecebida = centavos(soma.glosaRecebida + (valorRecebidoGlosa(r.foto, r.edicoes) ?? 0));
     }
-    const classificacao = classificarRequisicao(r.foto, r.edicoes);
-    if (classificacao?.classe === 'acatada') soma.glosaAcatada = centavos(soma.glosaAcatada + classificacao.valor);
+    const perda = valorPerdaDefinitiva(r.foto);
+    if (perda !== null) soma.glosaAcatada = centavos(soma.glosaAcatada + perda);
     porLote.set(r.idLoteFaturamento, soma);
   }
   return porLote;

@@ -24,7 +24,7 @@ export interface TituloFunil {
   dataEmissao: string | null;
   valorTotal: number;
   valorRecebido: number;
-  /** `notas.valor_glosa_acatada` (foto do apLIS, status 18 e 8); só os cards do Dashboard usam. */
+  /** `notas.valor_glosa_acatada` (foto do apLIS, status 18, 8 e 15); só os cards do Dashboard usam. */
   valorGlosaAcatada?: number;
   lotes: LoteRef[];
 }

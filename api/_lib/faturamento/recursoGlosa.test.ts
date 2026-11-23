@@ -818,14 +818,14 @@ describe('somarGlosasPorLote', () => {
     expect(porLote.get(10)?.glosaRecebida).toBe(450);
   });
 
-  it('Glosa acatada: o saldo negativo (líquido − recebido) das requisições em 18 e 8', () => {
+  it('Glosa acatada: o saldo negativo (líquido − recebido) das requisições em 18, 8 e 15 (perda definitiva)', () => {
     const porLote = somarGlosasPorLote([
       daFoto({ status: 18, liquido: 1000, recebido: 850 }),
       daFoto({ status: 8, liquido: 400, recebido: 0, emLoteRecurso: false }, { glosaFixada: 400 }),
-      // Indeferido: definitiva no Dashboard, mas não acatada.
-      daFoto({ status: 15 }),
+      // Recurso não acatado pela operadora: também perda, sai do saldo.
+      daFoto({ status: 15, liquido: 300, recebido: 72.11 }),
     ]);
-    expect(porLote.get(10)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 550 });
+    expect(porLote.get(10)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 777.89 });
   });
 });
 

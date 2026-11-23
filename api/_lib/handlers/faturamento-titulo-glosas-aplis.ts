@@ -18,7 +18,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { classificarRequisicao, edicoesDaFoto, statusDashboard } from '../faturamento/recursoGlosa.js';
+import { edicoesDaFoto, statusDashboard, valorPerdaDefinitiva } from '../faturamento/recursoGlosa.js';
 import type { RequisicaoFoto } from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
@@ -115,7 +115,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           valorRecursado: numeroOuNulo(l.valor_recursado_editado),
           valorRecebidoGlosa: numeroOuNulo(l.valor_recebido_glosa_editado),
         });
-        const classificacao = classificarRequisicao(foto, edicoes);
         return {
           idRequisicao: l.id_requisicao,
           codRequisicao: l.cod_requisicao,
@@ -126,8 +125,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           statusAplis: l.status_aplis,
           motivos: l.motivos ?? [],
           valorGlosado: numeroOuNulo(l.glosa_fixada),
-          // O que sai do saldo do título (líquido − recebido nos status 18 e 8).
-          glosaAcatada: classificacao?.classe === 'acatada' ? classificacao.valor : null,
+          // O que sai do saldo do título (líquido − recebido nos status 18, 8 e 15).
+          glosaAcatada: valorPerdaDefinitiva(foto),
           status: statusDashboard(foto, edicoes),
         };
       }),

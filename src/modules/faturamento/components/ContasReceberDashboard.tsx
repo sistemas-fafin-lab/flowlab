@@ -721,7 +721,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 sub={subCardGlosaSaldo(cardsGlosaSaldo, (c) => `${percentual(c.acatado, c.glosaTotal)}% do glosado`)}
                 extra={tentarCardsGlosaSaldo}
                 dica={
-                  'Glosa acatada do apLIS (recebido a menor – acatado e glosa definitiva – acatada diretoria) nos lotes '
+                  'Perda definitiva da glosa no apLIS (recebido a menor – acatado, glosa definitiva – acatada diretoria e recurso não acatado) nos lotes '
                   + 'dos títulos emitidos no período: é o que sai do saldo. ' + DICA_ESCOPO_APLIS
                 }
                 valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.acatado)}

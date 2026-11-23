@@ -70,7 +70,8 @@ describe('classificarParaFunil', () => {
     expect(classificarParaFunil(req({ status: 7, recebido: 120, recebidoFixacao: 0 }), 300)).toEqual({ classe: 'recuperada', valor: 120 });
   });
 
-  it('indeferida não entra no funil', () => {
-    expect(classificarParaFunil(req({ status: 15 }), 300)).toBeNull();
+  it('recurso não acatado (15) é perda definitiva: acatada, líquido − recebido', () => {
+    expect(classificarParaFunil(req({ status: 15, liquido: 500, recebido: 272.11 }), 300))
+      .toEqual({ classe: 'acatada', valor: 227.89 });
   });
 });
