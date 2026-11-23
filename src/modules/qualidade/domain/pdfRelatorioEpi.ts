@@ -58,20 +58,23 @@ function novaFolhaComTitulo(titulo: string): jsPDF {
   return doc;
 }
 
-/** "Página X de Y" no canto de todas as páginas; `extra` desenha mais algo no rodapé de cada uma. */
-function numerarPaginas(doc: jsPDF, extra?: (y: number) => void) {
+/** "Página X de Y" no canto de todas as páginas; `extra` pode desenhar mais algo no rodapé de cada uma. */
+function numerarPaginas(doc: jsPDF, extra?: (y: number, pagina: number, total: number) => void) {
   const largura = doc.internal.pageSize.getWidth();
   const y = doc.internal.pageSize.getHeight() - 10;
   const total = doc.getNumberOfPages();
   for (let pagina = 1; pagina <= total; pagina++) {
     doc.setPage(pagina);
-    extra?.(y);
+    extra?.(y, pagina, total);
     doc.setTextColor(150, 150, 150);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text(`Página ${pagina} de ${total}`, largura - MARGEM, y, { align: 'right' });
   }
 }
+
+const fimDaUltimaTabela = (doc: jsPDF) =>
+  (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? MARGEM;
 
 /** Nome do arquivo baixado: sem acentos nem caracteres que o sistema de arquivos recuse. */
 export function nomeArquivoRelatorioEpi(area: string, mes: string): string {
@@ -84,33 +87,86 @@ export function nomeArquivoRelatorioEpi(area: string, mes: string): string {
   return `epis-${slug || 'area'}-${mes}.pdf`;
 }
 
-/** Relatório mensal de EPI de uma área: A4 horizontal, uma assinatura por linha. */
+/** Colaboradores que assinam o relatório: cada solicitante uma vez, em ordem alfabética. */
+export const colaboradoresQueAssinam = (linhas: LinhaRelatorioEpi[]) =>
+  [...new Set(linhas.map((l) => l.solicitante.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+const COLUNAS_ASSINATURA = 3;
+const ALTURA_LINHA_ASSINATURA = 18;
+
+/**
+ * Espaço de assinatura dos colaboradores abaixo da tabela: uma linha por colaborador, com o nome
+ * embaixo, em três colunas. Quebra página quando não cabe.
+ */
+function blocoAssinaturasColaboradores(doc: jsPDF, colaboradores: string[]) {
+  if (colaboradores.length === 0) return;
+  const largura = doc.internal.pageSize.getWidth();
+  const limite = doc.internal.pageSize.getHeight() - ALTURA_RODAPE;
+  const larguraColuna = (largura - 2 * MARGEM) / COLUNAS_ASSINATURA;
+  const larguraTraco = larguraColuna - 10;
+
+  let y = fimDaUltimaTabela(doc) + 10;
+  // Título e a primeira linha de assinaturas não ficam sozinhos no fim da página.
+  if (y + 8 + ALTURA_LINHA_ASSINATURA > limite) {
+    doc.addPage();
+    y = MARGEM + 6;
+  }
+  doc.setTextColor(...corPrimaria);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Assinaturas dos colaboradores', MARGEM, y);
+  y += 8;
+
+  doc.setTextColor(...textoEscuro);
+  doc.setFont('helvetica', 'normal');
+  doc.setDrawColor(...textoEscuro);
+  doc.setLineWidth(0.2);
+  for (let i = 0; i < colaboradores.length; i += COLUNAS_ASSINATURA) {
+    if (y + ALTURA_LINHA_ASSINATURA > limite) {
+      doc.addPage();
+      y = MARGEM + 6;
+    }
+    const traco = y + 10;
+    colaboradores.slice(i, i + COLUNAS_ASSINATURA).forEach((nome, coluna) => {
+      const x = MARGEM + coluna * larguraColuna;
+      doc.line(x, traco, x + larguraTraco, traco);
+      doc.setFontSize(9);
+      doc.text(nome, x, traco + 4.5, { maxWidth: larguraTraco });
+    });
+    y += ALTURA_LINHA_ASSINATURA;
+  }
+}
+
+/**
+ * Relatório mensal de EPI de uma área: A4 horizontal, a tabela dos EPIs entregues, depois um
+ * espaço de assinatura para cada colaborador e, só na última página, a do responsável da área.
+ */
 export function montarPdfRelatorioEpi({ area, mes, linhas }: DadosPdfRelatorioEpi): jsPDF {
   const doc = novaFolhaComTitulo(tituloRelatorioEpi(area, mes));
 
   autoTable(doc, {
     startY: MARGEM + 14,
     margin: { left: MARGEM, right: MARGEM, bottom: ALTURA_RODAPE },
-    head: [['Data', 'Produto', 'Identificação', 'Qtd.', 'Solicitante', 'Assinatura']],
-    body: linhas.map((l) => [dataBR(l.data), l.produto, l.identificacao, String(l.quantidade), l.solicitante, '']),
+    head: [['Data', 'Produto', 'Identificação', 'Qtd.', 'Solicitante']],
+    body: linhas.map((l) => [dataBR(l.data), l.produto, l.identificacao, String(l.quantidade), l.solicitante]),
     styles: ESTILO_TABELA,
-    // Altura mínima da linha para caber uma assinatura à mão.
-    bodyStyles: { minCellHeight: 11 },
     headStyles: ESTILO_CABECALHO,
     columnStyles: {
       0: { cellWidth: 22 },
-      2: { cellWidth: 42 },
+      2: { cellWidth: 50 },
       3: { cellWidth: 14 },
-      4: { cellWidth: 48 },
-      5: { cellWidth: 80 },
+      4: { cellWidth: 70 },
     },
     didParseCell: ({ cell, column }) => {
       if (column.index === 3) cell.styles.halign = 'center';
     },
   });
 
-  // Rodapé de todas as páginas, depois da tabela (que pode quebrar página).
-  numerarPaginas(doc, (y) => {
+  blocoAssinaturasColaboradores(doc, colaboradoresQueAssinam(linhas));
+
+  // O responsável assina uma vez só, no rodapé da última página.
+  numerarPaginas(doc, (y, pagina, total) => {
+    if (pagina !== total) return;
     doc.setTextColor(...textoEscuro);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -133,9 +189,6 @@ export type FormatoConsolidadoEpi = 'pdf' | 'xlsx';
 /** Nome do arquivo baixado do consolidado do mês, em PDF ou Excel. */
 export const nomeArquivoConsolidadoEpi = (mes: string, extensao: FormatoConsolidadoEpi) =>
   `epis-consolidado-${mes}.${extensao}`;
-
-const fimDaUltimaTabela = (doc: jsPDF) =>
-  (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? MARGEM;
 
 /** Quadro de totais (título + tabela de duas colunas) abaixo do que já está na página. */
 function quadroDeTotais(doc: jsPDF, titulo: string, coluna: string, linhas: [string, number][], total: number) {

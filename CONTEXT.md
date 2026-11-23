@@ -57,7 +57,7 @@ O tipo (CA, que é o Certificado de Aprovação do Ministério do Trabalho, ou R
 _Avoid_: código ECA, código do produto (`products.code` é o código interno)
 
 **Relatório mensal de EPI**:
-O PDF de uma área num mês, com uma linha por item de EPI de solicitação de materiais entregue (data da solicitação, produto, Identificação do EPI, quantidade e solicitante) e uma assinatura por linha. É impresso, assinado e anexado digitalizado na aba EPIs da Qualidade, pelas regras de `.scratch/epi-relatorio-mensal/spec.md`. O consolidado do mês junta todas as áreas, sem assinatura.
+O PDF de uma área num mês, com uma linha por item de EPI de solicitação de materiais entregue (data da solicitação, produto, Identificação do EPI, quantidade e solicitante) ; no fim, um espaço de assinatura para cada colaborador e, só na última página, a do responsável da área. É impresso, assinado e anexado digitalizado na aba EPIs da Qualidade, pelas regras de `.scratch/epi-relatorio-mensal/spec.md`. O consolidado do mês junta todas as áreas, sem assinatura.
 _Avoid_: ficha de EPI individual (o documento é por área, não por colaborador)
 
 **Fechamento do relatório de EPI**:

@@ -20,7 +20,7 @@ O fluxo de solicitação e fornecimento **não muda**: o supervisor continua con
 3. **Na Qualidade**, uma aba nova **"EPIs"**:
    - Escolhendo o mês, aparece a lista das áreas com a situação de cada uma: aberto, fechado ou assinado.
    - Também aparece um aviso quando uma área tem pedidos de EPI daquele mês ainda não entregues.
-   - Para cada área, a Qualidade gera o **Relatório mensal de EPI** em PDF. Ele tem uma linha por EPI entregue e uma assinatura por linha, e é impresso para a coleta das assinaturas.
+   - Para cada área, a Qualidade gera o **Relatório mensal de EPI** em PDF. Ele tem uma linha por EPI entregue um espaço de assinatura por colaborador no fim, e a assinatura do responsável da área só na última página. É impresso para a coleta das assinaturas.
    - A Qualidade **fecha** a área para congelar o conteúdo, **reabre** quando precisa corrigir (informando o motivo) e **anexa o PDF assinado e digitalizado**, com histórico.
    - Há também o **consolidado do mês**, com todas as áreas e os totais por produto e por área, em PDF e em Excel.
 4. **A finalização de uma solicitação de materiais pendente** passa a gravar o nome e a assinatura de quem recebeu, como já acontece com uma aprovada.
@@ -57,8 +57,8 @@ O fluxo de solicitação e fornecimento **não muda**: o supervisor continua con
 20. Como Qualidade, quero gerar o PDF do relatório de uma área e mês, para imprimir e colher as assinaturas.
 21. Como Qualidade, quero que o cabeçalho traga a área e o mês/ano, para identificar o documento arquivado.
 22. Como Qualidade, quero que cada linha traga a data da solicitação, o produto, a Identificação do EPI, a quantidade e o solicitante, para que a entrega fique rastreável.
-23. Como colaborador, quero uma coluna de assinatura em cada linha, para assinar cada EPI que recebi.
-24. Como responsável da área, quero um campo de assinatura e data no rodapé, para atestar a conferência do relatório.
+23. Como colaborador, quero um espaço de assinatura com o meu nome no fim do relatório do mês, para assinar uma vez pelos EPIs que recebi.
+24. Como responsável da área, quero um campo de assinatura e data só no rodapé da última página, para atestar a conferência do relatório uma vez por mês.
 25. Como Qualidade, quero que entrem só as solicitações de materiais já entregues, para que ninguém assine o recebimento de algo que não recebeu.
 26. Como Qualidade, quero que uma solicitação de um mês entregue no mês seguinte apareça no mês da solicitação, porque é a data da solicitação que aparece na linha.
 27. Como Qualidade, quero que itens pulados por falta de estoque na entrega fiquem fora do relatório, porque não foram entregues.
@@ -132,7 +132,7 @@ Um item entra no relatório de uma área e mês quando atende a todas estas cond
 - o item tem um produto cadastrado e esse produto é EPI;
 - existe movimentação de estoque daquela solicitação para aquele produto, ou seja, o item foi de fato baixado.
 
-**Colunas:** Data (da solicitação), Produto, Identificação (por exemplo, "CA 12345" ou "ANVISA 80495510226"), Qtd., Solicitante (quem criou a solicitação) e Assinatura.
+**Colunas:** Data (da solicitação), Produto, Identificação (por exemplo, "CA 12345" ou "ANVISA 80495510226"), Qtd. e Solicitante (quem criou a solicitação).
 
 - A identificação vem da cópia gravada no item. Sem cópia, vem do cadastro atual do produto. Sem nenhuma das duas, a coluna fica vazia.
 - A quantidade é a do item. Hoje ela é igual à entregue, porque o sistema não aceita entrega parcial.
@@ -154,8 +154,10 @@ Reabrir exige motivo e registra quem reabriu e quando. Os anexos nunca são apag
 
 - Página A4 na horizontal.
 - Cabeçalho: "EPIs — \<Área\> — \<Mês\>/\<Ano\>".
-- Tabela com as colunas acima. A coluna Assinatura é larga, com uma assinatura por linha.
-- Rodapé: "Responsável da área: ______  Data: __/__/____" e o número da página.
+- Tabela com as colunas acima, sem coluna de assinatura.
+- Depois da tabela, "Assinaturas dos colaboradores": um traço de assinatura para cada solicitante do mês (uma vez só, em ordem alfabética), com o nome embaixo, em três colunas.
+- Rodapé: número da página em todas; "Responsável da área: ______  Data: __/__/____" só na última página.
+- Pedido do usuário (nov/2026): tirar a assinatura por material e a do responsável em todas as folhas, para não repetir assinaturas.
 
 ### Consolidado
 
@@ -217,4 +219,4 @@ Reabrir exige motivo e registra quem reabriu e quando. Os anexos nunca são apag
 ## Further Notes
 
 - Um número de 11 dígitos começando com 8, como o 80495510226 do exemplo do usuário, costuma ser registro na ANVISA, não CA. Por isso existe o campo de tipo.
-- O relatório por área atende ao pedido de "um local para assinatura dos responsáveis": há uma assinatura por linha e outra do responsável no rodapé. O texto do usuário falava em um "demonstrativo individual por colaborador", mas o modelo de relatório que ele mandou depois é por área, e foi esse que se adotou.
+- O relatório por área atende ao pedido de "um local para assinatura dos responsáveis": há um espaço de assinatura por colaborador no fim e a do responsável no rodapé da última página (antes era uma assinatura por linha e a do responsável em toda página; mudou a pedido do usuário em nov/2026). O texto do usuário falava em um "demonstrativo individual por colaborador", mas o modelo de relatório que ele mandou depois é por área, e foi esse que se adotou.

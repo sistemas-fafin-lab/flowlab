@@ -41,8 +41,19 @@ describe('montarPdfRelatorioEpi', () => {
     expect(titulo('2025-12')).toContain('Copa \x97 Dezembro/2025');
   });
 
-  it('tem as colunas Data, Produto, Identificação, Qtd., Solicitante e Assinatura', () => {
-    expect(textoDoPdf(pdf())).toContain('Data Produto Identificação Qtd. Solicitante Assinatura');
+  it('tem as colunas Data, Produto, Identificação, Qtd. e Solicitante, sem coluna de assinatura', () => {
+    const texto = textoDoPdf(pdf());
+    expect(texto).toContain('Data Produto Identificação Qtd. Solicitante');
+    expect(texto).not.toContain('Solicitante Assinatura');
+  });
+
+  it('depois da tabela, tem um espaço de assinatura para cada colaborador, uma vez só', () => {
+    const repetido = [...linhas, linha({ itemId: 'i4', solicitante: 'Ana Souza' })];
+    const texto = textoDoPdf(pdf(repetido));
+
+    expect(texto).toContain('Assinaturas dos colaboradores');
+    expect(texto.match(/Ana Souza/g)).toHaveLength(2 + 1); // duas linhas da tabela + uma assinatura
+    expect(texto.match(/Bruno Lima/g)).toHaveLength(1 + 1);
   });
 
   it('tem uma linha por item, com a data, a identificação formatada, a quantidade e o solicitante', () => {
@@ -62,13 +73,15 @@ describe('montarPdfRelatorioEpi', () => {
     expect(texto).toContain('Página 1 de 1');
   });
 
-  it('com muitas linhas, quebra página e repete o rodapé do responsável em todas', () => {
+  it('com muitas linhas, quebra página e o responsável da área assina só na última', () => {
     const muitas = Array.from({ length: 40 }, (_, i) => linha({ itemId: `i${i}`, solicitante: `Colaborador ${i}` }));
     const doc = pdf(muitas);
     const texto = textoDoPdf(doc);
 
     expect(doc.getNumberOfPages()).toBeGreaterThan(1);
-    expect(texto.match(/Responsável da área/g)).toHaveLength(doc.getNumberOfPages());
+    expect(texto.match(/Responsável da área/g)).toHaveLength(1);
+    // O rodapé do responsável vem depois de tudo, na última página.
+    expect(texto.lastIndexOf('Responsável da área')).toBeGreaterThan(texto.lastIndexOf('Colaborador '));
     expect(texto).toContain(`Página ${doc.getNumberOfPages()} de ${doc.getNumberOfPages()}`);
     for (let i = 0; i < 40; i++) expect(texto).toContain(`Colaborador ${i} `);
   });
