@@ -61,6 +61,7 @@ interface QuotationDrawerProps {
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
   onCancel?: (reason: string) => void;
+  onDelete?: () => Promise<void>;
   onRevert?: () => void;
   onSubmitProposal?: (quotationId: string, data: SubmitProposalInput) => Promise<void>;
   onUpdateProposal?: (quotationId: string, proposalId: string, data: SubmitProposalInput) => Promise<void>;
@@ -117,6 +118,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onReject,
   onConvertToPurchase,
   onCancel,
+  onDelete,
   onRevert,
   onSubmitProposal,
   onUpdateProposal,
@@ -346,6 +348,23 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                         >
                           <AlertTriangle className="w-4 h-4" />
                           Cancelar Cotação
+                        </button>
+                      )}
+                      {permissions.canDelete && quotation.status === 'draft' && onDelete && (
+                        <button
+                          onClick={async () => {
+                            setShowActionsMenu(false);
+                            if (!window.confirm(`Excluir a cotação ${quotation.code}? Itens, fornecedores convidados e histórico saem junto. Essa ação não pode ser desfeita.`)) return;
+                            try {
+                              await onDelete();
+                            } catch (err) {
+                              window.alert(err instanceof Error ? err.message : 'Erro ao excluir cotação');
+                            }
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2.5 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Excluir Cotação
                         </button>
                       )}
                     </div>

@@ -874,6 +874,24 @@ export const useQuotation = () => {
       throw new Error('Apenas cotações em rascunho podem ser excluídas');
     }
 
+    // Itens, fornecedores convidados, propostas, aprovações, histórico e
+    // mensagens saem junto (ON DELETE CASCADE). O filtro de status repete a
+    // regra no banco: se a cotação saiu do rascunho noutra aba, nada é apagado.
+    const { data: deleted, error: dbError } = await supabase
+      .from('quotations')
+      .delete()
+      .eq('id', id)
+      .eq('status', 'draft')
+      .select('id');
+
+    if (dbError) {
+      console.error('Error deleting quotation:', dbError);
+      throw new Error('Erro ao excluir cotação');
+    }
+    if (!deleted || deleted.length === 0) {
+      throw new Error('A cotação não está mais em rascunho e não pode ser excluída');
+    }
+
     setQuotations(prev => prev.filter(q => q.id !== id));
   }, [quotations]);
 

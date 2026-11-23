@@ -118,6 +118,7 @@ export const QuotationManagementPage: React.FC = () => {
     approveQuotation,
     rejectQuotation,
     cancelQuotation,
+    deleteQuotation,
     convertToPurchase,
     advanceToReview,
     revertStatus,
@@ -887,6 +888,10 @@ export const QuotationManagementPage: React.FC = () => {
           onCancel={async (reason) => {
             await cancelQuotation(selectedQuotation.id, reason);
             await handleRefreshAfterAction();
+          }}
+          onDelete={async () => {
+            await deleteQuotation(selectedQuotation.id);
+            handleCloseDrawer();
           }}
           onConvertToPurchase={async () => {
             const snapshot = selectedQuotation;
