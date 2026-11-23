@@ -159,3 +159,28 @@ export function recebidosSemBaixaNoSaldo(
     .filter((r) => r.faltaLancar > 0)
     .sort((a, b) => b.faltaLancar - a.faltaLancar);
 }
+
+/** O que a conferência tem fora da lista do card "Saldo pendente", para explicar uma lista vazia ou curta. */
+export interface ForaDoSaldoPendente {
+  /** Recebidos no apLIS sem baixa, das mesmas operadoras, emitidos fora do período. */
+  foraDoPeriodo: { quantidade: number; valor: number };
+  /** Títulos do recorte com lote não encontrado no apLIS (banco do apLIS desatualizado ou vazio). */
+  loteAusente: number;
+}
+
+export function foraDoSaldoPendente(
+  titulos: DivergenciaAplis[],
+  { desde, ate, operadoras }: { desde: string; ate: string; operadoras: ReadonlySet<string> },
+): ForaDoSaldoPendente {
+  const daOperadora = titulos.filter((t) => operadoras.has(t.operadora));
+  const noPeriodo = (t: DivergenciaAplis) => t.dataEmissao !== null && t.dataEmissao >= desde && t.dataEmissao <= ate;
+  const fora = recebidosSemBaixaNoSaldo(daOperadora, { desde: '0000-01-01', ate: '9999-12-31', operadoras })
+    .filter((r) => !noPeriodo(r.divergencia));
+  return {
+    foraDoPeriodo: {
+      quantidade: fora.length,
+      valor: fora.reduce((soma, r) => soma + centavos(r.faltaLancar), 0) / 100,
+    },
+    loteAusente: daOperadora.filter((t) => t.tipo === 'lote-ausente' && noPeriodo(t)).length,
+  };
+}

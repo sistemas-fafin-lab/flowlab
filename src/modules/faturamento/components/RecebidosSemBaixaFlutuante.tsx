@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
-import { recebidosSemBaixaNoSaldo } from '../utils/conferenciaAplis';
+import { foraDoSaldoPendente, recebidosSemBaixaNoSaldo } from '../utils/conferenciaAplis';
 import { formatCurrency, formatData } from '../utils/formato';
 
 // Card flutuante do "Saldo pendente" no Dashboard: ao passar o mouse, lista os lotes
@@ -34,7 +34,12 @@ const RecebidosSemBaixaFlutuante: React.FC<Props> = ({ desde, ate, operadoras, c
 
   const ancoraRef = useRef<HTMLDivElement>(null);
   const fecharRef = useRef<number | undefined>(undefined);
-  const [posicao, setPosicao] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  // Acima do card, ancora pela borda de baixo (`bottom`): a altura real do
+  // conteúdo não é conhecida antes de renderizar, e ancorar pelo topo com a
+  // altura máxima deixava o flutuante solto, longe do card.
+  const [posicao, setPosicao] = useState<
+    { left: number; maxHeight: number } & ({ top: number } | { bottom: number })
+  | null>(null);
 
   const abrir = useCallback(() => {
     window.clearTimeout(fecharRef.current);
@@ -58,8 +63,7 @@ const RecebidosSemBaixaFlutuante: React.FC<Props> = ({ desde, ate, operadoras, c
     if (espacoAbaixo >= 240 || espacoAbaixo >= espacoAcima) {
       setPosicao({ top: r.bottom + MARGEM, left, maxHeight: espacoAbaixo });
     } else {
-      const maxHeight = Math.min(espacoAcima, 420);
-      setPosicao({ top: r.top - MARGEM - maxHeight, left, maxHeight });
+      setPosicao({ bottom: window.innerHeight - r.top + MARGEM, left, maxHeight: Math.min(espacoAcima, 420) });
     }
     const fechar = () => setAberto(false);
     window.addEventListener('scroll', fechar, true);
@@ -72,6 +76,10 @@ const RecebidosSemBaixaFlutuante: React.FC<Props> = ({ desde, ate, operadoras, c
 
   const lista = useMemo(
     () => (titulos ? recebidosSemBaixaNoSaldo(titulos, { desde, ate, operadoras }) : null),
+    [titulos, desde, ate, operadoras],
+  );
+  const fora = useMemo(
+    () => (titulos ? foraDoSaldoPendente(titulos, { desde, ate, operadoras }) : null),
     [titulos, desde, ate, operadoras],
   );
   const total = lista ? lista.reduce((soma, r) => soma + Math.round(r.faltaLancar * 100), 0) / 100 : 0;
@@ -89,7 +97,7 @@ const RecebidosSemBaixaFlutuante: React.FC<Props> = ({ desde, ate, operadoras, c
   } else if (lista.length === 0) {
     conteudo = (
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Nenhum lote do período recebido no apLIS sem baixa no FlowLab.
+        Nenhum título emitido de {formatData(desde)} a {formatData(ate)} recebido no apLIS sem baixa no FlowLab.
       </p>
     );
   } else {
@@ -128,6 +136,26 @@ const RecebidosSemBaixaFlutuante: React.FC<Props> = ({ desde, ate, operadoras, c
     );
   }
 
+  // Explica o que não entrou: outro período (o card segue o filtro de emissão) e
+  // lote que o apLIS não achou (banco do apLIS vazio ou desatualizado).
+  const avisos = lista !== null && fora && (fora.foraDoPeriodo.quantidade > 0 || fora.loteAusente > 0) && (
+    <div className="mt-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/70 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+      {fora.foraDoPeriodo.quantidade > 0 && (
+        <p>
+          Fora do período: {fora.foraDoPeriodo.quantidade} título{fora.foraDoPeriodo.quantidade === 1 ? '' : 's'}
+          {' '}({formatCurrency(fora.foraDoPeriodo.valor)}) recebido{fora.foraDoPeriodo.quantidade === 1 ? '' : 's'} no
+          apLIS sem baixa. Amplie o período para vê-los.
+        </p>
+      )}
+      {fora.loteAusente > 0 && (
+        <p className="text-amber-700 dark:text-amber-400">
+          {fora.loteAusente} título{fora.loteAusente === 1 ? '' : 's'} do período com lote não encontrado no apLIS:
+          a lista pode estar incompleta se o banco do apLIS estiver sendo atualizado.
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div
       ref={ancoraRef}
@@ -143,13 +171,14 @@ const RecebidosSemBaixaFlutuante: React.FC<Props> = ({ desde, ate, operadoras, c
           role="tooltip"
           onMouseEnter={abrir}
           onMouseLeave={fecharDepois}
-          style={{ position: 'fixed', top: posicao.top, left: posicao.left, width: Math.min(LARGURA, window.innerWidth - 2 * MARGEM), maxHeight: posicao.maxHeight }}
+          style={{ position: 'fixed', ...('top' in posicao ? { top: posicao.top } : { bottom: posicao.bottom }), left: posicao.left, width: Math.min(LARGURA, window.innerWidth - 2 * MARGEM), maxHeight: posicao.maxHeight }}
           className="z-[60] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 animate-fade-in-up"
         >
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
             Recebidos no apLIS sem baixa
           </p>
           {conteudo}
+          {avisos}
         </div>,
         document.body,
       )}

@@ -3,6 +3,7 @@ import type { DivergenciaAplis } from '../types';
 import {
   csvConferencia,
   diferencaAplis,
+  foraDoSaldoPendente,
   idsDivergentesNoPeriodo,
   recebidosSemBaixaNoSaldo,
   secoesConferencia,
@@ -196,5 +197,19 @@ describe('recebidosSemBaixaNoSaldo', () => {
       ['parcial', 16318.6],
       ['pequeno', 100],
     ]);
+  });
+});
+
+describe('foraDoSaldoPendente', () => {
+  it('conta os recebidos sem baixa fora do período e os lotes ausentes do período, só das operadoras do card', () => {
+    const recorte = { desde: '2026-08-01', ate: '2026-11-30', operadoras: new Set(['Unimed', 'INAS GDF']) };
+    expect(foraDoSaldoPendente([
+      divergencia({ idNota: 'julho', dataEmissao: '2026-07-10', operadora: 'INAS GDF', recebidoAplis: 16818.6 }),
+      divergencia({ idNota: 'julho-parcial', dataEmissao: '2026-07-20', tipo: 'aplis-maior', recebidoSistema: 100, recebidoAplis: 300 }),
+      divergencia({ idNota: 'no-periodo', dataEmissao: '2026-09-01' }),
+      divergencia({ idNota: 'outra', dataEmissao: '2026-07-10', operadora: 'Bradesco' }),
+      divergencia({ idNota: 'ausente', dataEmissao: '2026-09-01', tipo: 'lote-ausente', recebidoAplis: null }),
+      divergencia({ idNota: 'ausente-fora', dataEmissao: '2026-06-01', tipo: 'lote-ausente', recebidoAplis: null }),
+    ], recorte)).toEqual({ foraDoPeriodo: { quantidade: 2, valor: 17018.6 }, loteAusente: 1 });
   });
 });
