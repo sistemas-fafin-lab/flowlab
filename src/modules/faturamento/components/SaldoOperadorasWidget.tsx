@@ -110,7 +110,8 @@ const SaldoOperadorasWidget: React.FC<Props> = ({
       <p className="flex items-start gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
         <Info className="w-3.5 h-3.5 mt-px flex-shrink-0" aria-hidden />
         <span>
-          Saldo = {FORMULA_SALDO}. As baixas do apLIS são importadas à mão, então o saldo do sistema
+          Saldo = {FORMULA_SALDO}, só dos títulos sem nenhum recebimento: no parcialmente recebido,
+          o que faltou é glosa. As baixas do apLIS são importadas à mão, então o saldo do sistema
           pode ficar abaixo do apLIS até a próxima importação.
         </span>
       </p>

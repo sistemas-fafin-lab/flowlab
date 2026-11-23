@@ -910,6 +910,8 @@ export interface DashboardReceber {
   porOperadora: {
     operadoraId: string;
     nome: string;
+    /** Saldo dos títulos parcialmente recebidos (glosa); fora de `saldo`. */
+    glosaParcial?: number;
     saldo: number;
     /** Carteira inteira da operadora (todo título não cancelado), sem recorte de
      *  período — diferente de `kpis.qtdTitulos`, que é só os emitidos no período. */
