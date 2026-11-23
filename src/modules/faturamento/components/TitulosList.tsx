@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Ban,
+  Gavel,
   DollarSign,
   Eye,
   Pencil,
@@ -239,10 +240,12 @@ const CardTotal: React.FC<{
   valor: string;
   /** Cor do valor; sem ela, o texto padrão. */
   corValor?: string;
+  /** Explicação do número (tooltip nativo). */
+  dica?: string;
 }> = ({
-  icone, corIcone, rotulo, valor, corValor = 'text-gray-900 dark:text-gray-100',
+  icone, corIcone, rotulo, valor, corValor = 'text-gray-900 dark:text-gray-100', dica,
 }) => (
-  <div className="inline-flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/40 px-4 py-2.5">
+  <div title={dica} className="inline-flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/40 px-4 py-2.5">
     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${corIcone}`}>{icone}</div>
     <div>
       <p className="text-[11px] text-gray-500 dark:text-gray-400">{rotulo}</p>
@@ -626,6 +629,14 @@ const TitulosList: React.FC<Props> = ({
           corIcone="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
           rotulo="Glosa acatada"
           valor={loading || !totais.glosas ? '—' : formatCurrency(totais.glosas.glosaAcatada)}
+        />
+        <CardTotal
+          icone={<Gavel className="w-4 h-4" />}
+          corIcone="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+          rotulo="Recurso não acatado"
+          dica={'Perda das requisições em "Recurso não acatado" no apLIS: a operadora negou o recurso. '
+            + 'Já está somada na Glosa acatada e fora do Saldo.'}
+          valor={loading || !totais.glosas ? '—' : formatCurrency(totais.glosas.recursoNaoAcatado)}
         />
         <CardTotal
           icone={<Wallet className="w-4 h-4" />}

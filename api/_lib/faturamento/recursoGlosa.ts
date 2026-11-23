@@ -541,7 +541,7 @@ export interface RequisicaoTitulo extends RequisicaoClassificavel {
   glosaFixada: number | null;
 }
 
-/** As três colunas de glosa de Contas a Receber → Títulos. */
+/** As colunas de glosa de Contas a Receber → Títulos e o recurso não acatado (card de totais). */
 export interface GlosasTitulo {
   /** Σ líquido − recebido das requisições em glosa ainda em disputa: sem recurso (6), 1º (7) e 2º recurso (16). */
   glosado: number;
@@ -549,10 +549,12 @@ export interface GlosasTitulo {
   glosaRecebida: number;
   /** Σ líquido − recebido das requisições em 18, 8 e 15: o que foi dado como perdido. */
   glosaAcatada: number;
+  /** Parte da glosaAcatada que é recurso não acatado pela operadora (15). */
+  recursoNaoAcatado: number;
 }
 
 /** Título ou lote sem glosa na foto. */
-export const GLOSAS_ZERADAS: Readonly<GlosasTitulo> = { glosado: 0, glosaRecebida: 0, glosaAcatada: 0 };
+export const GLOSAS_ZERADAS: Readonly<GlosasTitulo> = { glosado: 0, glosaRecebida: 0, glosaAcatada: 0, recursoNaoAcatado: 0 };
 
 /** Glosado, Glosa recebida e Glosa acatada de cada lote de faturamento. */
 export function somarGlosasPorLote(requisicoes: RequisicaoTitulo[]): Map<number, GlosasTitulo> {
@@ -567,6 +569,9 @@ export function somarGlosasPorLote(requisicoes: RequisicaoTitulo[]): Map<number,
     }
     const perda = valorPerdaDefinitiva(r.foto);
     if (perda !== null) soma.glosaAcatada = centavos(soma.glosaAcatada + perda);
+    if (perda !== null && r.foto.status === STATUS_GLOSA.recursoNaoAcatado) {
+      soma.recursoNaoAcatado = centavos(soma.recursoNaoAcatado + perda);
+    }
     porLote.set(r.idLoteFaturamento, soma);
   }
   return porLote;
@@ -581,6 +586,7 @@ export function somarGlosasDoTitulo(idsLote: number[], porLote: Map<number, Glos
     soma.glosado = centavos(soma.glosado + doLote.glosado);
     soma.glosaRecebida = centavos(soma.glosaRecebida + doLote.glosaRecebida);
     soma.glosaAcatada = centavos(soma.glosaAcatada + doLote.glosaAcatada);
+    soma.recursoNaoAcatado = centavos(soma.recursoNaoAcatado + (doLote.recursoNaoAcatado ?? 0));
   }
   return soma;
 }

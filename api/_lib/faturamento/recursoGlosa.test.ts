@@ -825,18 +825,19 @@ describe('somarGlosasPorLote', () => {
       // Recurso não acatado pela operadora: também perda, sai do saldo.
       daFoto({ status: 15, liquido: 300, recebido: 72.11 }),
     ]);
-    expect(porLote.get(10)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 777.89 });
+    expect(porLote.get(10)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 777.89, recursoNaoAcatado: 227.89 });
   });
 });
 
 describe('somarGlosasDoTitulo', () => {
   it('soma os lotes de faturamento do título; lote sem glosa na foto conta 0', () => {
     const porLote = new Map([
-      [10, { glosado: 300, glosaRecebida: 100.1, glosaAcatada: 0 }],
-      [20, { glosado: 50, glosaRecebida: 0.2, glosaAcatada: 75 }],
-      [30, { glosado: 999, glosaRecebida: 999, glosaAcatada: 999 }],
+      [10, { glosado: 300, glosaRecebida: 100.1, glosaAcatada: 0, recursoNaoAcatado: 0 }],
+      [20, { glosado: 50, glosaRecebida: 0.2, glosaAcatada: 75, recursoNaoAcatado: 25.1 }],
+      [30, { glosado: 999, glosaRecebida: 999, glosaAcatada: 999, recursoNaoAcatado: 999 }],
     ]);
-    expect(somarGlosasDoTitulo([10, 20, 40], porLote)).toEqual({ glosado: 350, glosaRecebida: 100.3, glosaAcatada: 75 });
-    expect(somarGlosasDoTitulo([], porLote)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 0 });
+    expect(somarGlosasDoTitulo([10, 20, 40], porLote))
+      .toEqual({ glosado: 350, glosaRecebida: 100.3, glosaAcatada: 75, recursoNaoAcatado: 25.1 });
+    expect(somarGlosasDoTitulo([], porLote)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 0, recursoNaoAcatado: 0 });
   });
 });
