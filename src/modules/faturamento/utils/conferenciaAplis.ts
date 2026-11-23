@@ -132,3 +132,30 @@ export function idsDivergentesNoPeriodo(titulos: DivergenciaAplis[], desde: stri
     .filter((t) => !t.dataEmissao || (t.dataEmissao >= desde && t.dataEmissao <= ate))
     .map((t) => t.idNota);
 }
+
+/** Título do saldo pendente que já foi recebido no apLIS e ainda não tem a baixa no FlowLab. */
+export interface RecebidoSemBaixa {
+  divergencia: DivergenciaAplis;
+  /** Recebido no apLIS − recebido no sistema: o que falta lançar. */
+  faltaLancar: number;
+}
+
+/**
+ * Card flutuante do "Saldo pendente" no Dashboard: os títulos do mesmo recorte do card
+ * (emitidos em `desde`..`ate` e de uma das `operadoras`, pelo nome) que a conferência
+ * aponta como recebidos no apLIS sem baixa no sistema (`so-no-aplis` e `aplis-maior`).
+ * O saldo deles já entrou no caixa: falta o "Atualizar do apLIS → Baixas".
+ * Maior valor a lançar primeiro.
+ */
+export function recebidosSemBaixaNoSaldo(
+  titulos: DivergenciaAplis[],
+  { desde, ate, operadoras }: { desde: string; ate: string; operadoras: ReadonlySet<string> },
+): RecebidoSemBaixa[] {
+  return titulos
+    .filter((t) => t.tipo === 'so-no-aplis' || t.tipo === 'aplis-maior')
+    .filter((t) => t.dataEmissao !== null && t.dataEmissao >= desde && t.dataEmissao <= ate)
+    .filter((t) => operadoras.has(t.operadora))
+    .map((t) => ({ divergencia: t, faltaLancar: diferencaAplis(t) ?? 0 }))
+    .filter((r) => r.faltaLancar > 0)
+    .sort((a, b) => b.faltaLancar - a.faltaLancar);
+}

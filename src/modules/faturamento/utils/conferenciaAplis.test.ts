@@ -4,6 +4,7 @@ import {
   csvConferencia,
   diferencaAplis,
   idsDivergentesNoPeriodo,
+  recebidosSemBaixaNoSaldo,
   secoesConferencia,
   seloDivergencia,
 } from './conferenciaAplis';
@@ -174,5 +175,26 @@ describe('idsDivergentesNoPeriodo', () => {
   it('título sem emissão fica (a lista é quem decide)', () => {
     expect(idsDivergentesNoPeriodo([divergencia({ idNota: 'x', dataEmissao: null })], '2026-07-01', '2026-09-30'))
       .toEqual(['x']);
+  });
+});
+
+describe('recebidosSemBaixaNoSaldo', () => {
+  const recorte = { desde: '2026-07-01', ate: '2026-09-30', operadoras: new Set(['Unimed', 'INAS GDF']) };
+
+  it('lista só recebido no apLIS sem baixa, no período e nas operadoras do card, maior primeiro', () => {
+    const lista = recebidosSemBaixaNoSaldo([
+      divergencia({ idNota: 'pequeno', recebidoAplis: 100 }),
+      divergencia({ idNota: 'parcial', tipo: 'aplis-maior', recebidoSistema: 500, recebidoAplis: 16818.6, operadora: 'INAS GDF' }),
+      divergencia({ idNota: 'sistema-maior', tipo: 'sistema-maior', recebidoSistema: 50, recebidoAplis: 0 }),
+      divergencia({ idNota: 'ausente', tipo: 'lote-ausente', recebidoAplis: null }),
+      divergencia({ idNota: 'fora-do-periodo', dataEmissao: '2026-06-30' }),
+      divergencia({ idNota: 'sem-emissao', dataEmissao: null }),
+      divergencia({ idNota: 'outra-operadora', operadora: 'Bradesco' }),
+    ], recorte);
+
+    expect(lista.map((r) => [r.divergencia.idNota, r.faltaLancar])).toEqual([
+      ['parcial', 16318.6],
+      ['pequeno', 100],
+    ]);
   });
 });

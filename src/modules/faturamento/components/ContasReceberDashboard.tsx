@@ -65,6 +65,7 @@ import RecebimentosMesModal from './RecebimentosMesModal';
 import HistoricoMetasModal from './HistoricoMetasModal';
 import ObservacaoNaoFaturaveis from './ObservacaoNaoFaturaveis';
 import SaldoOperadorasWidget from './SaldoOperadorasWidget';
+import RecebidosSemBaixaFlutuante from './RecebidosSemBaixaFlutuante';
 import type { AgingBucket, AgingSelecao, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
@@ -403,6 +404,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
     [operadoras, filtros.operadoraIds],
   );
   const recebimentosMes = useRecebimentosMes(mesRecebimento, operadorasRecebimento);
+  // Mesmo recorte do card "Saldo pendente" (a conferência só traz o nome da operadora).
+  const nomesOperadorasMeta = useMemo(
+    () => new Set(operadorasRecebimento.map((o) => o.nome)),
+    [operadorasRecebimento],
+  );
   const recebimentosPorCompetencia = useMemo(() => {
     const lista = recebimentosMes.porCompetencia;
     const linhas = lista.slice(0, MAX_COMPETENCIAS_RECEBIDO).map((c) => ({
@@ -736,6 +742,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 cor="from-cyan-500 to-cyan-600"
                 atraso={4}
               />
+              <RecebidosSemBaixaFlutuante desde={filtros.desde} ate={filtros.ate} operadoras={nomesOperadorasMeta}>
               <Kpi
                 icon={<Hourglass className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Saldo pendente"
@@ -749,6 +756,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 cor="from-blue-500 to-blue-600"
                 atraso={5}
               />
+              </RecebidosSemBaixaFlutuante>
             </div>
           </div>
         </div>
