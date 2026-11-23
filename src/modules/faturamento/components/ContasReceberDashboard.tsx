@@ -128,6 +128,15 @@ const ROTULOS_AGING: Record<AgingBucket, string> = {
   d90_mais: '+90 dias',
 };
 
+/** Sufixo do subtítulo do aging com o que ficou fora das faixas (não é atraso). */
+function textoForaDasFaixas({ em_recurso = 0, glosa_parcial = 0 }: { em_recurso?: number; glosa_parcial?: number }): string {
+  const partes = [
+    em_recurso > 0 ? `${formatCurrency(em_recurso)} em glosa/recurso no apLIS` : null,
+    glosa_parcial > 0 ? `${formatCurrency(glosa_parcial)} de diferença em títulos parcialmente recebidos (glosa)` : null,
+  ].filter(Boolean);
+  return partes.length > 0 ? `. Fora das faixas: ${partes.join(' e ')}` : '';
+}
+
 /** Uma linha do gráfico empilhado: a faixa (rótulo + chave crua) e o saldo de
  *  cada operadora naquela faixa. A chave crua (`bucket`) viaja junto do rótulo
  *  já formatado para o onClick do <Bar> (issue 41) traduzir o clique de volta
@@ -1132,11 +1141,9 @@ const ContasReceberDashboard: React.FC<Props> = ({
         <div key="aging" className="group">
           <Widget
             titulo="Aging da carteira"
-            sub={`Saldo em aberto por tempo de atraso e operadora — inclui títulos de qualquer período${
-              (data.aging.em_recurso ?? 0) > 0
-                ? `. Fora das faixas: ${formatCurrency(data.aging.em_recurso ?? 0)} em glosa/recurso no apLIS`
-                : ''
-            }`}
+            sub={`Saldo em aberto por tempo de atraso e operadora — inclui títulos de qualquer período${textoForaDasFaixas(
+              data.aging,
+            )}`}
           >
             {temAging ? (
               <ResponsiveContainer width="100%" height="100%">

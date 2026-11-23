@@ -48,11 +48,13 @@ interface LinhaAging {
 
 // Mesmo recorte de "título em aberto" que a RPC fat_dashboard_receber usa
 // para montar o aging (20260903120000_aging_por_operadora.sql): fora
-// cancelada/recebida/liquidada, com saldo cobrável positivo (saldo sem a
+// cancelada/recebida/liquidada/parcialmente recebida, com saldo cobrável positivo (saldo sem a
 // glosa em disputa no apLIS — 20261119160000_fat_saldo_em_recurso.sql). Tipado em cima de
 // TituloStatus (não uma string PostgREST solta) para um nome de status errado
 // virar erro de compilação em vez de silenciosamente não excluir nada.
-const STATUS_ENCERRADOS: readonly TituloStatus[] = ['cancelada', 'recebida', 'liquidada'];
+// Parcialmente recebido também sai: o que faltou é glosa, não atraso
+// (20261123120000_fat_aging_sem_parcial.sql).
+const STATUS_FORA_DO_AGING: readonly TituloStatus[] = ['cancelada', 'recebida', 'liquidada', 'parcialmente_recebida'];
 
 // Teto de linhas: o widget agrega a carteira inteira, e uma operadora com
 // centenas de títulos atrasados não precisa carregar tudo de uma vez só para
@@ -135,7 +137,7 @@ const AgingDetalheModal: React.FC<Props> = ({
             'id_nota, numero_nota, data_vencimento, valor_saldo_cobravel, operadoras(nome), nota_lote(lotes(codigo_lote))',
             { count: 'exact' },
           )
-          .not('status', 'in', `(${STATUS_ENCERRADOS.join(',')})`)
+          .not('status', 'in', `(${STATUS_FORA_DO_AGING.join(',')})`)
           .gt('valor_saldo_cobravel', 0)
           .order('data_vencimento', { ascending: true, nullsFirst: true })
           .limit(LIMITE_LINHAS);
