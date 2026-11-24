@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { AcCheckin, AcColeta, CheckinResultado, ChecklistItemKey } from '../types';
+import type { EdicaoColeta } from '../domain/coleta';
 
 // Coleta (1:1) do agendamento, ou null quando ainda não registrada. Leitura
 // direta — a RLS libera SELECT p/ usuários autenticados. Lança o erro do
@@ -87,6 +88,9 @@ interface UseColetasResult {
     dados: { dataHora: string; postoId: string; telefone: string | null },
     editadoPor: string,
   ) => Promise<string | null>;
+  // Correção de um agendamento já 'coletado' (nome/telefone do paciente + dados
+  // da coleta). Local: não avisa o LAB-HUB. Retorna o erro, ou null em sucesso.
+  editarColeta: (agendamentoId: string, dados: EdicaoColeta, editadoPor: string) => Promise<string | null>;
 }
 
 // Fluxo de coleta (Fase 6). As mutações rodam nas RPCs transacionais
@@ -158,5 +162,30 @@ export function useColetas(): UseColetasResult {
     [],
   );
 
-  return { registrarCheckin, registrarColeta, fetchCheckins, cancelarAgendamento, editarAgendamento };
+  const editarColeta = useCallback<UseColetasResult['editarColeta']>(
+    async (agendamentoId, dados, editadoPor) => {
+      const { error } = await supabase.rpc('editar_coleta', {
+        p_agendamento_id: agendamentoId,
+        p_paciente_nome: dados.pacienteNome,
+        p_telefone: dados.telefone,
+        p_coletado_por: dados.coletadoPor,
+        p_coletado_em: dados.coletadoEm,
+        p_observacoes: dados.observacoes,
+        p_validade_ok: dados.validadeOk,
+        p_etiquetado: dados.etiquetado,
+        p_editado_por: editadoPor,
+      });
+      return error ? error.message : null;
+    },
+    [],
+  );
+
+  return {
+    registrarCheckin,
+    registrarColeta,
+    fetchCheckins,
+    cancelarAgendamento,
+    editarAgendamento,
+    editarColeta,
+  };
 }

@@ -45,8 +45,14 @@ import { hasPermission } from '../../../utils/permissions';
 import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
 import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 import { ordenarAgendamentosParaLista } from '../utils/ordenarAgendamentos';
-import { resumoColeta } from '../domain/coleta';
 import {
+  resumoColeta,
+  validarEdicaoColeta,
+  type EdicaoColeta,
+  type FormEdicaoColeta,
+} from '../domain/coleta';
+import {
+  dataHoraLocalDeIso,
   dataKeyDeIso,
   ehSlotRetroativo,
   fmtDiaSemana,
@@ -1747,6 +1753,220 @@ const EditarAgendamentoModal: React.FC<{
   );
 };
 
+// ─── Modal de edição de agendamento já coletado ─────────────────────────────────
+// Corrige nome/telefone do paciente e os dados da coleta (RPC editar_coleta).
+// Edição LOCAL, como a do agendamento: o LAB-HUB não é notificado. Exames,
+// posto e horário agendado ficam de fora (ver a migration 20261124100000).
+const OPCOES_SIM_NAO: { valor: string; label: string }[] = [
+  { valor: '', label: 'Não informado' },
+  { valor: 'sim', label: 'Sim' },
+  { valor: 'nao', label: 'Não' },
+];
+const simNaoParaSelect = (v: boolean | null): string => (v === null ? '' : v ? 'sim' : 'nao');
+const selectParaSimNao = (v: string): boolean | null => (v === '' ? null : v === 'sim');
+
+const EditarColetaModal: React.FC<{
+  ag: AcAgendamento;
+  onClose: () => void;
+  onSave: (dados: EdicaoColeta) => Promise<string | null>;
+}> = ({ ag, onClose, onSave }) => {
+  const { coleta, loading, error: coletaErro } = useColeta(ag.id);
+  const [form, setForm] = useState<FormEdicaoColeta | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Preenche o formulário uma única vez, quando a coleta chega.
+  useEffect(() => {
+    if (!coleta || form) return;
+    setForm({
+      pacienteNome: ag.paciente_nome,
+      telefone: ag.paciente_telefone ? maskTelefone(ag.paciente_telefone) : '',
+      coletadoPor: coleta.coletado_por,
+      coletadoEm: dataHoraLocalDeIso(coleta.coletado_em),
+      observacoes: coleta.observacoes ?? '',
+      validadeOk: coleta.validade_ok,
+      etiquetado: coleta.etiquetado,
+    });
+  }, [coleta, form, ag.paciente_nome, ag.paciente_telefone]);
+
+  const set = <K extends keyof FormEdicaoColeta>(campo: K, valor: FormEdicaoColeta[K]) =>
+    setForm((f) => (f ? { ...f, [campo]: valor } : f));
+
+  const telErro = Boolean(form?.telefone) && !telefoneValido(form?.telefone ?? '');
+  const telValid = Boolean(form?.telefone) && telefoneValido(form?.telefone ?? '');
+
+  const handleSave = async () => {
+    if (!form) return;
+    setErro(null);
+    const r = validarEdicaoColeta(form);
+    if ('erro' in r) return setErro(r.erro);
+    setSaving(true);
+    const erroSalvar = await onSave(r.dados);
+    setSaving(false);
+    if (erroSalvar) return setErro(erroSalvar);
+    onClose();
+  };
+
+  const label = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">Editar coleta</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{ag.paciente_nome}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 overflow-y-auto space-y-4">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm whitespace-pre-line">
+              {erro}
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Carregando dados da coleta…
+            </div>
+          )}
+          {!loading && (coletaErro || !coleta) && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              {coletaErro ?? 'Coleta não encontrada para este agendamento.'}
+            </div>
+          )}
+
+          {form && (
+            <>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                A edição é local — o LAB-HUB não é notificado. O nome corrigido também é
+                atualizado nas filas de Culturas e Recoletas deste paciente.
+              </div>
+
+              <div>
+                <label className={label}>Nome do paciente</label>
+                <input
+                  value={form.pacienteNome}
+                  onChange={(e) => set('pacienteNome', e.target.value)}
+                  className={fieldCls(!form.pacienteNome.trim())}
+                />
+              </div>
+
+              <div>
+                <label className={label}>
+                  Telefone <span className="text-gray-400">(opcional)</span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    value={form.telefone}
+                    onChange={(e) => set('telefone', maskTelefone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    inputMode="tel"
+                    className={`${fieldCls(telErro, telValid)} pr-10`}
+                  />
+                  {telValid && <Check className="absolute right-3 w-4 h-4 text-emerald-500" />}
+                </div>
+              </div>
+
+              <div>
+                <label className={label}>Coletado por</label>
+                <input
+                  value={form.coletadoPor}
+                  onChange={(e) => set('coletadoPor', e.target.value)}
+                  className={fieldCls(!form.coletadoPor.trim())}
+                />
+              </div>
+
+              <div>
+                <label className={label}>Coletado em</label>
+                <input
+                  type="datetime-local"
+                  value={form.coletadoEm}
+                  max={dataHoraLocalDeIso(new Date().toISOString())}
+                  onChange={(e) => set('coletadoEm', e.target.value)}
+                  className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={label}>Validade conferida</label>
+                  <select
+                    value={simNaoParaSelect(form.validadeOk)}
+                    onChange={(e) => set('validadeOk', selectParaSimNao(e.target.value))}
+                    className={inputCls}
+                  >
+                    {OPCOES_SIM_NAO.map((o) => (
+                      <option key={o.valor} value={o.valor}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={label}>Etiquetado</label>
+                  <select
+                    value={simNaoParaSelect(form.etiquetado)}
+                    onChange={(e) => set('etiquetado', selectParaSimNao(e.target.value))}
+                    className={inputCls}
+                  >
+                    {OPCOES_SIM_NAO.map((o) => (
+                      <option key={o.valor} value={o.valor}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className={label}>
+                  Observações <span className="text-gray-400">(opcional)</span>
+                </label>
+                <textarea
+                  value={form.observacoes}
+                  onChange={(e) => set('observacoes', e.target.value)}
+                  rows={3}
+                  className={`${inputCls} resize-none`}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving || !form}
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+          >
+            {saving ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 const AgendamentosPage: React.FC = () => {
   const [postoSel, setPostoSel] = useState<string>(''); // ac_postos.id — '' = todos
@@ -1758,6 +1978,7 @@ const AgendamentosPage: React.FC = () => {
   const [mostrarNovo, setMostrarNovo] = useState(false);
   const [detalhe, setDetalhe] = useState<AcAgendamento | null>(null);
   const [editando, setEditando] = useState<AcAgendamento | null>(null);
+  const [editandoColeta, setEditandoColeta] = useState<AcAgendamento | null>(null);
   const navigate = useNavigate();
 
   // O posto é filtrado no cliente para que os cartões-resumo sempre reflitam o
@@ -1790,7 +2011,7 @@ const AgendamentosPage: React.FC = () => {
   const canDelete = hasPermission(userProfile?.permissions || [], 'canDeleteAgendamentos');
   const canEditar = hasPermission(userProfile?.permissions || [], 'canEditarAgendamentos');
   const operadorNome = userProfile?.name || user?.email || 'Sistema';
-  const { cancelarAgendamento, editarAgendamento } = useColetas();
+  const { cancelarAgendamento, editarAgendamento, editarColeta } = useColetas();
   const { inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
 
   // Edição local (posto/data-hora/telefone) pelo drawer. A RPC só aceita status
@@ -1805,6 +2026,18 @@ const AgendamentosPage: React.FC = () => {
     if (!erro) {
       setDetalhe(null);
       setEditando(null);
+      void refetch();
+    }
+    return erro;
+  };
+
+  // Correção de um agendamento já coletado (nome/telefone + dados da coleta).
+  const handleSalvarEdicaoColeta = async (dados: EdicaoColeta) => {
+    if (!editandoColeta) return 'Agendamento não encontrado.';
+    const erro = await editarColeta(editandoColeta.id, dados, operadorNome);
+    if (!erro) {
+      setDetalhe(null);
+      setEditandoColeta(null);
       void refetch();
     }
     return erro;
@@ -1939,7 +2172,13 @@ const AgendamentosPage: React.FC = () => {
               : undefined
           }
           onEditar={
-            canEditar && detalhe.status === 'recebido' ? () => setEditando(detalhe) : undefined
+            !canEditar
+              ? undefined
+              : detalhe.status === 'recebido'
+                ? () => setEditando(detalhe)
+                : detalhe.status === 'coletado'
+                  ? () => setEditandoColeta(detalhe)
+                  : undefined
           }
           onUpload={uploadDocumento}
         />
@@ -1952,6 +2191,14 @@ const AgendamentosPage: React.FC = () => {
           onClose={() => setEditando(null)}
           onSave={handleSalvarEdicao}
           onDisponibilidade={buscarDisponibilidade}
+        />
+      )}
+
+      {editandoColeta && (
+        <EditarColetaModal
+          ag={editandoColeta}
+          onClose={() => setEditandoColeta(null)}
+          onSave={handleSalvarEdicaoColeta}
         />
       )}
 

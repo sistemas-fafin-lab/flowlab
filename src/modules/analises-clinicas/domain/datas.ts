@@ -88,3 +88,11 @@ export const janelaDoPresetData = (
       return { inicio: hoje, fim: fimDaSemanaISO(hoje) };
   }
 };
+
+// Instante ISO → valor de <input type="datetime-local"> ('YYYY-MM-DDTHH:mm') no
+// fuso local. O caminho de volta é new Date(valor): sem 'Z', o JS lê como local.
+export const dataHoraLocalDeIso = (iso: string): string => {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};

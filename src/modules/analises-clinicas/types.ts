@@ -139,6 +139,9 @@ export interface AcColeta {
   observacoes: string | null;
   validade_ok: boolean | null; // validade da amostra conferida no check-in (Fase 7A)
   etiquetado: boolean | null;  // etiqueta colocada no check-in (Fase 7A)
+  // Auditoria da edição pós-coleta (migration 20261124100000). NULL = nunca editada.
+  editado_em?: string | null;
+  editado_por?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  dataHoraLocalDeIso,
   dataKeyDeIso,
   diaSeguinteISO,
   ehSlotRetroativo,
@@ -178,5 +179,16 @@ describe('janelaDoPresetData', () => {
     const { inicio, fim } = janelaDoPresetData('hoje');
     expect(inicio).toBe(fim);
     expect(inicio).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('dataHoraLocalDeIso', () => {
+  it('devolve o valor de datetime-local no fuso local', () => {
+    expect(dataHoraLocalDeIso(new Date(2026, 9, 19, 9, 5).toISOString())).toBe('2026-10-19T09:05');
+  });
+
+  it('faz ida e volta com new Date', () => {
+    const iso = new Date(2026, 0, 2, 23, 59).toISOString();
+    expect(new Date(dataHoraLocalDeIso(iso)).toISOString()).toBe(iso);
   });
 });
