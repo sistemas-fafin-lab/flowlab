@@ -1,6 +1,10 @@
 // Chips do Início (§12.1, D25): Granola e Wa-ha a partir de ti_agente_config e, para
 // os gestores, as sugestões que esperam aprovação. Puro, sem IA.
 import type { IntegrationStatus } from '../types';
+import { GRANOLA_PAROU_MS, WAHA_SEM_SINAL_MS } from './saude';
+
+// Os limites moram em saude.ts (D39), que também avisa quem configura.
+export { GRANOLA_PAROU_MS, WAHA_SEM_SINAL_MS };
 
 export interface ConfigIntegracoes {
   granola_folder_id: string | null;
@@ -10,11 +14,6 @@ export interface ConfigIntegracoes {
   waha_status: string | null;
   waha_verificado_em: string | null;
 }
-
-/** O cron roda nos dias úteis; mais de 4 dias sem sincronizar quer dizer que parou. */
-export const GRANOLA_PAROU_MS = 4 * 86_400_000;
-/** O script da VPS avisa a cada execução; 5 minutos sem aviso é "sem sinal" (igual a Configurações). */
-export const WAHA_SEM_SINAL_MS = 5 * 60_000;
 
 const quando = (iso: string) =>
   new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })

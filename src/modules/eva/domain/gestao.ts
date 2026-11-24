@@ -9,6 +9,7 @@ import {
   type CardTI, type ColunaKanban, type Prioridade, type StatusChamado,
 } from './demandas.js';
 import { projetosEmAndamento, tempoDecorrido, type ProjetoTI, type ResumoProjeto, type SprintTI } from './projetos.js';
+import { ausenciaProxima, descreverAusencia, estaAusente, inicioDaAusencia, type Ausencia } from './ausencia.js';
 import { nomeParaCitar } from './pessoas.js';
 import { getSlaStatus } from '../../../utils/itSla.js';
 import { formatarDuracao } from '../../../utils/itDashboard.js';
@@ -76,13 +77,28 @@ export interface EntradaGestao {
   sugestoesPendentes: number;
   /** created_at da sugestão pendente mais antiga. */
   sugestaoMaisAntiga: string | null;
-  /** Atrasados cuja última cobrança saiu e ficou sem resposta (a regra dos comentários do Início). */
-  cobrancasSemResposta: number;
+  /** Ids dos atrasados cuja última cobrança saiu e ficou sem resposta (a regra dos comentários do Início). */
+  cardsSemResposta: string[];
+  /** Ausência marcada de cada pessoa (D40), por user id. */
+  ausencias?: Record<string, Ausencia>;
 }
 
 // ── O painel ─────────────────────────────────────────────────────────────────
 
-export interface PessoaGestao { id: string; abertos: number; atrasados: number; parados: number; concluidos: number }
+export interface PessoaGestao {
+  id: string;
+  abertos: number;
+  atrasados: number;
+  parados: number;
+  concluidos: number;
+  /** "de férias até 05/12", para quem está ausente ou sai nos próximos 7 dias (D40). */
+  ausencia: string | null;
+  /** Está ausente hoje: fica fora da conta de sobrecarga. */
+  ausente: boolean;
+}
+
+/** Quem sai (ou já saiu) e deixa card vencendo no período: o gestor decide quem cobre (D40). */
+export interface CoberturaAusencia { id: string; ausencia: string; vencem: CardTI[]; sugestao: string | null }
 export interface ProjetoGestao extends ResumoProjeto { decorrido: number | null }
 export interface ForaDoPrazo { chamado: ChamadoGestao; atrasoMs: number }
 
@@ -116,6 +132,8 @@ export interface PainelGestao {
   pessoas: PessoaGestao[];
   projetos: ProjetoGestao[];
   pendencias: { sugestoes: number; sugestaoHaDias: number | null; cobrancasSemResposta: number };
+  /** Ausências com cards vencendo no período, e quem pode cobrir (o presente com menos abertos). */
+  coberturas: CoberturaAusencia[];
   /** Como cada pessoa aparece no texto: o primeiro nome, ou o inteiro quando há xará. */
   nomes: Record<string, string>;
 }
@@ -159,20 +177,37 @@ export function montarPainelGestao(e: EntradaGestao): PainelGestao {
   }
   foraDoPrazo.sort((a, b) => PESO[b.chamado.priority] - PESO[a.chamado.priority] || b.atrasoMs - a.atrasoMs);
 
-  const pessoas: PessoaGestao[] = e.equipe
-    .map((id) => {
-      const dela = visiveis.filter((c) => ehDoUsuario(c, id));
-      const abertosDela = dela.filter(estaAberto);
-      return {
-        id,
-        abertos: abertosDela.length,
-        atrasados: atrasados.filter((c) => ehDoUsuario(c, id)).length,
-        parados: abertosDela.filter(parado).length,
-        concluidos: dela.filter((c) => concluidoEm(c, periodo)).length,
-      };
-    })
+  const ausenciaDe = (id: string): Ausencia => e.ausencias?.[id] ?? { ausente_de: null, ausente_ate: null };
+  const todasAsPessoas: PessoaGestao[] = e.equipe.map((id) => {
+    const dela = visiveis.filter((c) => ehDoUsuario(c, id));
+    const abertosDela = dela.filter(estaAberto);
+    const a = ausenciaDe(id);
+    return {
+      id,
+      abertos: abertosDela.length,
+      atrasados: atrasados.filter((c) => ehDoUsuario(c, id)).length,
+      parados: abertosDela.filter(parado).length,
+      concluidos: dela.filter((c) => concluidoEm(c, periodo)).length,
+      ausencia: ausenciaProxima(a, hoje) ? descreverAusencia(a, hoje) : null,
+      ausente: estaAusente(a, hoje),
+    };
+  });
+  const pessoas = todasAsPessoas
     .filter((p) => p.abertos + p.concluidos > 0)
     .sort((a, b) => b.atrasados - a.atrasados || b.abertos - a.abertos || (e.pessoas[a.id] ?? '').localeCompare(e.pessoas[b.id] ?? '', 'pt-BR'));
+
+  // D40: quem está ausente (ou sai nos próximos 7 dias) e tem card vencendo no período; cobre quem
+  // está presente e tem menos cards abertos.
+  const quemCobre = (fora: string) => todasAsPessoas
+    .filter((x) => x.id !== fora && !x.ausente)
+    .sort((a, b) => a.abertos - b.abertos || (e.pessoas[a.id] ?? '').localeCompare(e.pessoas[b.id] ?? '', 'pt-BR'))[0]?.id ?? null;
+  const coberturas: CoberturaAusencia[] = todasAsPessoas.flatMap((x) => {
+    const a = ausenciaDe(x.id);
+    if (!x.ausencia || !a.ausente_ate) return [];
+    const de = inicioDaAusencia(a, hoje);
+    const vencem = abertos.filter((c) => ehDoUsuario(c, x.id) && diaVencimento(c) !== null && diaVencimento(c)! >= de && diaVencimento(c)! <= a.ausente_ate!);
+    return vencem.length ? [{ id: x.id, ausencia: x.ausencia, vencem, sugestao: quemCobre(x.id) }] : [];
+  });
 
   const doInicio = visiveis.filter((c) => estaAberto(c) || diaSP(c.updated_at) >= somarDias(hoje, -DIAS_CONCLUIDOS_INICIO));
   const projetos = projetosEmAndamento(e.projetos, doInicio, e.sprints, hoje)
@@ -210,8 +245,9 @@ export function montarPainelGestao(e: EntradaGestao): PainelGestao {
     pendencias: {
       sugestoes: e.sugestoesPendentes,
       sugestaoHaDias: e.sugestaoMaisAntiga ? diferencaDias(diaSP(e.sugestaoMaisAntiga), hoje) : null,
-      cobrancasSemResposta: e.cobrancasSemResposta,
+      cobrancasSemResposta: e.cardsSemResposta.length,
     },
+    coberturas,
     nomes,
   };
 }
@@ -249,7 +285,10 @@ export function pontosDeAtencao(p: PainelGestao, max = MAX_ATENCAO): string[] {
       .map((c) => `${c.codigo} ${titulo(c.title)}: crítico, atrasado há ${pluralDias(diasDeAtraso(c, hoje))} · ${quem(c, p)}`),
     ...p.chamados.foraDoPrazo.slice(0, 2)
       .map(({ chamado: c, atrasoMs }) => `Chamado ${c.codigo} ${titulo(c.title)}: ${PRIORIDADE[c.priority]}, fora do prazo para iniciar há ${formatarDuracao(atrasoMs)}`),
-    ...p.pessoas.filter((x) => x.atrasados >= ATRASADOS_ATENCAO).slice(0, 2)
+    // D40: quem sai e deixa card vencendo, com quem pode cobrir; quem está fora não conta como sobrecarga.
+    ...p.coberturas.slice(0, 2).map((x) => `${p.nomes[x.id] ?? 'Alguém'} ${x.ausencia}: ${n(x.vencem.length, 'card vence', 'cards vencem')} nesse período (${
+      x.vencem.slice(0, 3).map((c) => c.codigo).join(', ')})${x.sugestao ? ` · pode cobrir: ${p.nomes[x.sugestao] ?? 'alguém'}` : ''}`),
+    ...p.pessoas.filter((x) => !x.ausente && x.atrasados >= ATRASADOS_ATENCAO).slice(0, 2)
       .map((x) => `${p.nomes[x.id] ?? 'Alguém'}: ${n(x.atrasados, 'atrasado', 'atrasados')} de ${x.abertos} abertos`),
     ...p.projetos.filter((r) => r.situacao === 'late' || r.situacao === 'at_risk').slice(0, 2)
       .map((r) => `${sobreProjeto(r)} · ${SITUACAO[r.situacao]}`),
@@ -320,7 +359,7 @@ export function montarRelatorioSemanal(p: PainelGestao, linkInicio: string, reco
     `• Kanban: ${linhaKanban(p)}`,
     `• Chamados: ${linhaChamados(p)}`,
     ...(pessoas.length
-      ? ['', '👥 Por pessoa (concluídos · abertos · atrasados)', ...pessoas.map((x) => `• ${p.nomes[x.id] ?? '—'}: ${x.concluidos} · ${x.abertos} · ${x.atrasados}`), ...restante(p.pessoas.length, pessoas.length)]
+      ? ['', '👥 Por pessoa (concluídos · abertos · atrasados)', ...pessoas.map((x) => `• ${p.nomes[x.id] ?? '—'}: ${x.concluidos} · ${x.abertos} · ${x.atrasados}${x.ausencia ? ` (${x.ausencia})` : ''}`), ...restante(p.pessoas.length, pessoas.length)]
       : []),
     ...(projetos.length ? ['', '📁 Projetos', ...projetos.map((r) => `• ${sobreProjeto(r)} · ${SITUACAO[r.situacao]}`), ...restante(p.projetos.length, projetos.length)] : []),
     '',
@@ -351,10 +390,96 @@ export function montarBlocoGestao(p: PainelGestao): string {
     `Chamados dos usuários agora: ${c.naFila} na fila, ${c.foraDoPrazo.length} fora do prazo para iniciar${fora ? ` (${fora})` : ''}, ${c.emAndamento} em andamento.`,
     `Chamados no período: ${c.abertos} abertos, ${c.resolvidos} resolvidos, tempo médio de resolução ${tempo(c.tempoMedioMs)}. No anterior: ${c.abertosAnterior} abertos, ${c.resolvidosAnterior} resolvidos, ${tempo(c.tempoMedioAnteriorMs)}.`,
     'Por pessoa (abertos, atrasados, parados, concluídos no período):',
-    ...(p.pessoas.length ? p.pessoas.map((x) => `- ${nome(x.id)}: ${x.abertos}, ${x.atrasados}, ${x.parados}, ${x.concluidos}`) : ['- (ninguém com cards)']),
+    ...(p.pessoas.length
+      ? p.pessoas.map((x) => `- ${nome(x.id)}: ${x.abertos}, ${x.atrasados}, ${x.parados}, ${x.concluidos}${x.ausencia ? ` (${x.ausencia})` : ''}`)
+      : ['- (ninguém com cards)']),
     'Projetos em andamento:',
     ...(p.projetos.length ? p.projetos.map((r) => `- ${sobreProjeto(r)}, ${SITUACAO[r.situacao]}`) : ['- (nenhum)']),
     `Pendências: ${p.pendencias.sugestoes} sugestões aguardando aprovação${p.pendencias.sugestaoHaDias ? ` (a mais antiga há ${pluralDias(p.pendencias.sugestaoHaDias)})` : ''}; ${p.pendencias.cobrancasSemResposta} cobranças sem resposta há mais de 4 h.`,
+    ...(p.coberturas.length
+      ? ['Ausências com cards vencendo no período (D40):', ...p.coberturas.map((x) => `- ${nome(x.id)} ${x.ausencia}: ${x.vencem.map((c) => c.codigo).join(', ')}${x.sugestao ? `; pode cobrir: ${nome(x.sugestao)}` : ''}`)]
+      : []),
+  ].join('\n');
+}
+
+// ── Pauta de 1:1 (D41) ───────────────────────────────────────────────────────
+
+/** O que a última reunião analisada combinou com a pessoa (pessoal.ts, lerDaReuniaoParaPessoa). */
+export interface ReuniaoDaPessoa { titulo: string; realizadaEm: string | null; itens: { descricao: string; status: string }[] }
+
+/** Itens por seção da pauta; o resto vira "… e mais N". */
+export const MAX_POR_SECAO_1A1 = 5;
+/** Atrasado há mais que isto vira "repactuar o prazo" nos pontos para conversar. */
+export const ATRASO_PARA_REPACTUAR = 7;
+
+/**
+ * "Prepara minha 1:1 com o Bruno": os números e os cards da pessoa, o que a última reunião combinou
+ * com ela e pontos para conversar (regras fixas, sem IA). `formato`: WhatsApp (•, emojis) ou chat
+ * (negrito e listas "- ", como o TextoEva mostra).
+ */
+export function montarPautaUmAUm(
+  e: EntradaGestao, p: PainelGestao, pessoaId: string, reuniao: ReuniaoDaPessoa | null, formato: 'whatsapp' | 'chat',
+): string {
+  const { hoje } = p;
+  const nome = p.nomes[pessoaId] ?? e.pessoas[pessoaId] ?? 'a pessoa';
+  const visiveis = e.cards.filter(estaVisivel);
+  const dela = visiveis.filter((c) => ehDoUsuario(c, pessoaId));
+  const abertos = dela.filter(estaAberto);
+  const ultimaMudanca = (c: CardTI) => [c.updated_at, e.ultimoComentario?.[c.id]].filter(Boolean).map((t) => diaSP(t as string)).sort().pop()!;
+  const atrasados = ordenarAtrasados(dela, hoje);
+  const parados = abertos.filter((c) => estaParado(c, hoje, e.diasParado, e.ultimoComentario?.[c.id] ?? null));
+  const vencem = abertos.filter((c) => { const v = diaVencimento(c); return v !== null && v >= hoje && diferencaDias(hoje, v) <= 7; })
+    .sort((a, b) => diaVencimento(a)!.localeCompare(diaVencimento(b)!));
+  const semResposta = dela.filter((c) => e.cardsSemResposta.includes(c.id));
+  const concluidos = (per: Periodo) => dela.filter((c) => estaConcluido(c) && noPeriodo(diaSP(c.updated_at), per)).length;
+  const ausencia = e.ausencias?.[pessoaId];
+  const sobreAusencia = ausencia && ausenciaProxima(ausencia, hoje) ? descreverAusencia(ausencia, hoje) : null;
+
+  // A média da equipe presente com cards, para dizer se a carga está acima.
+  const presentes = p.pessoas.filter((x) => !x.ausente && x.abertos > 0);
+  const media = presentes.length ? presentes.reduce((s, x) => s + x.abertos, 0) / presentes.length : 0;
+
+  const conversar = [
+    ...atrasados.filter((c) => diasDeAtraso(c, hoje) > ATRASO_PARA_REPACTUAR).slice(0, 2)
+      .map((c) => `Repactuar o prazo do ${c.codigo} (atrasado há ${pluralDias(diasDeAtraso(c, hoje))})`),
+    ...parados.slice(0, 2).map((c) => `Destravar o ${c.codigo}: o que está impedindo?`),
+    ...(semResposta.length ? [`Combinar o andamento de ${semResposta.slice(0, 3).map((c) => c.codigo).join(', ')}: as cobranças ficaram sem resposta`] : []),
+    ...(abertos.length >= 5 && media > 0 && abertos.length >= media * 1.5
+      ? [`Carga acima da média da equipe (${abertos.length} abertos; média ${Math.round(media)}): ver o que dá para redistribuir`] : []),
+    ...(sobreAusencia && p.coberturas.some((x) => x.id === pessoaId)
+      ? [`Antes da ausência: quem fica com ${p.coberturas.find((x) => x.id === pessoaId)!.vencem.map((c) => c.codigo).join(', ')}`] : []),
+    ...(concluidos(p.periodo) > 0
+      ? [`Reconhecer as entregas da semana (${n(concluidos(p.periodo), 'card concluído', 'cards concluídos')})`]
+      : abertos.length > 0 ? ['Nenhuma entrega nos últimos 7 dias: entender o que travou'] : []),
+  ];
+
+  const chat = formato === 'chat';
+  const item = chat ? '- ' : '• ';
+  const secao = (tituloWhats: string, tituloChat: string, linhas: string[], total = linhas.length) => (linhas.length
+    ? ['', chat ? `**${tituloChat}**` : tituloWhats, ...linhas.slice(0, MAX_POR_SECAO_1A1).map((l) => `${item}${l}`), ...restante(total, Math.min(total, MAX_POR_SECAO_1A1))]
+    : []);
+  const linha = (c: CardTI, detalhe: string) => `${c.codigo} ${titulo(c.title)}: ${detalhe}`;
+
+  return [
+    chat ? `**1:1 com ${nome}**` : `🗒️ 1:1 com ${nome} · ${formatarDiaMes(hoje)}`,
+    '',
+    `Nos últimos 7 dias: ${n(concluidos(p.periodo), 'card concluído', 'cards concluídos')} (7 dias antes: ${concluidos(p.anterior)})`,
+    `Agora: ${n(abertos.length, 'aberto', 'abertos')} · ${n(atrasados.length, 'atrasado', 'atrasados')} · ${n(parados.length, 'parado', 'parados')}`,
+    ...(sobreAusencia ? [`${chat ? '' : '🌴 '}Ausência: ${sobreAusencia}`] : []),
+    ...secao('⚠️ Atrasados', 'Atrasados', atrasados.map((c) => linha(c, `venceu ${formatarDiaMes(diaVencimento(c)!)} (há ${pluralDias(diasDeAtraso(c, hoje))})`))),
+    ...secao('💤 Parados', 'Parados', parados.map((c) => linha(c, `sem mudança desde ${formatarDiaMes(ultimaMudanca(c))}`))),
+    ...secao('⏰ Vencem nos próximos 7 dias', 'Vencem nos próximos 7 dias', vencem.map((c) => linha(c, formatarDiaMes(diaVencimento(c)!)))),
+    ...secao('📭 Cobranças sem resposta', 'Cobranças sem resposta', semResposta.map((c) => `${c.codigo} ${titulo(c.title)}`)),
+    ...(reuniao
+      ? secao(
+        `📝 Da última reunião ("${reuniao.titulo}"${reuniao.realizadaEm ? `, ${formatarDiaMes(diaSP(reuniao.realizadaEm))}` : ''})`,
+        `Da última reunião (${reuniao.titulo})`,
+        reuniao.itens.map((i) => `${i.descricao}: ${i.status}`),
+      )
+      : []),
+    '',
+    chat ? '**Para conversar**' : '💬 Para conversar',
+    ...(conversar.length ? conversar : ['Sem pendências para destacar: bom momento para falar de prioridades e desenvolvimento.']).map((l) => `${item}${l}`),
   ].join('\n');
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  detectarAlertas, diaUtilAnterior, montarBlocoGestao, montarPainelGestao, montarRelatorioDiario, montarRelatorioSemanal, periodoAnterior,
-  pontosDeAtencao, semanaAnterior, ultimos7Dias, type ChamadoGestao, type EntradaGestao,
+  detectarAlertas, diaUtilAnterior, montarBlocoGestao, montarPainelGestao, montarPautaUmAUm, montarRelatorioDiario, montarRelatorioSemanal,
+  periodoAnterior, pontosDeAtencao, semanaAnterior, ultimos7Dias, type ChamadoGestao, type EntradaGestao,
 } from './gestao';
 import { card, projeto, sprint } from './testes/fabricas';
 
@@ -52,7 +52,7 @@ const entrada = (e: Partial<EntradaGestao> = {}): EntradaGestao => ({
   diasParado: 5,
   sugestoesPendentes: 2,
   sugestaoMaisAntiga: '2026-11-10T12:00:00Z',
-  cobrancasSemResposta: 1,
+  cardsSemResposta: ['c-x'],
   ...e,
 });
 
@@ -89,8 +89,8 @@ describe('montarPainelGestao (D38)', () => {
 
   it('por pessoa: só quem tem card, mais atrasados primeiro; o nome como aparece no texto', () => {
     expect(p.pessoas).toEqual([
-      { id: ANA, abertos: 3, atrasados: 3, parados: 0, concluidos: 1 },
-      { id: BRUNO, abertos: 2, atrasados: 0, parados: 1, concluidos: 0 },
+      { id: ANA, abertos: 3, atrasados: 3, parados: 0, concluidos: 1, ausencia: null, ausente: false },
+      { id: BRUNO, abertos: 2, atrasados: 0, parados: 1, concluidos: 0, ausencia: null, ausente: false },
     ]);
     expect(p.nomes).toMatchObject({ [ANA]: 'Ana', [BRUNO]: 'Bruno' });
   });
@@ -125,7 +125,7 @@ describe('relatórios', () => {
   });
 
   it('nada pedindo atenção: diz isso, sem lista vazia', () => {
-    const calmo = montarPainelGestao(entrada({ cards: [IMPRESSORA], chamados: [], sugestoesPendentes: 0, cobrancasSemResposta: 0, projetos: [] }));
+    const calmo = montarPainelGestao(entrada({ cards: [IMPRESSORA], chamados: [], sugestoesPendentes: 0, cardsSemResposta: [], projetos: [] }));
     expect(pontosDeAtencao(calmo)).toEqual([]);
     expect(montarRelatorioDiario(calmo, LINK)).toContain('Nada pedindo atenção agora 👌');
   });
@@ -174,5 +174,74 @@ describe('alertas na hora (D38)', () => {
     const baixo = chamado({ id: 'ch9', priority: 'low', created_at: '2026-10-01T12:00:00Z' });
     const a = detectarAlertas(montarPainelGestao(entrada({ cards: [velho], chamados: [baixo], projetos: [] })), LINK);
     expect(a).toEqual([]);
+  });
+});
+
+describe('ausências no painel (D40)', () => {
+  const VENCE_NAS_FERIAS = card({ codigo: 'IT-054', title: 'Migração do e-mail', assigned_to: [BRUNO], due_date: prazo('2026-11-18') });
+  const FERIAS_BRUNO = { ausente_de: '2026-11-16', ausente_ate: '2026-11-20', ausencia_motivo: 'férias' };
+
+  it('quem sai nos próximos dias e deixa card vencendo aparece com quem pode cobrir', () => {
+    const p = montarPainelGestao(entrada({
+      cards: [ROBO, VPN, BACKUP, IMPRESSORA, PARADO, FEITO, FEITO_ANTES, VENCE_NAS_FERIAS],
+      ausencias: { [BRUNO]: FERIAS_BRUNO },
+    }));
+    expect(p.pessoas.find((x) => x.id === BRUNO)).toMatchObject({ ausencia: 'de férias de 16/11 a 20/11', ausente: false });
+    // Cobre quem está presente e tem menos cards abertos (a Carla, com nenhum).
+    expect(p.coberturas).toEqual([{ id: BRUNO, ausencia: 'de férias de 16/11 a 20/11', vencem: [VENCE_NAS_FERIAS], sugestao: CARLA }]);
+    expect(pontosDeAtencao(p)).toContain('Bruno de férias de 16/11 a 20/11: 1 card vence nesse período (IT-054) · pode cobrir: Carla');
+    expect(montarBlocoGestao(p)).toContain('- Bruno de férias de 16/11 a 20/11: IT-054; pode cobrir: Carla');
+  });
+
+  it('quem já está fora não entra como sobrecarga', () => {
+    const p = montarPainelGestao(entrada({ ausencias: { [ANA]: { ausente_de: null, ausente_ate: '2026-11-20', ausencia_motivo: 'licença' } } }));
+    expect(p.pessoas.find((x) => x.id === ANA)).toMatchObject({ ausente: true, ausencia: 'ausente até 20/11 (licença)' });
+    expect(pontosDeAtencao(p).some((i) => i.startsWith('Ana: 3 atrasados'))).toBe(false);
+    expect(montarRelatorioSemanal(p, LINK, '7dias')).toContain('• Ana: 1 · 3 · 3 (ausente até 20/11 (licença))');
+  });
+});
+
+describe('pauta de 1:1 (D41)', () => {
+  const e = entrada({ cardsSemResposta: [VPN.id] });
+  const p = montarPainelGestao(e);
+  const reuniao = { titulo: 'Sprint review', realizadaEm: '2026-11-10T17:00:00Z', itens: [{ descricao: 'IT-045 Robô de pré-faturamento', status: 'aprovada' }] };
+
+  it('WhatsApp: os números, os cards da pessoa, a reunião e os pontos para conversar', () => {
+    expect(montarPautaUmAUm(e, p, ANA, reuniao, 'whatsapp')).toBe([
+      '🗒️ 1:1 com Ana · 13/11',
+      '',
+      'Nos últimos 7 dias: 1 card concluído (7 dias antes: 0)',
+      'Agora: 3 abertos · 3 atrasados · 0 parados',
+      '',
+      '⚠️ Atrasados',
+      '• IT-050 VPN da filial: venceu 05/11 (há 8 dias)',
+      '• IT-051 Backup do LIS: venceu 10/11 (há 3 dias)',
+      '• IT-045 Robô de pré-faturamento: venceu 12/11 (há 1 dia)',
+      '',
+      '📭 Cobranças sem resposta',
+      '• IT-050 VPN da filial',
+      '',
+      '📝 Da última reunião ("Sprint review", 10/11)',
+      '• IT-045 Robô de pré-faturamento: aprovada',
+      '',
+      '💬 Para conversar',
+      '• Repactuar o prazo do IT-050 (atrasado há 8 dias)',
+      '• Combinar o andamento de IT-050: as cobranças ficaram sem resposta',
+      '• Reconhecer as entregas da semana (1 card concluído)',
+    ].join('\n'));
+  });
+
+  it('chat: negrito e listas do TextoEva; o parado vira "destravar"', () => {
+    const t = montarPautaUmAUm(e, p, BRUNO, null, 'chat');
+    expect(t).toMatch(/^\*\*1:1 com Bruno\*\*\n\nNos últimos 7 dias: 0 cards concluídos/);
+    expect(t).toContain('**Parados**\n- IT-053 Auditoria: sem mudança desde 01/11');
+    expect(t).toContain('**Vencem nos próximos 7 dias**\n- IT-052 Impressora: 13/11');
+    expect(t).toContain('**Para conversar**\n- Destravar o IT-053: o que está impedindo?\n- Nenhuma entrega nos últimos 7 dias: entender o que travou');
+  });
+
+  it('sem nada para destacar, sugere outro assunto', () => {
+    const calma = entrada({ cards: [], cardsSemResposta: [] });
+    expect(montarPautaUmAUm(calma, montarPainelGestao(calma), CARLA, null, 'whatsapp'))
+      .toContain('💬 Para conversar\n• Sem pendências para destacar: bom momento para falar de prioridades e desenvolvimento.');
   });
 });

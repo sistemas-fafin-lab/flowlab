@@ -113,7 +113,8 @@ export async function lerLembretes(db: SupabaseClient, membroId: string): Promis
 
 type SugestaoReuniao = { tipo: string; status: string; proposta: { titulo?: string; responsaveis?: unknown } | null; card: { codigo: string; title: string; assigned_to: string[] | null } | null };
 
-async function lerDaReuniao(db: SupabaseClient, reuniaoId: string, userId: string): Promise<ItemDaReuniao[]> {
+/** O que a reunião combinou com a pessoa: o "dia de…" (D30) e a pauta de 1:1 (D41). */
+export async function lerDaReuniaoParaPessoa(db: SupabaseClient, reuniaoId: string, userId: string): Promise<ItemDaReuniao[]> {
   const { data, error } = await db
     .from('ti_agente_sugestoes')
     .select('tipo, status, proposta, card:it_requests!ti_agente_sugestoes_card_id_fkey(codigo, title, assigned_to)')
@@ -142,7 +143,7 @@ export async function lerDiaDaPessoa(
     lerConfigCobranca(db),
     ultimosComentarios(db, meus),
     lerLembretes(db, e.membroId),
-    e.reuniao?.id ? lerDaReuniao(db, e.reuniao.id, e.userId) : Promise.resolve([]),
+    e.reuniao?.id ? lerDaReuniaoParaPessoa(db, e.reuniao.id, e.userId) : Promise.resolve([]),
   ]);
   return {
     pendencias: pendenciasDoMembro(meus, e.userId, e.hoje, cfg.dias_parado, ultimoComentario),

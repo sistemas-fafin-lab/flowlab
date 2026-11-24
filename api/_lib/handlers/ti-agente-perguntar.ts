@@ -9,7 +9,7 @@ import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar, ehFalha, tem, tokenDoHeader } from '../ti-agente/autorizacao.js';
 import { checarAvisoEquipe } from '../ti-agente/aviso.js';
 import { lerContexto } from '../ti-agente/dados.js';
-import { lerBlocoGestao } from '../ti-agente/gestao.js';
+import { lerBlocoGestao, lerPautaUmAUm } from '../ti-agente/gestao.js';
 import { gerarEstruturado } from '../ti-agente/ia/gerarEstruturado.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
 import {
@@ -147,6 +147,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           ? { bloqueio: d.erro }
           : { equipe: { privado: d.privado.map((p) => p.nome), citadosNoGrupo: d.noGrupo?.citados ?? [], grupoNome: d.noGrupo?.nome ?? null, semDestino: d.semDestino } }),
       });
+    }
+    // D41: a pauta de 1:1 é montada pelo sistema, com os números do painel; só para o gestor.
+    const pessoa = (r.dados.pauta_1a1 ?? '').trim();
+    if (ehGestor && pessoa && ctxCompleto.membros.some((m) => m.id === pessoa)) {
+      const pauta = await lerPautaUmAUm(db, pessoa, 'chat');
+      res.status(200).json({ success: true, provedor: r.provedor, ...resposta, resposta: pauta, cardsCitados: [], blocos: [], proximosPassos: [], avisos });
+      return;
     }
     res.status(200).json({ success: true, provedor: r.provedor, ...resposta, avisos });
   } catch (e) {

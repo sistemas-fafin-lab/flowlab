@@ -45,7 +45,7 @@ function criarDb(e: Estado) {
     let linha: Record<string, unknown> | null = null;
     let head = false;
     const q: Record<string, unknown> = {};
-    for (const m of ['order', 'limit', 'range', 'gte', 'not', 'or', 'neq', 'in']) q[m] = () => q;
+    for (const m of ['order', 'limit', 'range', 'gte', 'not', 'or', 'neq', 'in', 'like']) q[m] = () => q;
     q.select = (_c?: string, o?: { head?: boolean }) => { if (o?.head) head = true; return q; };
     q.eq = (k: string, v: unknown) => { f[k] = v; return q; };
     q.upsert = (l: Record<string, unknown>) => { linha = l; return q; };

@@ -8,7 +8,8 @@ import type { EvaView, PropostaEva } from '../types';
 import type { MensagemFila } from '../domain/whatsapp';
 import type { BlocoChat, PassoChat } from '../domain/blocos';
 import { chamarEva } from './agenteApi';
-import { somarDias, type Dia } from '../domain/datas';
+import { hojeSP, somarDias, type Dia } from '../domain/datas';
+import { descreverAusencia, estaAusente } from '../domain/ausencia';
 import type { CardTI, ColunaKanban, StatusChamado } from '../domain/demandas';
 import type { ProjetoTI, SprintTI } from '../domain/projetos';
 import type { PessoaTI } from '../domain/inicio';
@@ -192,10 +193,23 @@ export const evaService = {
    * Os ativos da aba Membros, com WhatsApp e adesão (só gestores leem ti_agente_membros): o botão
    * Cobrar e o cartão de aviso sabem quem recebe no privado e quem vai pelo grupo (D35).
    */
-  async membrosNoWhatsapp(): Promise<{ user_id: string; whatsapp: boolean; recebe: boolean }[]> {
-    const { data, error } = await supabase.from('ti_agente_membros').select('user_id, whatsapp, recebe_cobranca').eq('ativo', true);
+  async membrosNoWhatsapp(): Promise<{ user_id: string; whatsapp: boolean; recebe: boolean; ausencia: string | null }[]> {
+    const { data, error } = await supabase
+      .from('ti_agente_membros')
+      .select('user_id, whatsapp, recebe_cobranca, ausente_de, ausente_ate, ausencia_motivo')
+      .eq('ativo', true);
     if (error) throw new Error(error.message);
-    return (data ?? []).map((m) => ({ user_id: m.user_id as string, whatsapp: !!m.whatsapp, recebe: m.recebe_cobranca === true && !!m.whatsapp }));
+    const hoje = hojeSP();
+    return (data ?? []).map((m) => {
+      // D40: ausente hoje não é cobrado; o botão Cobrar diz até quando.
+      const a = { ausente_de: (m.ausente_de as string | null) ?? null, ausente_ate: (m.ausente_ate as string | null) ?? null, ausencia_motivo: m.ausencia_motivo as string | null };
+      return {
+        user_id: m.user_id as string,
+        whatsapp: !!m.whatsapp,
+        recebe: m.recebe_cobranca === true && !!m.whatsapp,
+        ausencia: estaAusente(a, hoje) ? descreverAusencia(a, hoje) : null,
+      };
+    });
   },
 };
 

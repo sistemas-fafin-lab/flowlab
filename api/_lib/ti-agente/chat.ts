@@ -19,6 +19,8 @@ export const SchemaChat = z.object({
   aviso_equipe: z.string(),
   blocos: z.array(z.object({ tipo: z.enum(TIPOS_BLOCO), referencia: z.string() })),
   proximos_passos: z.array(z.object({ tipo: z.enum(TIPOS_PASSO), texto: z.string() })),
+  /** D41: "prepara minha 1:1 com o Bruno" → o id da pessoa; "" = nenhum. A pauta, o servidor monta. */
+  pauta_1a1: z.string(),
 });
 
 /** Avisos por resposta e tamanho de cada um (o mesmo teto do WhatsApp, aviso.ts). */
@@ -74,7 +76,8 @@ Como responder:
    - "abrir_card": texto = o código de um card citado.
    - "cobrar_card": texto = o código de um card ATRASADO, só quando a conversa é sobre cobrar ou atrasos.
    Sem continuação útil, fica vazia.
-12. Perguntas de gestão (carga e atrasos de cada pessoa, quem está sobrecarregado, entregas da semana, chamados dos usuários, tempo de resolução, projetos em risco, o que travou): quando o contexto tiver PAINEL DE GESTÃO, use os números dele, sem contar por conta própria, e diga o que pede atenção. Ele traz o que a lista de cards não mostra (concluídos, chamados, tempo de resolução). Sem o painel, responda com os cards abertos.`;
+12. Perguntas de gestão (carga e atrasos de cada pessoa, quem está sobrecarregado, entregas da semana, chamados dos usuários, tempo de resolução, projetos em risco, o que travou): quando o contexto tiver PAINEL DE GESTÃO, use os números dele, sem contar por conta própria, e diga o que pede atenção. Ele traz o que a lista de cards não mostra (concluídos, chamados, tempo de resolução). Sem o painel, responda com os cards abertos.
+13. Preparação de 1:1 ("prepara minha 1:1 com o Bruno", "pauta da conversa com a Ana"): se "Quem pergunta" é gestor, devolva em "pauta_1a1" o id da pessoa em MEMBROS DA EQUIPE e deixe "resposta" com uma frase curta; o sistema monta a pauta. Se não é gestor, diga que a pauta de 1:1 é para gestores. Sem esse pedido, "pauta_1a1" fica "".`;
 
 /** A seção da última reunião, igual no chat e no WhatsApp (D29). */
 export function blocoReuniao(reuniao: UltimaReuniao | null): string {
