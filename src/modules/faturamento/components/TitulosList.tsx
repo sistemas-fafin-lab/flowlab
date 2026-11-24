@@ -50,6 +50,7 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
+import RolagemHorizontalDupla from '../../../components/RolagemHorizontalDupla';
 import { Atraso, SeloAplis } from './TituloSelos';
 import TituloPainelLateral from './TituloPainelLateral';
 import { BASES_PERIODO_TITULOS } from '../utils/basePeriodoTitulos';
@@ -693,7 +694,7 @@ const TitulosList: React.FC<Props> = ({
         </div>
       ) : (
         <div className="border border-gray-100 dark:border-gray-700 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
+          <RolagemHorizontalDupla>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-700/40">
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
@@ -899,7 +900,7 @@ const TitulosList: React.FC<Props> = ({
                 })}
               </tbody>
             </table>
-          </div>
+          </RolagemHorizontalDupla>
         </div>
       )}
 
