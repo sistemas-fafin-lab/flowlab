@@ -72,3 +72,15 @@ export async function buscarPacientes(q: string): Promise<PacienteBuscaItem[]> {
     return [];
   }
 }
+
+// Leva ao LAB-HUB o nome corrigido num agendamento já coletado. O servidor lê o
+// nome salvo em ac_agendamentos (não o envia daqui). Devolve a mensagem de
+// erro, ou null em sucesso.
+export async function sincronizarNomePacienteLabhub(agendamentoId: string): Promise<string | null> {
+  try {
+    await chamarAcClinicasApi('sincronizar-nome-paciente', { agendamentoId }, 'Falha ao falar com o LAB-HUB.');
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : 'Falha ao falar com o LAB-HUB.';
+  }
+}

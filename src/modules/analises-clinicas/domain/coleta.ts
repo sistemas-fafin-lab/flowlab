@@ -22,6 +22,7 @@ export const resumoColeta = (coleta: AcColeta | null): ResumoColeta | null => {
 export interface FormEdicaoColeta {
   pacienteNome: string;
   telefone: string; // com ou sem máscara; vazio = sem telefone
+  postoId: string; // '' = não escolhido
   coletadoPor: string;
   coletadoEm: string; // valor de datetime-local ('YYYY-MM-DDTHH:mm'), fuso local
   observacoes: string;
@@ -32,6 +33,7 @@ export interface FormEdicaoColeta {
 export interface EdicaoColeta {
   pacienteNome: string;
   telefone: string | null; // só dígitos
+  postoId: string;
   coletadoPor: string;
   coletadoEm: string; // ISO 8601
   observacoes: string | null;
@@ -55,6 +57,8 @@ export const validarEdicaoColeta = (
   const telefone = form.telefone.replace(/\D/g, '');
   if (telefone && !telefoneOk(telefone)) return { erro: 'Telefone inválido — inclua o DDD.' };
 
+  if (!form.postoId) return { erro: 'Selecione o posto.' };
+
   const coletadoPor = form.coletadoPor.trim();
   if (!coletadoPor) return { erro: 'Informe quem coletou.' };
 
@@ -70,6 +74,7 @@ export const validarEdicaoColeta = (
     dados: {
       pacienteNome,
       telefone: telefone || null,
+      postoId: form.postoId,
       coletadoPor,
       coletadoEm: coletadoEm.toISOString(),
       observacoes: form.observacoes.trim() || null,

@@ -30,6 +30,7 @@ import getDocumentos from '../_lib/handlers/get-documentos.js';
 import receiveAgendamento from '../_lib/handlers/receive-agendamento.js';
 import receiveCancelamento from '../_lib/handlers/receive-cancelamento.js';
 import receiveDocumento from '../_lib/handlers/receive-documento.js';
+import sincronizarNomePaciente from '../_lib/handlers/sincronizar-nome-paciente.js';
 
 // apoio-process-image chama Gemini (OCR) + apLIS e passa fácil dos 10s padrão;
 // o teto vale para a function inteira, sem efeito nas actions rápidas.
@@ -54,6 +55,7 @@ const ROTAS: Record<string, Handler> = {
   'receive-agendamento': receiveAgendamento,
   'receive-cancelamento': receiveCancelamento,
   'receive-documento': receiveDocumento,
+  'sincronizar-nome-paciente': sincronizarNomePaciente,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

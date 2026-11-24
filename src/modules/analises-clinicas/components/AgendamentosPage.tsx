@@ -45,6 +45,7 @@ import { hasPermission } from '../../../utils/permissions';
 import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
 import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 import { ordenarAgendamentosParaLista } from '../utils/ordenarAgendamentos';
+import { sincronizarNomePacienteLabhub } from '../api';
 import {
   resumoColeta,
   validarEdicaoColeta,
@@ -1767,9 +1768,10 @@ const selectParaSimNao = (v: string): boolean | null => (v === '' ? null : v ===
 
 const EditarColetaModal: React.FC<{
   ag: AcAgendamento;
+  postos: AcPosto[]; // apenas ativos
   onClose: () => void;
   onSave: (dados: EdicaoColeta) => Promise<string | null>;
-}> = ({ ag, onClose, onSave }) => {
+}> = ({ ag, postos, onClose, onSave }) => {
   const { coleta, loading, error: coletaErro } = useColeta(ag.id);
   const [form, setForm] = useState<FormEdicaoColeta | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1781,13 +1783,24 @@ const EditarColetaModal: React.FC<{
     setForm({
       pacienteNome: ag.paciente_nome,
       telefone: ag.paciente_telefone ? maskTelefone(ag.paciente_telefone) : '',
+      postoId: ag.posto_id ?? '',
       coletadoPor: coleta.coletado_por,
       coletadoEm: dataHoraLocalDeIso(coleta.coletado_em),
       observacoes: coleta.observacoes ?? '',
       validadeOk: coleta.validade_ok,
       etiquetado: coleta.etiquetado,
     });
-  }, [coleta, form, ag.paciente_nome, ag.paciente_telefone]);
+  }, [coleta, form, ag.paciente_nome, ag.paciente_telefone, ag.posto_id]);
+
+  // Postos ativos + o atual do agendamento, se ele foi desativado depois da
+  // coleta (senão o <select> apareceria em branco).
+  const opcoesPosto = useMemo(() => {
+    const base = postos.map((p) => ({ id: p.id, nome: p.nome }));
+    if (ag.posto_id && !base.some((p) => p.id === ag.posto_id)) {
+      base.push({ id: ag.posto_id, nome: `${ag.local_posto || 'Posto'} (inativo)` });
+    }
+    return base;
+  }, [postos, ag.posto_id, ag.local_posto]);
 
   const set = <K extends keyof FormEdicaoColeta>(campo: K, valor: FormEdicaoColeta[K]) =>
     setForm((f) => (f ? { ...f, [campo]: valor } : f));
@@ -1852,8 +1865,11 @@ const EditarColetaModal: React.FC<{
             <>
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                A edição é local — o LAB-HUB não é notificado. O nome corrigido também é
-                atualizado nas filas de Culturas e Recoletas deste paciente.
+                Corrija aqui só erro de digitação. O nome novo vale para o cadastro do
+                paciente no LAB-HUB (portal e todos os agendamentos dele) e para as filas
+                de Culturas e Recoletas. O posto muda só no FlowLab. Se o agendamento
+                está ligado ao paciente errado, não renomeie: isso trocaria o nome de
+                outra pessoa.
               </div>
 
               <div>
@@ -1879,6 +1895,22 @@ const EditarColetaModal: React.FC<{
                   />
                   {telValid && <Check className="absolute right-3 w-4 h-4 text-emerald-500" />}
                 </div>
+              </div>
+
+              <div>
+                <label className={label}>Posto (local da coleta)</label>
+                <select
+                  value={form.postoId}
+                  onChange={(e) => set('postoId', e.target.value)}
+                  className={fieldCls(!form.postoId)}
+                >
+                  <option value="">Selecione…</option>
+                  {opcoesPosto.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -2034,15 +2066,29 @@ const AgendamentosPage: React.FC = () => {
   };
 
   // Correção de um agendamento já coletado (nome/telefone + dados da coleta).
+  // Se o nome mudou e o agendamento veio do LAB-HUB, leva a correção para lá
+  // (cadastro do paciente). A edição local já está salva: uma falha aqui só
+  // avisa — salvar de novo repete a sincronização sem efeito colateral.
   const handleSalvarEdicaoColeta = async (dados: EdicaoColeta) => {
     if (!editandoColeta) return 'Agendamento não encontrado.';
-    const erro = await editarColeta(editandoColeta.id, dados, operadorNome);
-    if (!erro) {
-      setDetalhe(null);
-      setEditandoColeta(null);
-      void refetch();
+    const ag = editandoColeta;
+    const erro = await editarColeta(ag.id, dados, operadorNome);
+    if (erro) return erro;
+
+    setDetalhe(null);
+    setEditandoColeta(null);
+    void refetch();
+
+    if (ag.labhub_id && dados.pacienteNome !== ag.paciente_nome) {
+      const erroLabhub = await sincronizarNomePacienteLabhub(ag.id);
+      if (erroLabhub) {
+        window.alert(
+          `A coleta foi salva no FlowLab, mas o nome não foi atualizado no LAB-HUB: ${erroLabhub}\n\n` +
+            'Abra a coleta e salve de novo para tentar outra vez.',
+        );
+      }
     }
-    return erro;
+    return null;
   };
 
   // Cancelamento lógico pelo drawer. O InputDialog (motivo opcional) é a própria
@@ -2197,6 +2243,7 @@ const AgendamentosPage: React.FC = () => {
       {editandoColeta && (
         <EditarColetaModal
           ag={editandoColeta}
+          postos={postosAtivos}
           onClose={() => setEditandoColeta(null)}
           onSave={handleSalvarEdicaoColeta}
         />

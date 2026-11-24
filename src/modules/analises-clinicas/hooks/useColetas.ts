@@ -174,6 +174,7 @@ export function useColetas(): UseColetasResult {
         p_validade_ok: dados.validadeOk,
         p_etiquetado: dados.etiquetado,
         p_editado_por: editadoPor,
+        p_posto_id: dados.postoId,
       });
       return error ? error.message : null;
     },

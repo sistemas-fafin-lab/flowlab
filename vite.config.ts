@@ -265,6 +265,7 @@ function documentosApiPlugin(env: Record<string, string>): Plugin {
 //   GET  /api/analises-clinicas/buscar-pacientes?q=   (typeahead)
 //   POST /api/analises-clinicas/criar-agendamento-labhub
 //   POST /api/analises-clinicas/corrigir-identidade   (CPF/nascimento do paciente)
+//   POST /api/analises-clinicas/sincronizar-nome-paciente (nome corrigido → LAB-HUB)
 // Sem este plugin, `npm run dev` (vite puro) cai no fallback do SPA e devolve
 // index.html, quebrando o .json() do hook.
 function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
@@ -297,14 +298,16 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
           url.pathname === '/api/analises-clinicas/criar-agendamento-labhub' && req.method === 'POST';
         const isCorrigir =
           url.pathname === '/api/analises-clinicas/corrigir-identidade' && req.method === 'POST';
-        if (!isDisp && !isBuscar && !isCriar && !isCorrigir) return next();
+        const isNome =
+          url.pathname === '/api/analises-clinicas/sincronizar-nome-paciente' && req.method === 'POST';
+        if (!isDisp && !isBuscar && !isCriar && !isCorrigir && !isNome) return next();
 
         const send = (status: number, body: unknown) => {
           res.statusCode = status;
           res.setHeader('Content-Type', 'application/json');
           // Ambas carregam dado pessoal de paciente (a correção devolve o CPF
           // anterior mascarado).
-          if (isDisp || isBuscar || isCorrigir) res.setHeader('Cache-Control', 'no-store');
+          if (isDisp || isBuscar || isCorrigir || isNome) res.setHeader('Cache-Control', 'no-store');
           res.end(JSON.stringify(body));
         };
 
@@ -346,7 +349,9 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
 
           const { status, payload } = isCorrigir
             ? await mod.corrigirIdentidadePaciente(token, body)
-            : await mod.criarAgendamentoRecepcao(token, body);
+            : isNome
+              ? await mod.sincronizarNomePacienteLabhub(token, body)
+              : await mod.criarAgendamentoRecepcao(token, body);
           send(status, payload);
         } catch (err) {
           console.error('[dev/analises-clinicas/recepcao-agendamento]', err);

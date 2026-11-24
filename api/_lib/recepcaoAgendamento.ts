@@ -354,6 +354,93 @@ export async function corrigirIdentidadePaciente(
   return { status: 200, payload: { success: true, ...corrigido } };
 }
 
+// ── Correção do nome do paciente no LAB-HUB ─────────────────────────────────────
+// Leva ao LAB-HUB o nome corrigido pela recepção num agendamento já coletado
+// (RPC editar_coleta, que grava só no FlowLab). Lá a troca é no CADASTRO da
+// pessoa (pacientes.nome) e vira trilha em `correcoes_nome`.
+//
+// O nome NÃO vem do cliente: é lido de ac_agendamentos aqui, depois que a RPC
+// local já salvou. Assim o LAB-HUB só recebe o que passou pela validação e pela
+// permissão do FlowLab, e repetir a chamada é seguro (o LAB-HUB devolve
+// `alterado: false` quando o nome já é aquele).
+//
+// Agendamento nativo do FlowLab (labhub_id NULL) não tem par no LAB-HUB: não é
+// erro, só não há o que sincronizar.
+export async function sincronizarNomePacienteLabhub(
+  token: string | null,
+  body: { agendamentoId?: string },
+): Promise<FlowResult> {
+  const auth = await identificarOperador(token, ['canEditarColeta'], 'editar coleta finalizada');
+  if ('erro' in auth) return auth.erro;
+
+  const agendamentoId = (body.agendamentoId ?? '').trim();
+  if (!agendamentoId) {
+    return { status: 400, payload: { success: false, error: 'Agendamento não informado.' } };
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data: ag, error: agErr } = await supabase
+    .from('ac_agendamentos')
+    .select('labhub_id, paciente_nome')
+    .eq('id', agendamentoId)
+    .maybeSingle();
+  if (agErr) {
+    console.error('[recepcaoAgendamento/nome] falha ao ler o agendamento:', agErr.message);
+    return { status: 500, payload: { success: false, error: 'Erro interno' } };
+  }
+  if (!ag) {
+    return { status: 404, payload: { success: false, error: 'Agendamento não encontrado.' } };
+  }
+  if (!ag.labhub_id) {
+    return { status: 200, payload: { success: true, sincronizado: false, motivo: 'sem_labhub' } };
+  }
+
+  // O LAB-HUB limita `solicitadoPor` a 120 caracteres.
+  const solicitadoPor = `${auth.operador.nome}${auth.operador.email ? ` <${auth.operador.email}>` : ''}`.slice(0, 120);
+  const url = `${requireEnv('LABHUB_API_URL')}/api/v1/integracao/agendamentos/${encodeURIComponent(ag.labhub_id as string)}/paciente-nome`;
+
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': requireEnv('FLOWLAB_API_KEY'),
+      },
+      body: JSON.stringify({ nome: ag.paciente_nome, solicitadoPor }),
+      signal: AbortSignal.timeout(LABHUB_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error('[recepcaoAgendamento/nome] LAB-HUB não respondeu:', describeError(err));
+    return { status: 504, payload: { success: false, error: 'O LAB-HUB não respondeu.' } };
+  }
+
+  if (!resp.ok) {
+    if (resp.status === 400 || resp.status === 404) {
+      const errBody = (await resp.json().catch(() => null)) as
+        | { message?: string; error?: string }
+        | null;
+      const msg = errBody?.message || errBody?.error || 'O LAB-HUB recusou a correção do nome.';
+      return { status: resp.status, payload: { success: false, error: msg } };
+    }
+    return mapearErroLabhub(resp);
+  }
+
+  const r = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!r || typeof r.alterado !== 'boolean') {
+    console.error('[recepcaoAgendamento/nome] resposta do LAB-HUB em formato inesperado');
+    return { status: 502, payload: { success: false, error: 'Integração com o LAB-HUB indisponível.' } };
+  }
+
+  // Eco operacional, sem o nome — a trilha (com os valores) é a do LAB-HUB.
+  console.info(
+    '[recepcaoAgendamento/nome] nome sincronizado',
+    JSON.stringify({ agendamentoId, correcaoId: r.correcaoId, alterado: r.alterado, operadorId: auth.operador.id }),
+  );
+
+  return { status: 200, payload: { success: true, sincronizado: true, alterado: r.alterado } };
+}
+
 /**
  * Traduz erros "de infra" do LAB-HUB para o operador (401 = chaves
  * dessincronizadas, 429 = rate limit, etc.). Os 400/404 acionáveis pelo operador

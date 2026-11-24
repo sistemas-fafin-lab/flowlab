@@ -25,6 +25,7 @@ describe('validarEdicaoColeta', () => {
   const form = (s: Partial<FormEdicaoColeta> = {}): FormEdicaoColeta => ({
     pacienteNome: '  Ireni   Lousado  Barbosa ',
     telefone: '(11) 98765-4321',
+    postoId: 'posto-1',
     coletadoPor: ' Eliane ',
     coletadoEm: '2026-10-19T09:53',
     observacoes: '  ',
@@ -38,6 +39,7 @@ describe('validarEdicaoColeta', () => {
       dados: {
         pacienteNome: 'Ireni Lousado Barbosa',
         telefone: '11987654321',
+        postoId: 'posto-1',
         coletadoPor: 'Eliane',
         coletadoEm: new Date(2026, 9, 19, 9, 53).toISOString(),
         observacoes: null,
@@ -55,6 +57,7 @@ describe('validarEdicaoColeta', () => {
   it.each([
     [{ pacienteNome: '   ' }, 'Informe o nome do paciente.'],
     [{ telefone: '(11) 9876' }, 'Telefone inválido — inclua o DDD.'],
+    [{ postoId: '' }, 'Selecione o posto.'],
     [{ coletadoPor: '' }, 'Informe quem coletou.'],
     [{ coletadoEm: '' }, 'Informe a data e a hora da coleta.'],
     [{ coletadoEm: '2026-10-21T08:00' }, 'A data da coleta não pode estar no futuro.'],
