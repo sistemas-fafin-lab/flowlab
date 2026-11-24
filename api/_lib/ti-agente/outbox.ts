@@ -29,7 +29,8 @@ export interface ItemFila {
 
 export interface RepositorioFila {
   whatsappAtivo(): Promise<boolean>;
-  gravarSituacaoSessao(status: string, em: string): Promise<void>;
+  /** O sinal de vida da VPS. `recursos` (D43): o que este pacote sabe fazer (baixar mídia, relógio). */
+  gravarSituacaoSessao(status: string, em: string, recursos?: string[]): Promise<void>;
   /** Quando a lista de grupos foi lida pela última vez (null = nunca, ou Configurações pediu de novo). */
   gruposLidosEm(): Promise<string | null>;
   gravarGrupos(grupos: GrupoWaha[], em: string): Promise<void>;
@@ -75,7 +76,7 @@ async function atualizarGrupos(repo: RepositorioFila, waha: ClienteWaha, agora: 
 export async function esvaziarFila(
   repo: RepositorioFila,
   waha: ClienteWaha,
-  opcoes: { agora?: () => number; esperar?: (ms: number) => Promise<void>; limite?: number; aleatorio?: () => number } = {},
+  opcoes: { agora?: () => number; esperar?: (ms: number) => Promise<void>; limite?: number; aleatorio?: () => number; recursos?: string[] } = {},
 ): Promise<ResultadoFila> {
   const agora = opcoes.agora ?? Date.now;
   const esperar = opcoes.esperar ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
@@ -86,7 +87,7 @@ export async function esvaziarFila(
   // Passo 6: a situação da sessão é gravada a cada execução, mesmo com o envio desligado (D25).
   const s = await waha.sessao();
   resultado.sessao = s.ok ? s.status : WAHA_INACESSIVEL;
-  await repo.gravarSituacaoSessao(resultado.sessao, new Date(agora()).toISOString());
+  await repo.gravarSituacaoSessao(resultado.sessao, new Date(agora()).toISOString(), opcoes.recursos);
   // A lista de grupos serve para escolher o grupo da equipe antes de ligar o envio: lê mesmo desligado.
   if (resultado.sessao === 'WORKING') await atualizarGrupos(repo, waha, agora(), resultado);
 
@@ -171,8 +172,16 @@ export function repositorioSupabase(db: SupabaseClient): RepositorioFila {
       falhou(error);
       return data?.whatsapp_ativo === true;
     },
-    async gravarSituacaoSessao(status, em) {
-      const { error } = await db.from('ti_agente_config').update({ waha_status: status, waha_verificado_em: em }).eq('id', true);
+    async gravarSituacaoSessao(status, em, recursos) {
+      const base = { waha_status: status, waha_verificado_em: em };
+      const { error } = await db.from('ti_agente_config').update(recursos ? { ...base, vps_recursos: recursos } : base).eq('id', true);
+      // Pacote novo antes da migration de D43 (sem a coluna vps_recursos): grava o sinal de vida
+      // sem ela, para a fila não parar por isso.
+      if (error && recursos && /vps_recursos/.test(error.message)) {
+        const { error: e2 } = await db.from('ti_agente_config').update(base).eq('id', true);
+        falhou(e2);
+        return;
+      }
       falhou(error);
     },
     async gruposLidosEm() {

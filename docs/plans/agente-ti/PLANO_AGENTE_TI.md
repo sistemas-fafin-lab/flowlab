@@ -14,6 +14,7 @@
 > - **Gestor executa direto (04/Nov/2026, D37):** o gestor confirma e a EVA aplica o pedido dele na hora, sem passar pela fila, pelo chat e pelo WhatsApp (§11.4, issue 26).
 > - **Saúde das integrações, ausências e 1:1 (24/Nov/2026, D39 a D41):** quem configura é avisado quando Granola, VPS, WhatsApp ou IA param; férias e folgas pausam a cobrança; "prepara minha 1:1 com o Bruno" (§11.8, issues 28 a 30).
 > - **Histórico e tendências (24/Nov/2026, D42):** foto diária do painel às 18h, cartão de tendências no Início e a comparação com antes no relatório da semana (§11.9, issue 31).
+> - **Áudio, imagem e relógio (24/Nov/2026, D43 e D44):** áudio transcrito e imagem anexada ao card pelo WhatsApp; a VPS chama o relógio da Vercel a cada 10 min (§11.10, issue 32).
 > - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
@@ -110,6 +111,8 @@ Entregáveis, na ordem em que geram valor:
 | **D40** | Ausências da equipe | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.8.<br>• **Onde:** na aba Membros (de, até, motivo) e pelo WhatsApp ("vou estar de férias de 01/12 a 05/12", "voltei"); o gestor marca a de outra pessoa.<br>• **Efeito:** sem cobrança no período, nem a da manhã nem a pedida pelo gestor; fora da conta de sobrecarga; o relatório avisa dos cards que vencem na ausência e sugere quem cobre.<br>• Quem marca a própria avisa os gestores no sino.<br>• Migration `20261124153700_eva_saude_e_ausencias.sql` (`ausente_de`, `ausente_ate`, `ausencia_motivo`). | Fase 4 |
 | **D41** | Preparação de 1:1 | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.8.<br>• "Prepara minha 1:1 com o Bruno", pelo WhatsApp e no chat, só o gestor.<br>• **A pauta** é montada pelo sistema: entregas, atrasados, parados, o que vence, cobranças sem resposta, a ausência e o que a última reunião combinou com a pessoa. Os pontos para conversar saem de regras fixas.<br>• Sem migration. | Fase 4 |
 | **D42** | Histórico diário e tendências | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.9.<br>• **Foto do dia:** o fechamento das 18h grava os números do painel de gestão (`ti_agente_fotos`), o que não dá para reconstruir depois: atrasados, abertos, fila.<br>• **Pelas datas de resolução** (`resolved_at`): entregas e tempo médio por semana, com histórico desde já. A entrega passa a valer pela data da resolução, não pela última edição.<br>• **Onde aparece:** cartão "Tendências" no Início (visão da equipe), a comparação no relatório da semana e as entregas por semana nas perguntas de gestão. | Fase 4 |
+| **D43** | Áudio e imagem pelo WhatsApp | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.10.<br>• **Áudio:** vira texto pelo Gemini (o Claude não ouve áudio) e segue como mensagem escrita. A resposta começa com "🎤 Entendi: …", para um erro de transcrição aparecer na hora.<br>• **Imagem:** vai para um comentário no card ou chamado citado na legenda; sem o código, a EVA pergunta e espera 2 h.<br>• **O arquivo fica no WAHA local** (D9): a VPS baixa, sobe para o bucket privado `ti-agente-midias` e avisa a Vercel. O áudio é apagado depois da transcrição. | Fase 4 |
+| **D44** | Relógio da VPS | ✅ **Fechado (24/Nov).** Detalhes na §11.10.<br>• A VPS chama `/api/ti/agente-relogio` a cada 10 min. O que depende de hora (alertas de gestão, mídias paradas e as próximas rotinas, como o check-in) fica na Vercel e muda com o deploy, sem gerar o pacote da VPS de novo.<br>• Precisa do `CRON_SECRET` na VPS. Sem ele, ou com o relógio fora do ar, a VPS confere os alertas ela mesma, como antes. | Fase 4 |
 
 ---
 
@@ -1048,6 +1051,36 @@ O relatório e o alerta entram na conversa recente do gestor (§11.5), para ele 
 **Quem lê as fotos:** gestor da EVA, quem aprova e quem tem `canManageIT`. Só o servidor grava.
 
 **Migration `20261124171300_eva_fotos_diarias.sql`:** a tabela `ti_agente_fotos (dia, foto jsonb)`, com RLS de leitura. Sem ela, o relatório só não compara e o cartão mostra o histórico das semanas sem o gráfico das fotos.
+
+### 11.10 Áudio e imagem pelo WhatsApp, e o relógio da VPS (D43, D44)
+
+**O caminho do arquivo:** o WAHA baixa a mídia e guarda no `localhost` da VPS, onde a Vercel não alcança (D9).
+1. **Webhook** (`planoDaMidia`): áudio e imagem ficam com a mídia `pendente`, mas só quando a VPS anunciou que baixa mídia (`ti_agente_config.vps_recursos` com `midia`) e deu sinal de vida há menos de 5 min. Sem isso, a resposta é a de antes, mais clara: "ainda não consigo ouvir áudio por aqui". Figurinha fica registrada, sem resposta. Vídeo e documento recebem a resposta fixa: "anexa direto no card pelo FlowLab".
+2. **VPS** (`baixarMidias`, a cada 5 s dentro da janela de 50 s): baixa do WAHA (`/api/files/…`, pelo localhost mesmo quando a URL vem com o ngrok), sobe para o bucket privado `ti-agente-midias` (`membro/mensagem.ext`) e chama `POST /api/ti/agente-midia`. Se o download falhar por mais de 3 min (o WAHA apaga o arquivo) ou passar de 10 MB, a mídia fica `nao_baixou`, e a EVA pede para mandar de novo.
+3. **Vercel** (`processarMidia`, em segundo plano, uma vez só por mensagem: quem troca para `processando` primeiro trata):
+   - **Áudio:** o Gemini transcreve, com temperatura 0 e o campo `tem_fala` antes da transcrição. O texto substitui o da mensagem e segue pelo roteador de sempre (`processarRecebida`). A resposta começa com "🎤 Entendi: …". O arquivo sai do bucket. Sem fala: "Não consegui entender o áudio".
+   - **Imagem com código na legenda:** a imagem é copiada para o `it-attachments` e entra num comentário de quem mandou no card ou chamado (`via WhatsApp: …`, com o anexo, como na conversa da tela). Gestor, quem aprova e quem tem `canManageIT` anexam em qualquer card; os demais, só nos próprios, como solicitante ou responsável. Legenda com mais texto ("IT-045 deu esse erro de novo") segue como mensagem escrita, sem repetir o comentário, e a resposta começa com "📎 Anexei a imagem ao IT-045.".
+   - **Imagem sem código:** a EVA pergunta o card e espera 2 h (`aguardando_card`). A próxima mensagem com código anexa (`anexarAguardando`); se for só o código, sem IA.
+
+**Conferido com o Gemini real, áudios sintéticos e frases fictícias:**
+- "terminei o IT zero quarenta e cinco, pode fechar. E o IT quarenta e seis eu entrego dia vinte e cinco" virou "terminei o IT-045, pode fechar. E o IT-046 eu entrego dia 25";
+- "às três da tarde" virou "às 15h";
+- chiado ficou `tem_fala = false`, nas duas rodadas.
+- **Limite conhecido:** com silêncio digital absoluto (áudio mudo), o Gemini às vezes inventa uma frase. Nem o campo `tem_fala`, nem a temperatura 0, nem um detector de voz separado resolveram sempre. Por isso a resposta ao áudio mostra o que foi entendido. Um áudio de verdade, mesmo acidental, tem ruído do microfone, e esse caso passou.
+
+**O relógio (D44):** a VPS chama `POST /api/ti/agente-relogio` nos minutos 0, 10, 20… A rota responde 202 na hora e trabalha em segundo plano (`?esperar=true` devolve o resultado, para conferir à mão). Cada parte falha sozinha:
+- os alertas de gestão (D38), que antes rodavam dentro do script da VPS;
+- `retomarMidias`: pendente há mais de 10 min vira `nao_baixou`, e a EVA pede de novo; baixada esquecida é tratada; `processando` há mais de 15 min vira `erro`; imagem que esperou 2 h expira, e o arquivo sai do bucket.
+- As próximas rotinas de horário (check-in, pauta da reunião) entram aqui, sem mexer no pacote da VPS.
+
+**Segurança:** as duas rotas exigem o `CRON_SECRET`, que passa a ficar também no arquivo de ambiente da VPS (600, só root lê). A VPS já tem a service role, então o segredo não amplia o acesso dela. Sem o `CRON_SECRET`, a VPS não anuncia os recursos e roda como antes.
+
+**Migration `20261124182900_eva_audio_imagem_relogio.sql`:**
+- `ti_agente_mensagens`: `midia_tipo`, `midia_mimetype`, `midia_url`, `midia_status`, `midia_path` e `midia_bytes`, com os checks e um índice parcial das mídias em andamento;
+- `ti_agente_config.vps_recursos`;
+- a finalidade `transcricao_audio` no registro de chamadas de IA ("Áudios do WhatsApp" em Configurações);
+- o bucket privado `ti-agente-midias` (10 MB, sem policies: só o servidor usa).
+- O pacote novo da VPS funciona antes da migration: o sinal de vida grava sem `vps_recursos`, e a busca de mídias desliga na execução.
 
 ---
 

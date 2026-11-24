@@ -9,11 +9,19 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { waitUntil } from '@vercel/functions';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { idCurtoWaha, statusPeloAck } from '../../../src/modules/eva/domain/whatsapp.js';
-import { acharMembro, lerEvento, tokenValido, type MembroWebhook } from '../ti-agente/webhook.js';
-import { processarRecebida } from '../ti-agente/comandos.js';
+import { vpsBaixaMidia } from '../../../src/modules/eva/domain/midia.js';
+import { acharMembro, lerEvento, planoDaMidia, tokenValido, type MembroWebhook, type PlanoMidia } from '../ti-agente/webhook.js';
+import { processarRecebida, responder } from '../ti-agente/comandos.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const DUPLICADA = '23505';
+
+/** A VPS sabe baixar mídia (D43)? Sem a coluna (migration não aplicada) ou com erro, não. */
+async function vpsBaixa(db: SupabaseClient): Promise<boolean> {
+  const { data, error } = await db.from('ti_agente_config').select('vps_recursos, waha_verificado_em').eq('id', true).maybeSingle();
+  return !error && vpsBaixaMidia(data as { vps_recursos?: string[] | null; waha_verificado_em?: string | null } | null, Date.now());
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
@@ -55,7 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const { data: membros, error: eM } = await db.from('ti_agente_membros').select('id, user_id, whatsapp, whatsapp_chat_id, ativo');
     if (eM) throw new Error(eM.message);
     const membro = acharMembro(evento.remetentes, (membros ?? []) as MembroWebhook[]);
-    const texto = evento.texto || (evento.temMidia ? '(mídia sem texto)' : '(mensagem vazia)');
+    // D43: áudio e imagem esperam a VPS baixar o arquivo; figurinha, vídeo e documento não usam IA.
+    const plano: PlanoMidia = membro && evento.temMidia ? planoDaMidia(evento, await vpsBaixa(db)) : { acao: 'texto' };
+    const semTexto = plano.acao === 'baixar' ? (plano.tipo === 'audio' ? '(áudio)' : '(imagem)') : evento.temMidia ? '(mídia sem texto)' : '(mensagem vazia)';
+    const texto = evento.texto || semTexto;
 
     const { data: gravada, error } = await db
       .from('ti_agente_mensagens')
@@ -67,6 +78,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         texto: texto.slice(0, 4000),
         waha_message_id: evento.id,
         erro: membro ? null : 'Número fora da lista de membros (RN13).',
+        // As colunas de mídia só vão no "baixar", que só acontece com a migration de D43 aplicada
+        // (vpsBaixa lê ti_agente_config.vps_recursos). Sem ela, a mensagem grava como antes.
+        ...(plano.acao === 'baixar'
+          ? { midia_tipo: plano.tipo, midia_mimetype: plano.mimetype, midia_url: plano.url, midia_status: 'pendente' }
+          : {}),
       })
       .select('id')
       .single();
@@ -78,6 +94,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (error) throw new Error(error.message);
     if (!membro) {
       res.status(200).json({ success: true, ignorado: 'número desconhecido' });
+      return;
+    }
+    if (plano.acao === 'baixar') {
+      // A VPS baixa do WAHA local e chama /api/ti/agente-midia (D43).
+      res.status(200).json({ success: true, recebida: gravada.id, aguardando: 'vps' });
+      return;
+    }
+    if (plano.acao === 'ignorar') {
+      res.status(200).json({ success: true, recebida: gravada.id, ignorado: plano.motivo });
+      return;
+    }
+    if (plano.acao === 'responder') {
+      await responder(db, membro.id, plano.resposta);
+      res.status(200).json({ success: true, recebida: gravada.id });
       return;
     }
 
