@@ -112,6 +112,9 @@ const ContasReceberPage: React.FC = () => {
   // do modal, se aberto, e a dos selos da aba Títulos — refaz a leitura e o
   // título acertado sai da lista.
   const [versaoConferencia, setVersaoConferencia] = useState(0);
+  // Trocada pelo "Atualizar do apLIS": o card de meta mensal do painel relê o
+  // faturado do mês (ele não depende do refetch da lista de títulos).
+  const [versaoTitulos, setVersaoTitulos] = useState(0);
   const tituloSalvoRef = useRef(false);
   const [parceirasAberto, setParceirasAberto] = useState(false);
   const [regraNfAberto, setRegraNfAberto] = useState(false);
@@ -368,6 +371,7 @@ const ContasReceberPage: React.FC = () => {
           podeEditar={podeEditar}
           onNavegarPendencias={navegarParaPendencias}
           onNavegarMeta={navegarParaTitulosMeta}
+          versaoTitulos={versaoTitulos}
         />
       )}
 
@@ -467,6 +471,7 @@ const ContasReceberPage: React.FC = () => {
           void refetch();
           // Títulos novos, baixas lançadas ou lotes sincronizados mudam a conferência.
           setVersaoConferencia((v) => v + 1);
+          setVersaoTitulos((v) => v + 1);
         }}
         // O seletor de operadoras vem de uma consulta à parte: sem isto, as fontes
         // pagadoras recém-importadas ficavam de fora do <select> até um F5.

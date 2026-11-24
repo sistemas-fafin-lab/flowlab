@@ -34,7 +34,11 @@ interface UseMetaMensalResult {
   salvarMeta: (valor: number) => Promise<string | null>;
 }
 
-export function useMetaMensal(): UseMetaMensalResult {
+/**
+ * @param versaoTitulos Trocada pela página quando títulos são criados/alterados
+ *   fora do card (ex.: "Atualizar do apLIS") — o faturado do mês é relido.
+ */
+export function useMetaMensal(versaoTitulos = 0): UseMetaMensalResult {
   const [{ ano, mes }] = useState(anoMesAtual);
   const [meta, setMeta] = useState<MetaMensal>(() => vazia(ano, mes));
   const [loading, setLoading] = useState(true);
@@ -83,7 +87,7 @@ export function useMetaMensal(): UseMetaMensalResult {
     void refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => { buscaAtual.current++; };
-  }, [refetch]);
+  }, [refetch, versaoTitulos]);
 
   // Upsert direto, sem RPC: uma linha só, sem invariante cruzando outra
   // tabela — mesmo raciocínio de marcarConsideradaMeta em useContasReceber.

@@ -374,6 +374,9 @@ interface Props {
   onNavegarPendencias: (subAba: SubAbaPendencias) => void;
   /** Widget "Meta mensal" → aba Títulos, filtrada no mês/ano da meta (issue 43). */
   onNavegarMeta: () => void;
+  /** Trocada quando títulos mudam fora do painel (ex.: "Atualizar do apLIS"):
+   *  o card de meta mensal relê o faturado do mês. */
+  versaoTitulos: number;
 }
 
 const ContasReceberDashboard: React.FC<Props> = ({
@@ -385,6 +388,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
   podeEditar,
   onNavegarPendencias,
   onNavegarMeta,
+  versaoTitulos,
 }) => {
   // "Carteira total" reproduz o saldo de sempre; "Só emitidas no período" recorta
   // pela emissão dentro do período filtrado. Fica fora dos filtros salvos: é um
@@ -396,7 +400,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const tentarCardsGlosaSaldo = cardsGlosaSaldo.erro
     ? <TentarNovamente onRetry={cardsGlosaSaldo.recarregar} />
     : undefined;
-  const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
+  const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal(versaoTitulos);
   const [metaModalAberto, setMetaModalAberto] = useState(false);
   const [historicoMetasAberto, setHistoricoMetasAberto] = useState(false);
 
