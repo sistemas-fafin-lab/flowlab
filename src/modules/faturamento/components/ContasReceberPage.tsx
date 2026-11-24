@@ -9,7 +9,7 @@ import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
 import { podeVerTela } from '../utils/permissoesTelas';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 import type {
-  DashboardReceberFiltros, FiltroGlosaTitulo, RefechamentoAplicado, SubAbaPendencias, TituloReceber, TituloStatus,
+  DashboardReceberFiltros, FiltroGlosaTitulo, RefechamentoAplicado, SubAbaPendencias, OrdemTitulos, TituloReceber, TituloStatus,
 } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import EnviosHojeAmanha from './EnviosHojeAmanha';
@@ -94,6 +94,7 @@ const ContasReceberPage: React.FC = () => {
     glosa: '' as FiltroGlosaTitulo,
     divergenteAplis: false,
     statusLote: '' as number | '',
+    ordem: 'vencimento' as OrdemTitulos,
     pagina: 1,
     tamanho: 25,
   });
@@ -157,6 +158,7 @@ const ContasReceberPage: React.FC = () => {
     divergenteAplis: filtros.divergenteAplis,
     idsDivergentesAplis,
     statusLote: filtros.statusLote,
+    ordem: filtros.ordem,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
   }), [filtros, idsDivergentesAplis]);

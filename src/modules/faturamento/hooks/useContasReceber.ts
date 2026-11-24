@@ -353,7 +353,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
   const {
     desde, ate, basePeriodo = 'emissao', status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
-    divergenteAplis, idsDivergentesAplis, statusLote, pagina, tamanho,
+    divergenteAplis, idsDivergentesAplis, statusLote, ordem = 'vencimento', pagina, tamanho,
   } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
@@ -546,8 +546,12 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         }
       };
 
+      // Por operadora: ordena o título pelo nome do embed to-one (`operadoras(nome)`),
+      // no servidor, para a ordem valer entre as páginas e não só dentro de uma.
+      let consultaPagina = filtrada(SELECT_TITULO, { count: 'exact' });
+      if (ordem === 'operadora') consultaPagina = consultaPagina.order('operadoras(nome)', { ascending: true });
       const [{ data, count, error: erro }, somas] = await Promise.all([
-        filtrada(SELECT_TITULO, { count: 'exact' })
+        consultaPagina
           .order('data_vencimento', { ascending: true, nullsFirst: false })
           .order('data_emissao', { ascending: false })
           .range(inicio, inicio + porPagina - 1),
@@ -595,7 +599,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [
     desde, ate, basePeriodo, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
-    divergenteAplis, idsDivergentesAplis, statusLote, pagina, tamanho, operadoras,
+    divergenteAplis, idsDivergentesAplis, statusLote, ordem, pagina, tamanho, operadoras,
   ]);
 
   useEffect(() => {

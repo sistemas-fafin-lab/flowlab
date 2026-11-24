@@ -775,9 +775,15 @@ export interface TitulosFiltros {
   /** Status do apLIS (código STLOT de `lotes.status_aplis`), que é o status do
    *  título na tela; vazio = sem recorte. Exclui os cancelados. */
   statusLote?: number | '';
+  /** Ordem da lista; padrão `vencimento`. */
+  ordem?: OrdemTitulos;
   pagina?: number;
   tamanho?: number;
 }
+
+/** `vencimento`: mais antigo primeiro (padrão). `operadora`: nome A–Z, e o
+ *  vencimento dentro de cada operadora — para ver os títulos de um convênio juntos. */
+export type OrdemTitulos = 'vencimento' | 'operadora';
 
 /**
  * Filtro "Glosa" da aba Títulos, sobre as linhas de `glosas` do título:

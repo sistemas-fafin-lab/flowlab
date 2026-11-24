@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowDown,
   Ban,
   Gavel,
   DollarSign,
@@ -21,6 +22,7 @@ import type {
   NfCancelada,
   NfCanceladaSemTitulo,
   OperadoraResumo,
+  OrdemTitulos,
   TituloBaixa,
   TituloGuia,
   TituloReceber,
@@ -134,6 +136,7 @@ interface Props {
     divergenteAplis: boolean;
     /** Só os títulos não cancelados com lote neste status STLOT no apLIS; vazio = todos. */
     statusLote: number | '';
+    ordem: OrdemTitulos;
     pagina: number;
     tamanho: number;
   };
@@ -252,6 +255,23 @@ const CardTotal: React.FC<{
       <p className={`text-base font-semibold tabular-nums ${corValor}`}>{valor}</p>
     </div>
   </div>
+);
+
+/** Cabeçalho de coluna que troca a ordem da lista (sempre crescente). */
+const BotaoOrdem: React.FC<{ ativo: boolean; onClick: () => void; title: string; children: React.ReactNode }> = ({
+  ativo, onClick, title, children,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={title}
+    className={`inline-flex items-center gap-1 hover:text-gray-800 dark:hover:text-gray-200 ${
+      ativo ? 'text-gray-800 dark:text-gray-200 font-semibold' : ''
+    }`}
+  >
+    {children}
+    <ArrowDown className={`w-3 h-3 ${ativo ? '' : 'opacity-0'}`} aria-hidden />
+  </button>
 );
 
 const TitulosList: React.FC<Props> = ({
@@ -681,10 +701,20 @@ const TitulosList: React.FC<Props> = ({
                   <th className="px-3 py-2">Nota</th>
                   <th className="px-3 py-2">Lote</th>
                   <th className="px-3 py-2">Protocolo</th>
-                  <th className="px-3 py-2">Operadora</th>
+                  <th className="px-3 py-2" aria-sort={filtros.ordem === 'operadora' ? 'ascending' : 'none'}>
+                    <BotaoOrdem ativo={filtros.ordem === 'operadora'} onClick={() => onFiltrar({ ordem: 'operadora', pagina: 1 })}
+                      title="Ordenar por operadora (A–Z) — os títulos de cada convênio ficam juntos">
+                      Operadora
+                    </BotaoOrdem>
+                  </th>
                   <th className="px-3 py-2" title="Quem fechou a fatura (lote) no apLIS">Responsável</th>
                   <th className="px-3 py-2">Competência</th>
-                  <th className="px-3 py-2">Vencimento</th>
+                  <th className="px-3 py-2" aria-sort={filtros.ordem === 'vencimento' ? 'ascending' : 'none'}>
+                    <BotaoOrdem ativo={filtros.ordem === 'vencimento'} onClick={() => onFiltrar({ ordem: 'vencimento', pagina: 1 })}
+                      title="Ordenar por vencimento (mais antigo primeiro)">
+                      Vencimento
+                    </BotaoOrdem>
+                  </th>
                   <th className="px-3 py-2 text-right">Total</th>
                   <th className="px-3 py-2 text-right">Recebido</th>
                   <th className="px-3 py-2 text-right" title="Glosa ainda em disputa nos lotes do título (apLIS): requisições em &quot;GLOSADO ainda SEM RECURSO&quot;, 1º e 2º recurso (líquido − recebido)">Glosado</th>
