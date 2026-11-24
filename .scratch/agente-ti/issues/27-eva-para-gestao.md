@@ -31,7 +31,7 @@ Plano: §2 (D38) e §11.7.
   - uma vez por acontecimento, até 5 por dia, só no horário da EVA;
   - rodam no script da VPS a cada 10 min.
 - [x] **Aba Membros:** "Recebe o relatório de gestão" e "Recebe alertas de gestão na hora", só para gestor com WhatsApp; selos na lista.
-- [x] Migration `20261113150000_eva_relatorio_gestao.sql`.
+- [x] Migration `20261113150100_eva_relatorio_gestao.sql`.
 - [ ] Aplicar a migration no projeto do app e publicar.
 - [ ] Gerar o pacote da VPS (`npm run eva-build-outbox`), copiar e rodar o `install.sh`: os alertas dependem disso.
 - [ ] Marcar as adesões na aba Membros e conferir:
