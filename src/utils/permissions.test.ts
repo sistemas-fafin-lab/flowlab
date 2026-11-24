@@ -29,6 +29,7 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canManageEpi: '20261119100000_produtos_epi_identificacao.sql',
   canViewEpiReport: '20261119110000_epi_relatorio_permissao.sql',
   canCloseEpiReport: '20261119120000_epi_relatorio_fechamento.sql',
+  canEditarColeta: '20261124110000_perm_editar_coleta.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

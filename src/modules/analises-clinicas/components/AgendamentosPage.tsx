@@ -2010,6 +2010,8 @@ const AgendamentosPage: React.FC = () => {
   // operar coletas).
   const canDelete = hasPermission(userProfile?.permissions || [], 'canDeleteAgendamentos');
   const canEditar = hasPermission(userProfile?.permissions || [], 'canEditarAgendamentos');
+  // Editar depois da coleta (nome do paciente + dados da coleta) é outra key.
+  const canEditarColeta = hasPermission(userProfile?.permissions || [], 'canEditarColeta');
   const operadorNome = userProfile?.name || user?.email || 'Sistema';
   const { cancelarAgendamento, editarAgendamento, editarColeta } = useColetas();
   const { inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
@@ -2172,13 +2174,11 @@ const AgendamentosPage: React.FC = () => {
               : undefined
           }
           onEditar={
-            !canEditar
-              ? undefined
-              : detalhe.status === 'recebido'
-                ? () => setEditando(detalhe)
-                : detalhe.status === 'coletado'
-                  ? () => setEditandoColeta(detalhe)
-                  : undefined
+            canEditar && detalhe.status === 'recebido'
+              ? () => setEditando(detalhe)
+              : canEditarColeta && detalhe.status === 'coletado'
+                ? () => setEditandoColeta(detalhe)
+                : undefined
           }
           onUpload={uploadDocumento}
         />
