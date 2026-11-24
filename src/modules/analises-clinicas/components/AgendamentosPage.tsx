@@ -2376,7 +2376,9 @@ const AgendamentosPage: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div>
+          // Scroll interno: o painel tem altura máxima e só a lista rola, mantendo
+          // cartões-resumo, cabeçalho e filtros à vista.
+          <div className="max-h-[65vh] overflow-y-auto overscroll-contain">
             {lista.map((ag, i) => (
               <AgendamentoRow
                 key={ag.id}
