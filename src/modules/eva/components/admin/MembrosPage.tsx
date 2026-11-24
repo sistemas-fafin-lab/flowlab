@@ -20,7 +20,11 @@ interface Rascunho {
   apelidos: string;
   whatsapp: string;
   recebe_cobranca: boolean;
+  recebe_relatorio: boolean;
+  recebe_alertas: boolean;
   ativo: boolean;
+  /** Gestor da EVA: só ele vê as adesões de gestão (D38). Membro novo aparece depois de salvo. */
+  gestor: boolean;
 }
 
 const soDigitos = (s: string) => s.replace(/\D/g, '');
@@ -82,9 +86,13 @@ const MembrosPage: React.FC = () => {
     return dup;
   }, [membros]);
 
-  const novo = () => setRascunho({ user_id: '', apelidos: '', whatsapp: '', recebe_cobranca: false, ativo: true });
+  const novo = () =>
+    setRascunho({ user_id: '', apelidos: '', whatsapp: '', recebe_cobranca: false, recebe_relatorio: false, recebe_alertas: false, ativo: true, gestor: false });
   const editar = (m: Membro) =>
-    setRascunho({ id: m.id, user_id: m.user_id, apelidos: m.apelidos.join(', '), whatsapp: m.whatsapp ?? '', recebe_cobranca: m.recebe_cobranca, ativo: m.ativo });
+    setRascunho({
+      id: m.id, user_id: m.user_id, apelidos: m.apelidos.join(', '), whatsapp: m.whatsapp ?? '', recebe_cobranca: m.recebe_cobranca,
+      recebe_relatorio: m.recebe_relatorio, recebe_alertas: m.recebe_alertas, ativo: m.ativo, gestor: m.papeis.gestor,
+    });
 
   const escolherPessoa = (userId: string) => {
     const nome = pessoas.lista.find((p) => p.id === userId)?.name ?? '';
@@ -103,6 +111,8 @@ const MembrosPage: React.FC = () => {
         apelidos: rascunho.apelidos.split(',').map((a) => a.trim()).filter(Boolean),
         whatsapp: soDigitos(rascunho.whatsapp) || null,
         recebe_cobranca: rascunho.recebe_cobranca && !!soDigitos(rascunho.whatsapp),
+        recebe_relatorio: rascunho.recebe_relatorio && !!soDigitos(rascunho.whatsapp),
+        recebe_alertas: rascunho.recebe_alertas && !!soDigitos(rascunho.whatsapp),
         ativo: rascunho.ativo,
       });
       setRascunho(null);
@@ -137,7 +147,7 @@ const MembrosPage: React.FC = () => {
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Configura</strong> (abas Membros, Permissões e Configurações),{' '}
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> (cobrar a equipe, avisar o grupo e as pessoas, ver a fila do WhatsApp) e{' '}
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Aprova</strong> (aprovar e rejeitar sugestões). Para usar o papel pelo
-          WhatsApp, a pessoa também precisa estar aqui, com o WhatsApp cadastrado.
+          WhatsApp, a pessoa também precisa estar aqui, com o WhatsApp cadastrado. O gestor pode marcar, em Editar, o relatório e os alertas de gestão.
         </p>
         {erro && <p className="text-sm text-red-600 dark:text-red-400">Não consegui carregar os membros: {erro}</p>}
         {!erro && !carregando && membros.length === 0 && (
@@ -186,6 +196,16 @@ const MembrosPage: React.FC = () => {
                     </span>
                   )}
                   {m.recebe_cobranca && <StatusBadge tone="success">Recebe cobrança</StatusBadge>}
+                  {m.papeis.gestor && m.recebe_relatorio && (
+                    <span title="Relatório de gestão todo dia útil de manhã; na segunda, o da semana anterior">
+                      <StatusBadge tone="info">Relatório</StatusBadge>
+                    </span>
+                  )}
+                  {m.papeis.gestor && m.recebe_alertas && (
+                    <span title="Alertas na hora: chamado fora do prazo, card crítico atrasado, projeto em risco">
+                      <StatusBadge tone="info">Alertas</StatusBadge>
+                    </span>
+                  )}
                   {!m.ativo && <StatusBadge tone="neutral">Inativo</StatusBadge>}
                   {m.whatsapp && m.ativo && (
                     <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void enviarTeste(m)} disabled={!!testando[m.id]}>
@@ -248,6 +268,26 @@ const MembrosPage: React.FC = () => {
               <Switch size="sm" checked={rascunho.recebe_cobranca} disabled={!soDigitos(rascunho.whatsapp)} onChange={(v) => setRascunho({ ...rascunho, recebe_cobranca: v })} />
               Recebe cobrança pelo WhatsApp
             </label>
+            {rascunho.gestor && (
+              <>
+                <label className={`flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200 ${soDigitos(rascunho.whatsapp) ? 'cursor-pointer' : 'opacity-60'}`}>
+                  <Switch size="sm" checked={rascunho.recebe_relatorio} disabled={!soDigitos(rascunho.whatsapp)} onChange={(v) => setRascunho({ ...rascunho, recebe_relatorio: v })} />
+                  <span>
+                    Recebe o relatório de gestão
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Todo dia útil por volta das 8h; na segunda, o da semana anterior.</span>
+                  </span>
+                </label>
+                <label className={`flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200 ${soDigitos(rascunho.whatsapp) ? 'cursor-pointer' : 'opacity-60'}`}>
+                  <Switch size="sm" checked={rascunho.recebe_alertas} disabled={!soDigitos(rascunho.whatsapp)} onChange={(v) => setRascunho({ ...rascunho, recebe_alertas: v })} />
+                  <span>
+                    Recebe alertas de gestão na hora
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                      Chamado de prioridade alta ou crítica fora do prazo para iniciar, card crítico que atrasou e projeto que entrou em risco. Até 5 por dia, no horário da EVA.
+                    </span>
+                  </span>
+                </label>
+              </>
+            )}
             <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
               <Switch size="sm" checked={rascunho.ativo} onChange={(v) => setRascunho({ ...rascunho, ativo: v })} />
               Ativo

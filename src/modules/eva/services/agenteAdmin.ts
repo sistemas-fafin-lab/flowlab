@@ -85,6 +85,9 @@ export interface Membro {
   apelidos: string[];
   whatsapp: string | null;
   recebe_cobranca: boolean;
+  /** Relatório e alertas de gestão pelo WhatsApp (D38): só valem para gestor da EVA. */
+  recebe_relatorio: boolean;
+  recebe_alertas: boolean;
   ativo: boolean;
   nome: string;
   /** Os papéis da EVA pela regra do banco (papeisDoPerfil): admin tem os três (D31); a aba Permissões vale no lugar do cargo (D33). */
@@ -228,7 +231,7 @@ export const agenteAdmin = {
     const [{ data, error }, papeis] = await Promise.all([
       supabase
         .from('ti_agente_membros')
-        .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, ativo,
+        .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, recebe_relatorio, recebe_alertas, ativo,
           perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at, disabled_at, custom_roles(name, permissions))`)
         .order('created_at'),
       supabase.from('ti_agente_papeis').select('user_id, configura, gestor, aprova'),
@@ -391,8 +394,14 @@ export const agenteAdmin = {
     return (data ?? []) as Pessoa[];
   },
 
-  async salvarMembro(m: { id?: string; user_id: string; apelidos: string[]; whatsapp: string | null; recebe_cobranca: boolean; ativo: boolean }): Promise<void> {
-    const linha = { user_id: m.user_id, apelidos: m.apelidos, whatsapp: m.whatsapp, recebe_cobranca: m.recebe_cobranca, ativo: m.ativo };
+  async salvarMembro(m: {
+    id?: string; user_id: string; apelidos: string[]; whatsapp: string | null; recebe_cobranca: boolean;
+    recebe_relatorio: boolean; recebe_alertas: boolean; ativo: boolean;
+  }): Promise<void> {
+    const linha = {
+      user_id: m.user_id, apelidos: m.apelidos, whatsapp: m.whatsapp, recebe_cobranca: m.recebe_cobranca,
+      recebe_relatorio: m.recebe_relatorio, recebe_alertas: m.recebe_alertas, ativo: m.ativo,
+    };
     const { error } = m.id
       ? await supabase.from('ti_agente_membros').update(linha).eq('id', m.id)
       : await supabase.from('ti_agente_membros').insert(linha);

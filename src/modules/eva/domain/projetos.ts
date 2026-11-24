@@ -1,7 +1,8 @@
 // Situação dos projetos de TI deduzida dos cards e da sprint (D4, RN05, D27).
 // it_projects não tem status, responsável nem prazo: tudo sai daqui.
-import { diaDoPrazo, diaSP, diferencaDias, type Dia } from './datas';
-import { estaAberto, estaAtrasado, estaConcluido, estaVisivel, venceEmBreve, type CardTI } from './demandas';
+// A api/ (NodeNext) também importa este arquivo, no relatório de gestão (D38): os imports levam ".js".
+import { diaDoPrazo, diaSP, diferencaDias, type Dia } from './datas.js';
+import { estaAberto, estaAtrasado, estaConcluido, estaVisivel, venceEmBreve, type CardTI } from './demandas.js';
 
 export interface ProjetoTI {
   id: string;

@@ -42,7 +42,7 @@ export interface MensagemFila { quando: string; para: string; direcao: 'saida' |
 
 export const INSTRUCOES_CHAT = `Você é a EVA, a agente de IA da equipe de TI de um laboratório. Você conversa com alguém da equipe pelo Início do FlowLab.
 
-O que você sabe está no contexto: os membros, os cards abertos do Kanban de TI, os projetos e sprints, o resumo da última reunião analisada e, para gestores, a fila do WhatsApp. Fora disso, diga que não sabe.
+O que você sabe está no contexto: os membros, os cards abertos do Kanban de TI, os projetos e sprints, o resumo da última reunião analisada e, para gestores, a fila do WhatsApp e o PAINEL DE GESTÃO. Fora disso, diga que não sabe.
 
 Como responder:
 1. Em português do Brasil, direto e curto (até umas 8 linhas). Frases curtas, em parágrafos curtos.
@@ -73,7 +73,8 @@ Como responder:
    - "perguntar": texto = uma pergunta curta (até 60 caracteres) que a pessoa provavelmente faria agora, escrita como se fosse ela (ex.: "E o que vence amanhã?").
    - "abrir_card": texto = o código de um card citado.
    - "cobrar_card": texto = o código de um card ATRASADO, só quando a conversa é sobre cobrar ou atrasos.
-   Sem continuação útil, fica vazia.`;
+   Sem continuação útil, fica vazia.
+12. Perguntas de gestão (carga e atrasos de cada pessoa, quem está sobrecarregado, entregas da semana, chamados dos usuários, tempo de resolução, projetos em risco, o que travou): quando o contexto tiver PAINEL DE GESTÃO, use os números dele, sem contar por conta própria, e diga o que pede atenção. Ele traz o que a lista de cards não mostra (concluídos, chamados, tempo de resolução). Sem o painel, responda com os cards abertos.`;
 
 /** A seção da última reunião, igual no chat e no WhatsApp (D29). */
 export function blocoReuniao(reuniao: UltimaReuniao | null): string {
@@ -87,10 +88,12 @@ export function blocoReuniao(reuniao: UltimaReuniao | null): string {
 /**
  * `fila` null = quem pergunta não vê a fila (não é gestor); a seção nem aparece. `gestor` diz se
  * a pessoa pode mandar avisos pelo WhatsApp (D32); `executa`, se as propostas dela entram no
- * Kanban quando ela confirma (quem aprova e o gestor, D37) ou vão para aprovação.
+ * Kanban quando ela confirma (quem aprova e o gestor, D37) ou vão para aprovação. `gestao` é o
+ * PAINEL DE GESTÃO (D38), só do gestor; null = a seção nem aparece.
  */
 export function montarContextoChat(
   ctx: ContextoExtracao, reuniao: UltimaReuniao | null, hoje: string, fila: MensagemFila[] | null = null, gestor = false, executa = false,
+  gestao: string | null = null,
 ): string {
   const base = montarContexto(ctx);
   const r = `\n\n${blocoReuniao(reuniao)}`;
@@ -103,7 +106,8 @@ export function montarContextoChat(
   const propostas = executa
     ? 'As propostas dela são aplicadas no Kanban quando ela confirmar no cartão.'
     : 'As propostas dela vão para aprovação.';
-  return `Hoje é ${hoje}.\nQuem pergunta: ${quem}. ${propostas}\n\n${base}${r}${f}`;
+  const g = gestao ? `\n\n${gestao}` : '';
+  return `Hoje é ${hoje}.\nQuem pergunta: ${quem}. ${propostas}\n\n${base}${r}${f}${g}`;
 }
 
 export function montarConteudoChat(pergunta: string, historico: MensagemHistorico[]): string {

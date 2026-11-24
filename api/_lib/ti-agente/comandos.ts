@@ -30,6 +30,8 @@ import { avisarQuemTem, lerContexto, lerNomes, lerUltimaReuniao } from './dados.
 import { SugestaoIA, montarContexto, type ContextoExtracao } from './extracao.js';
 import { MAX_AVISO_PESSOAL, checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
 import { enfileirarNoGrupo, lerConfigGrupo, montarAviso, motivoSemGrupo } from './grupo.js';
+import { lerBlocoGestao, relatorioAgora } from './gestao.js';
+import { APP_BASE_URL } from '../appUrl.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import { ORIGEM_SUGESTAO_LAB_BRAIN } from '../labBrainSugestao.js';
 import {
@@ -49,6 +51,7 @@ export const MAX_LISTA = 10;
 export const MAX_COBRAR = 5;
 export const MAX_PROPOSTAS = 5;
 const MAX_RESPOSTA = 1500;
+const LINK_INICIO = `${APP_BASE_URL}/it/inicio`;
 
 const NOME_DIA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 /** Os rótulos da tela (src/modules/eva/constants.ts): a api/ não importa o constants do front. */
@@ -94,7 +97,10 @@ export const AJUDA_EQUIPE = [
 /** A ajuda fixa, com as partes de cada papel de quem pergunta. */
 export function ajuda(p: PapeisWhatsApp): string {
   const extras = [
-    ...(p.gestor ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa o Gabriel que …"', '• "avisa todo mundo que …"', '• "avisa no grupo que …"'] : []),
+    ...(p.gestor
+      ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa o Gabriel que …"', '• "avisa todo mundo que …"', '• "avisa no grupo que …"',
+        '• "relatório" ou "como foi a semana?"', '• "quem está sobrecarregado?"']
+      : []),
     ...(p.aprova ? ['• "sugestões pendentes", depois "aprovar 1 e 3" ou "rejeitar 2 <motivo>"'] : []),
   ];
   if (extras.length === 0) return AJUDA_EQUIPE;
@@ -130,6 +136,17 @@ const OBRIGADO = new Set([
   'muito obrigado', 'muito obrigada', 'brigadao', 'tmj',
 ]);
 const SO_OK = new Set(['ok', 'okay', 'blz', 'beleza', 'show', 'certo', 'ta', 'ta bom', 'ta certo', 'entendi', 'combinado', 'perfeito', 'otimo', 'top', 'de nada']);
+
+/**
+ * "relatório", "manda o relatório da semana", sem IA (D38): o do dia ou o dos últimos 7 dias.
+ * null = outra mensagem (que vai para a IA, que também reconhece "como foi a semana?").
+ */
+export function lerPedidoDeRelatorio(texto: string): 'dia' | 'semana' | null {
+  const t = normalizar(texto);
+  const m = /^(?:(?:me )?(?:manda|envia|mostra|quero|ver)(?: o)? )?relatorio(?: de gestao)?(?: (do dia|de hoje|diario|da semana|semanal))?$/.exec(t);
+  if (!m) return null;
+  return m[1] === 'da semana' || m[1] === 'semanal' ? 'semana' : 'dia';
+}
 
 export const ehSim = (t: string) => SIM.has(normalizar(t)) || /^\s*(👍|✅|✔️?)\s*$/u.test(t);
 export const ehNao = (t: string) => NAO.has(normalizar(t)) || /^\s*(👎|❌)\s*$/u.test(t);
@@ -273,7 +290,7 @@ const ItemWhatsApp = ItemRespostaIA.extend({
 export const SchemaMensagem = z.object({
   intencao: z.enum([
     'atualizar_cards', 'propor', 'pergunta', 'lembrete_criar', 'lembrete_cancelar', 'conversa',
-    'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo', 'avisar_pessoa', 'avisar_equipe',
+    'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo', 'avisar_pessoa', 'avisar_equipe', 'relatorio',
   ]),
   resposta: z.string(),
   itens: z.array(ItemWhatsApp),
@@ -289,6 +306,8 @@ export const SchemaMensagem = z.object({
   motivo: z.string(),
   aviso: z.string(),
   aviso_pessoa_id: z.string(),
+  // Enum com "" (não se aplica) em vez de "ou nulo": o limite de campos nulos do Claude (§11.5).
+  relatorio_periodo: z.enum(['', 'dia', 'semana']),
   confianca: z.enum(['alta', 'media', 'baixa']),
 });
 export type SaidaMensagem = z.infer<typeof SchemaMensagem>;
@@ -315,6 +334,7 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 - "atualizar_cards": conta o andamento dos cards, em geral respondendo a uma cobrança sua: terminou, mudou o prazo, está bloqueada, outra novidade. Preencha "itens" e escreva em "resposta" uma confirmação curta.
 - "propor": pede uma mudança no Kanban que não é só contar andamento: criar card, mudar prioridade, responsável, coluna ou prazo de um card, ou registrar um comentário. Preencha "propostas".
 - "pergunta": quer saber dos cards, do dia dela, dos membros, dos projetos, das sprints, da última reunião ou dos lembretes dela. Responda em "resposta". Para "o que eu tenho hoje?" e parecidas, use O DIA DE …: primeiro o atrasado (o mais urgente antes), depois o que vence, depois o parado, e termine sugerindo por onde começar.
+  Perguntas de gestão (carga e atrasos de cada pessoa, quem está sobrecarregado, entregas da semana, chamados dos usuários, tempo de resolução, projetos em risco, o que travou): quando o contexto tiver PAINEL DE GESTÃO, responda com os números dele, sem contar por conta própria, e diga em uma frase o que pede atenção. Ele traz o que a lista de cards não mostra (concluídos, chamados, tempo de resolução).
 - "lembrete_criar": "me lembra amanhã às 9h de ligar para o fornecedor". Em "lembrete_texto", o que lembrar, curto, como ação ("ligar para o fornecedor"). Em "lembrete_quando", "AAAA-MM-DDTHH:MM" no horário de Brasília, contado a partir de HOJE e da hora da mensagem. Sem hora, use 09:00. Sem dia, hoje se a hora ainda não passou; senão, amanhã. Sem nenhuma pista de quando, "".
 - "lembrete_cancelar": desiste de um lembrete. Em "lembrete_id", o id dele em LEMBRETES MARCADOS.
 - "conversa": cumprimento, conversa ou pergunta sobre o que você faz. Responda em "resposta", curto e natural. Para "o que você faz?", conte em poucas linhas, com base em O QUE VOCÊ FAZ.
@@ -323,6 +343,7 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
   - "avisar_grupo": "avisa no grupo que a reunião de amanhã é às 10h". Só quando a pessoa fala do grupo. Em "aviso", só o conteúdo do aviso, claro e curto, sem saudação e sem inventar nada.
   - "avisar_pessoa": avisar, mandar uma mensagem, falar ou lembrar uma pessoa da equipe de algo ("avisa o Gabriel que a reunião mudou para as 10h", "manda uma mensagem para a Ana dizendo…", "fala para o Bruno…"). Em "aviso_pessoa_id", o id da pessoa (de MEMBROS DA EQUIPE); em "aviso", só o conteúdo, claro e curto, sem saudação, sem assinatura e sem inventar nada. Atenda sempre que o pedido for para outra pessoa; lembrete para a própria pessoa é "lembrete_criar".
   - "avisar_equipe": avisar a equipe toda, cada um no WhatsApp dele ("avisa todo mundo que…", "manda para todos que…", "fala para a equipe toda que…"). Em "aviso", só o conteúdo, como no avisar_pessoa; "aviso_pessoa_id" fica "". O sistema decide quem recebe.
+  - "relatorio": pede o relatório de gestão ("relatório", "manda o relatório", "como foi a semana?", "resumo da semana"). Em "relatorio_periodo", "semana" quando fala da semana ou dos últimos dias; senão, "dia". "resposta" fica "": o sistema monta o relatório. Uma pergunta de gestão específica ("quem está sobrecarregado?", "como está o Bruno?", "o que travou?") é "pergunta", respondida com o PAINEL DE GESTÃO.
 - Só para quem aprova sugestões:
   - "ver_sugestoes": "sugestões pendentes", "o que tem para aprovar?".
   - "aprovar": aprova itens da última lista numerada que você mandou ("aprova a 1 e a 3", "pode aprovar todas"). Números em "numeros", ou "todas": true.
@@ -347,7 +368,7 @@ GERAL
 
 O QUE VOCÊ FAZ (para explicar quando perguntarem)
 - Para todos: registrar o andamento dos cards ("IT-045 concluída", "IT-052 vai para sexta"); pedir mudanças no Kanban ("cria um card para…", "passa o IT-060 para a Ana"), que vão para aprovação; responder sobre as demandas e o dia ("o que eu tenho hoje?"); e marcar lembretes ("me lembra amanhã às 9h de…"), que saem em dia útil, das 7h às 20h.
-- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") ou para a equipe toda ("avisa todo mundo que…"), avisar o grupo da equipe ("avisa no grupo que…") e ter os próprios pedidos de mudança e andamentos aplicados na hora, sem fila.
+- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") ou para a equipe toda ("avisa todo mundo que…"), avisar o grupo da equipe ("avisa no grupo que…"), pedir o relatório de gestão ("relatório", "como foi a semana?"), responder perguntas de gestão com os números do sistema ("quem está sobrecarregado?") e ter os próprios pedidos de mudança e andamentos aplicados na hora, sem fila. Quem marcar na aba Membros recebe o relatório todo dia útil de manhã e alertas quando algo grave acontece.
 - Para quem aprova sugestões: ver e decidir as sugestões ("sugestões pendentes", "aprovar 1 e 3"), e ter os próprios pedidos de mudança e andamentos aplicados na hora.
 - Antes de executar algo desses papéis, você mostra o que vai fazer e espera o SIM. Fale só do que a pessoa pode fazer, pelos papéis de "Quem escreve".`;
 
@@ -363,6 +384,8 @@ export function montarContextoMensagem(e: {
   reuniao: UltimaReuniao | null;
   /** "O DIA DE …" e os lembretes (pessoal.ts, montarBlocoDia). */
   dia: string;
+  /** PAINEL DE GESTÃO (D38), só para o gestor: as perguntas de gestão saem dele. */
+  gestao?: string | null;
 }): string {
   const atualizaveis = e.atualizaveis === 'todos' ? '(todos os de CARDS ABERTOS)' : e.atualizaveis.map(linhaDoCard).join('\n') || '(nenhum)';
   return [
@@ -374,6 +397,7 @@ export function montarContextoMensagem(e: {
     montarContexto(e.ctx),
     '',
     blocoReuniao(e.reuniao),
+    ...(e.gestao ? ['', e.gestao] : []),
     '',
     `CARDS QUE A PESSOA PODE ATUALIZAR\n${atualizaveis}`,
   ].join('\n');
@@ -847,10 +871,17 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
     if (fecho === 'obrigado') return fim('agradecimento', porNada(membro.nome));
     if (fecho === 'ok') return { ok: true, acao: 'agradecimento', resposta: null, erro: null };
 
-    // 4. A IA diz a intenção, com a conversa recente e o dia da pessoa (D30).
+    // "relatório" do gestor, sem IA (D38). Para os demais, a IA reconhece e o sistema explica.
+    const relatorio = papeis.gestor ? lerPedidoDeRelatorio(texto) : null;
+    if (relatorio) return fim('relatorio', await relatorioAgora(db, relatorio, LINK_INICIO, agora));
+
+    // 4. A IA diz a intenção, com a conversa recente e o dia da pessoa (D30). O gestor recebe
+    // também o PAINEL DE GESTÃO, para as perguntas de gestão (D38).
     const veEquipe = !!usuario && (temPapel || tem(usuario, 'canManageIT'));
-    const [cardsAbertos, ctxCompleto, reuniao, conversa] = await Promise.all([
+    const [cardsAbertos, ctxCompleto, reuniao, conversa, gestao] = await Promise.all([
       lerCardsAbertos(db), lerContexto(db), lerUltimaReuniao(db), lerConversa(db, membro.id, msg.created_at as string, agora),
+      // Sem o painel (falha de leitura), a resposta sai como antes, só com os cards.
+      papeis.gestor ? lerBlocoGestao(db, agora).catch((e) => { console.error('[EVA/comandos] painel de gestão', e); return null; }) : Promise.resolve(null),
     ]);
     const meus = cardsAbertos.filter((c) => ehDoUsuario(c, membro.user_id));
     const atualizaveis = temPapel ? cardsAbertos : meus;
@@ -864,7 +895,7 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
         finalidade: 'resposta_whatsapp',
         instrucoes: INSTRUCOES_WHATSAPP,
         contexto: montarContextoMensagem({
-          nome: membro.nome, papeis, hoje, hora, ctx, atualizaveis: temPapel ? 'todos' : meus, reuniao, dia: montarBlocoDia(membro.nome, hoje, dia),
+          nome: membro.nome, papeis, hoje, hora, ctx, atualizaveis: temPapel ? 'todos' : meus, reuniao, dia: montarBlocoDia(membro.nome, hoje, dia), gestao,
         }),
         conteudo: montarConteudoConversa(texto, conversa.falas, conversa.cobranca, MAX_TEXTO),
         schema: SchemaMensagem,
@@ -935,6 +966,9 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
       case 'avisar_equipe':
         if (!papeis.gestor) return fim('sem_permissao', soGestor('mandar avisos para a equipe'));
         return fim('avisar_equipe', await prepararAvisoEquipe(db, usuario!, membro, s, msg.id as string, agora));
+      case 'relatorio':
+        if (!papeis.gestor) return fim('sem_permissao', soGestor('receber o relatório de gestão'));
+        return fim('relatorio', await relatorioAgora(db, s.relatorio_periodo === 'semana' ? 'semana' : 'dia', LINK_INICIO, agora));
       default: {
         // Conversa: a IA responde na voz dela; sem resposta, a ajuda fixa.
         const resp = (s.resposta ?? '').trim();

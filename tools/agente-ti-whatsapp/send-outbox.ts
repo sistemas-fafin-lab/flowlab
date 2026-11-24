@@ -20,12 +20,18 @@
 // a resposta da EVA a uma mensagem sai em segundos, não no minuto seguinte. O timer continua
 // abrindo uma execução por vez (Type=oneshot), e os 50 s terminam antes do próximo minuto.
 //
+// A cada 10 min (minuto 0, 10, 20…), antes da fila, confere os alertas de gestão (D38): chamado
+// fora do prazo para iniciar, card crítico que atrasou, projeto em risco. A Vercel do plano Hobby
+// só agenda cron uma vez por dia, por isso a conferência mora aqui, no que já roda o tempo todo.
+//
 // Uso:
 //   npx tsx tools/agente-ti-whatsapp/send-outbox.ts            (envia; fica até 50 s olhando a fila)
 //   npx tsx tools/agente-ti-whatsapp/send-outbox.ts --uma-vez  (uma passada só)
 //   npx tsx tools/agente-ti-whatsapp/send-outbox.ts --dry-run  (só mostra sessão e fila; não grava nem envia)
 
+import { APP_BASE_URL } from '../../api/_lib/appUrl.js';
 import { getSupabaseAdminClient } from '../../api/_lib/supabase.js';
+import { verificarAlertas } from '../../api/_lib/ti-agente/gestao.js';
 import { criarClienteWaha } from '../../api/_lib/ti-agente/waha.js';
 import { LIMITE_POR_EXECUCAO, esvaziarFila, repositorioSupabase, type ResultadoFila } from '../../api/_lib/ti-agente/outbox.js';
 
@@ -33,6 +39,18 @@ const SCRIPT = 'eva-whatsapp';
 /** De quanto em quanto tempo a fila é relida dentro de uma execução, e por quanto tempo. */
 const INTERVALO_MS = 5_000;
 const JANELA_MS = 50_000;
+/** Os alertas de gestão são conferidos nos minutos múltiplos deste. */
+const ALERTAS_A_CADA_MIN = 10;
+
+/** Alertas de gestão (D38). Uma falha aqui vai para o log e não segura a fila. */
+async function conferirAlertas() {
+  try {
+    const r = await verificarAlertas(getSupabaseAdminClient(), { linkInicio: `${APP_BASE_URL}/it/inicio` });
+    if (r.gravados || r.noLimite) console.error(`[${SCRIPT}] alertas de gestão: ${r.gravados} na fila${r.noLimite ? `, ${r.noLimite} no limite do dia` : ''}`);
+  } catch (e) {
+    console.error(`[${SCRIPT}] Não consegui conferir os alertas de gestão:`, e instanceof Error ? e.message : e);
+  }
+}
 
 /** Só loga quando há o que dizer, para o journal não encher. */
 function registrar(r: ResultadoFila) {
@@ -85,6 +103,7 @@ async function main(): Promise<number> {
   }
 
   const inicio = Date.now();
+  if (new Date(inicio).getMinutes() % ALERTAS_A_CADA_MIN === 0) await conferirAlertas();
   let r = await esvaziarFila(repo, waha);
   registrar(r);
   let enviadas = r.enviadas;

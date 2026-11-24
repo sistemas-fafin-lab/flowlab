@@ -44,7 +44,8 @@ export async function lerConversa(db: SupabaseClient, membroId: string, antesDe:
     db.from('ti_agente_mensagens')
       .select('direcao, tipo, status, texto, created_at')
       .eq('membro_id', membroId)
-      .in('tipo', ['recebida', 'confirmacao', 'cobranca', 'cobranca_manual', 'lembrete', 'aviso'])
+      // O relatório e os alertas de gestão (D38) entram: o gestor responde "e a Ana?" em cima deles.
+      .in('tipo', ['recebida', 'confirmacao', 'cobranca', 'cobranca_manual', 'lembrete', 'aviso', 'relatorio', 'alerta'])
       .in('status', ['recebida', 'pendente', ...SAIU])
       .lt('created_at', antesDe)
       .gte('created_at', desde)

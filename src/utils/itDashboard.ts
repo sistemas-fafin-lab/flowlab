@@ -3,7 +3,8 @@
 // chamados; para os demais, só os próprios. Fila e andamento são o retrato de
 // agora; resolvidos, tempo médio, série e tipos olham o período escolhido.
 
-import { getSlaStatus, type ITKanbanColumnLike, type ITPriority, type ITStatusLike } from './itSla';
+// ".js": a api/ (NodeNext) também importa este arquivo, no relatório de gestão da EVA (D38).
+import { getSlaStatus, type ITKanbanColumnLike, type ITPriority, type ITStatusLike } from './itSla.js';
 
 export type PeriodoDias = 7 | 30 | 90;
 

@@ -43,6 +43,12 @@ describe('contexto e conteúdo do chat', () => {
     expect(montarContextoChat(CTX, null, '2026-10-13', [])).toContain('FILA DO WHATSAPP (últimas mensagens)\n(vazia)');
   });
 
+  it('o PAINEL DE GESTÃO só aparece quando vem (gestor, D38), e a regra diz para usar os números dele', () => {
+    expect(montarContextoChat(CTX, null, '2026-10-13')).not.toContain('PAINEL DE GESTÃO');
+    expect(montarContextoChat(CTX, null, '2026-10-13', null, true, true, 'PAINEL DE GESTÃO (números do sistema)')).toMatch(/\n\nPAINEL DE GESTÃO \(números do sistema\)$/);
+    expect(INSTRUCOES_CHAT).toContain('quando o contexto tiver PAINEL DE GESTÃO, use os números dele');
+  });
+
   it('pergunta e histórico vão delimitados, só as últimas mensagens (RN15)', () => {
     const historico = Array.from({ length: 10 }, (_, i) => ({ de: i % 2 ? 'eva' as const : 'eu' as const, texto: `m${i}` }));
     const c = montarConteudoChat('O que está atrasado?', historico);
