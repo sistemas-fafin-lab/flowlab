@@ -13,6 +13,7 @@
 > - **Aviso para a equipe toda (04/Nov/2026, D36):** "avisa todo mundo que…", no privado de cada um, pelo chat e pelo WhatsApp, com uma confirmação só (§11.6, issue 25).
 > - **Gestor executa direto (04/Nov/2026, D37):** o gestor confirma e a EVA aplica o pedido dele na hora, sem passar pela fila, pelo chat e pelo WhatsApp (§11.4, issue 26).
 > - **Saúde das integrações, ausências e 1:1 (24/Nov/2026, D39 a D41):** quem configura é avisado quando Granola, VPS, WhatsApp ou IA param; férias e folgas pausam a cobrança; "prepara minha 1:1 com o Bruno" (§11.8, issues 28 a 30).
+> - **Histórico e tendências (24/Nov/2026, D42):** foto diária do painel às 18h, cartão de tendências no Início e a comparação com antes no relatório da semana (§11.9, issue 31).
 > - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
@@ -108,6 +109,7 @@ Entregáveis, na ordem em que geram valor:
 | **D39** | Saúde das integrações | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário** (o Granola ficou dias parado pela assinatura vencida, e só ele percebeu). Detalhes na §11.8.<br>• **O que vigia:** Granola com erro ou parado, VPS sem sinal, sessão do WhatsApp desconectada e IA sem responder.<br>• **Quem é avisado:** quem configura a EVA, no sino sempre e no WhatsApp quando o problema não é o próprio WhatsApp. O aviso sai quando o problema aparece, de novo a cada 24 h e quando se resolve.<br>• **Onde roda:** nos crons das 8h, 9h e 18h (a Vercel é quem vê a VPS parar).<br>• O erro do Granola com a assinatura inativa passa a dizer isso, e não "sem acesso à pasta".<br>• Migration `20261124153700_eva_saude_e_ausencias.sql` (tabela `ti_agente_saude`). | Fase 4 |
 | **D40** | Ausências da equipe | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.8.<br>• **Onde:** na aba Membros (de, até, motivo) e pelo WhatsApp ("vou estar de férias de 01/12 a 05/12", "voltei"); o gestor marca a de outra pessoa.<br>• **Efeito:** sem cobrança no período, nem a da manhã nem a pedida pelo gestor; fora da conta de sobrecarga; o relatório avisa dos cards que vencem na ausência e sugere quem cobre.<br>• Quem marca a própria avisa os gestores no sino.<br>• Migration `20261124153700_eva_saude_e_ausencias.sql` (`ausente_de`, `ausente_ate`, `ausencia_motivo`). | Fase 4 |
 | **D41** | Preparação de 1:1 | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.8.<br>• "Prepara minha 1:1 com o Bruno", pelo WhatsApp e no chat, só o gestor.<br>• **A pauta** é montada pelo sistema: entregas, atrasados, parados, o que vence, cobranças sem resposta, a ausência e o que a última reunião combinou com a pessoa. Os pontos para conversar saem de regras fixas.<br>• Sem migration. | Fase 4 |
+| **D42** | Histórico diário e tendências | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.9.<br>• **Foto do dia:** o fechamento das 18h grava os números do painel de gestão (`ti_agente_fotos`), o que não dá para reconstruir depois: atrasados, abertos, fila.<br>• **Pelas datas de resolução** (`resolved_at`): entregas e tempo médio por semana, com histórico desde já. A entrega passa a valer pela data da resolução, não pela última edição.<br>• **Onde aparece:** cartão "Tendências" no Início (visão da equipe), a comparação no relatório da semana e as entregas por semana nas perguntas de gestão. | Fase 4 |
 
 ---
 
@@ -1024,6 +1026,28 @@ O relatório e o alerta entram na conversa recente do gestor (§11.5), para ele 
 **Migration `20261124153700_eva_saude_e_ausencias.sql`:**
 - a tabela `ti_agente_saude`, com leitura para quem configura;
 - `ti_agente_membros.ausente_de`, `ausente_ate` e `ausencia_motivo`, com o check de que o fim não vem antes do início.
+
+### 11.9 Histórico diário e tendências (D42)
+
+**Duas fontes, cada uma para o que sabe responder:**
+- **A foto do dia** (`ti_agente_fotos`, uma linha por dia útil). O cron do fechamento, às 18h, monta o painel de gestão só de hoje e grava `fotografar(painel)`: abertos, atrasados, vencendo, parados, críticos atrasados, entregas do dia, a fila de chamados, os fora do prazo, os resolvidos e o tempo médio, e os números de cada pessoa. É o que não dá para reconstruir depois. A foto sai separada do fechamento: se falhar, o fechamento sai igual, e o `dryRun` não grava.
+- **As datas de resolução** (`resolved_at`, gravada pelo gatilho desde 23/Out, com as antigas preenchidas pelo `updated_at`). Entregas e tempo médio de resolução por semana saem daqui, já com histórico.
+
+**A entrega vale pela data da resolução:** `diaDaConclusao` usa o `resolved_at` (e o `updated_at` só sem ele). Antes, um card resolvido na sexta e comentado na segunda contava como entrega da segunda. Vale para o "concluído nesta semana" do Kanban, o "meu dia" e o painel de gestão.
+
+**Onde aparece:**
+- **Cartão "Tendências" no Início**, na visão da equipe (`TendenciasCard`, `useTendencias`):
+  - entregas por semana, nas últimas 8, com a semana atual mais apagada;
+  - tempo médio de resolução dos chamados de usuário por semana, em horas ou dias;
+  - atrasados e chamados na fila por dia útil, nos últimos 30 dias, das fotos. Até haver duas fotos, o cartão explica que o histórico começa no segundo dia.
+  - Cores da paleta validada (azul, laranja, aqua e amarelo), rótulo na ponta das linhas, tooltip e tabela para leitor de tela.
+  - Conferido num harness com dados fictícios, nos temas claro e escuro e em 390 px de largura.
+- **Relatório da semana:** em "Agora", a linha "Em 06/11: 9 atrasados e 4 na fila (agora 3 e 2)", com a foto mais recente antes do período. Sem foto, a linha não aparece.
+- **Perguntas de gestão:** o bloco leva as entregas das 4 últimas semanas e a tendência ("em 06/11 eram 12 abertos…"), para "estamos melhorando?" ter número.
+
+**Quem lê as fotos:** gestor da EVA, quem aprova e quem tem `canManageIT`. Só o servidor grava.
+
+**Migration `20261124171300_eva_fotos_diarias.sql`:** a tabela `ti_agente_fotos (dia, foto jsonb)`, com RLS de leitura. Sem ela, o relatório só não compara e o cartão mostra o histórico das semanas sem o gráfico das fotos.
 
 ---
 

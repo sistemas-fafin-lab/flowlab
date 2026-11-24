@@ -15,7 +15,7 @@ import { ehChatDeGrupo } from '../../../src/modules/eva/domain/whatsapp.js';
 import { tem, type Usuario } from './autorizacao.js';
 import { lerTudo } from './dados.js';
 
-export const CAMPOS_CARD ='id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at';
+export const CAMPOS_CARD ='id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at, resolved_at';
 
 type Pagina<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 

@@ -11,6 +11,7 @@ import { useEvaNoInicio, usePapeisEva } from '../hooks/useAgenteAdmin';
 import { useEvaComentarios } from '../hooks/useEvaComentarios';
 import { useScrolledPast } from '../hooks/useScrolledPast';
 import { useVoiceInput } from '../hooks/useVoiceInput';
+import { useTendencias } from '../hooks/useTendencias';
 import { formatTodayLabel, greetingFor } from '../domain/chatReplies';
 import { montarComentarios, type ComentariosInicio } from '../domain/comentarios';
 import { montarIntegracoes } from '../domain/integracoes';
@@ -27,6 +28,7 @@ import { OverdueCard } from './OverdueCard';
 import { WhatsAppQueueCard } from './WhatsAppQueueCard';
 import { ProjectsCard } from './ProjectsCard';
 import { MyTasksCard } from './MyTasksCard';
+import { TendenciasCard } from './TendenciasCard';
 import { EvaChatDrawer, EvaEdgeGlow } from './EvaChatDrawer';
 import { EvaFloatingChat } from './EvaFloatingChat';
 import { EvaToast } from './EvaToast';
@@ -70,6 +72,8 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   });
   const voice = useVoiceInput(chat.ask);
   const s = home.snapshot;
+  // D42: as tendências são da equipe; só lê na visão da equipe.
+  const tendencias = useTendencias(home.view === 'team' ? home.hoje : null);
 
   const integracoes = useMemo(
     () => montarIntegracoes(eva.dados?.config ?? null, eva.dados?.pendentes ?? null, podeAprovar),
@@ -256,6 +260,10 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
                 <ProjectsCard projects={s.projects} footer={insight(comentarios.projects)} />
                 <MyTasksCard tasks={s.myTasks} doneCount={doneCount} onToggle={(id) => void home.toggleTask(id)} footer={insight(comentarios.myTasks)} />
               </div>
+
+              {home.view === 'team' && (
+                <TendenciasCard semanas={tendencias.semanas} dias={tendencias.dias} erro={tendencias.erro} />
+              )}
             </div>
           )}
         </div>
