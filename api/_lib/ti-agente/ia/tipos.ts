@@ -4,7 +4,7 @@
 export type ProvedorIA = 'claude' | 'gemini';
 export type Esforco = 'low' | 'medium' | 'high';
 /** Mesmos valores do CHECK de ti_agente_chamadas_ia.finalidade. */
-export type Finalidade = 'analise_reuniao' | 'resposta_whatsapp' | 'chat' | 'analise_chamado' | 'transcricao_audio';
+export type Finalidade = 'analise_reuniao' | 'resposta_whatsapp' | 'chat' | 'analise_chamado' | 'transcricao_audio' | 'rascunho_resolucao';
 
 /** Um arquivo junto do pedido (D43): o áudio do WhatsApp, em base64. Só o Gemini ouve áudio. */
 export interface AnexoIA { mimetype: string; base64: string }

@@ -15,6 +15,8 @@
 > - **Saúde das integrações, ausências e 1:1 (24/Nov/2026, D39 a D41):** quem configura é avisado quando Granola, VPS, WhatsApp ou IA param; férias e folgas pausam a cobrança; "prepara minha 1:1 com o Bruno" (§11.8, issues 28 a 30).
 > - **Histórico e tendências (24/Nov/2026, D42):** foto diária do painel às 18h, cartão de tendências no Início e a comparação com antes no relatório da semana (§11.9, issue 31).
 > - **Áudio, imagem e relógio (24/Nov/2026, D43 e D44):** áudio transcrito e imagem anexada ao card pelo WhatsApp; a VPS chama o relógio da Vercel a cada 10 min (§11.10, issue 32).
+> - **Triagem e base de conhecimento (24/Nov/2026, D45):** todo chamado da tela vira sugestão de entrada no Kanban, com o possível repetido e a solução anterior; "como resolvemos…?" no chat e no WhatsApp; rascunho da resolução (§11.11, issue 33).
+> - **Próximos (pedidos em 24/Nov):** check-in diário; Google Workspace (agenda, anotações do Meet, Gmail e criar reunião com Meet pela conta admin fixa); planejamento e pauta de reunião; vencimentos e rotinas; EVA para quem não é da TI (chat em todas as páginas e WhatsApp com número confirmado: abrir chamado e pedir link de reunião); conector do Notion (consulta às páginas compartilhadas, para todos).
 > - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
@@ -113,6 +115,7 @@ Entregáveis, na ordem em que geram valor:
 | **D42** | Histórico diário e tendências | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.9.<br>• **Foto do dia:** o fechamento das 18h grava os números do painel de gestão (`ti_agente_fotos`), o que não dá para reconstruir depois: atrasados, abertos, fila.<br>• **Pelas datas de resolução** (`resolved_at`): entregas e tempo médio por semana, com histórico desde já. A entrega passa a valer pela data da resolução, não pela última edição.<br>• **Onde aparece:** cartão "Tendências" no Início (visão da equipe), a comparação no relatório da semana e as entregas por semana nas perguntas de gestão. | Fase 4 |
 | **D43** | Áudio e imagem pelo WhatsApp | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.10.<br>• **Áudio:** vira texto pelo Gemini (o Claude não ouve áudio) e segue como mensagem escrita. A resposta começa com "🎤 Entendi: …", para um erro de transcrição aparecer na hora.<br>• **Imagem:** vai para um comentário no card ou chamado citado na legenda; sem o código, a EVA pergunta e espera 2 h.<br>• **O arquivo fica no WAHA local** (D9): a VPS baixa, sobe para o bucket privado `ti-agente-midias` e avisa a Vercel. O áudio é apagado depois da transcrição. | Fase 4 |
 | **D44** | Relógio da VPS | ✅ **Fechado (24/Nov).** Detalhes na §11.10.<br>• A VPS chama `/api/ti/agente-relogio` a cada 10 min. O que depende de hora (alertas de gestão, mídias paradas e as próximas rotinas, como o check-in) fica na Vercel e muda com o deploy, sem gerar o pacote da VPS de novo.<br>• Precisa do `CRON_SECRET` na VPS. Sem ele, ou com o relógio fora do ar, a VPS confere os alertas ela mesma, como antes. | Fase 4 |
+| **D45** | Triagem de todo chamado e base de conhecimento | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário ("Sugestão na fila").** Detalhes na §11.11.<br>• **Triagem:** o relógio analisa os chamados abertos pela tela, como já fazia com os do LAB-BRAIN, e a sugestão de entrada no Kanban vai para a fila, com aviso no sino. Recusar não cancela o chamado da tela: ele segue em Solicitações de TI.<br>• **Repetido e solução anterior:** a análise (as duas origens) diz se o pedido parece repetido de um chamado dos últimos 30 dias e se um parecido já foi resolvido, e como.<br>• **Base de conhecimento:** no chat e no WhatsApp, "como resolvemos a VPN?" responde com as resoluções parecidas.<br>• **Rascunho da resolução:** "Rascunhar com a EVA" no Resolver chamado, a partir da conversa. | Fase 4 |
 
 ---
 
@@ -1081,6 +1084,39 @@ O relatório e o alerta entram na conversa recente do gestor (§11.5), para ele 
 - a finalidade `transcricao_audio` no registro de chamadas de IA ("Áudios do WhatsApp" em Configurações);
 - o bucket privado `ti-agente-midias` (10 MB, sem policies: só o servidor usa).
 - O pacote novo da VPS funciona antes da migration: o sinal de vida grava sem `vps_recursos`, e a busca de mídias desliga na execução.
+
+### 11.11 Triagem de todo chamado e base de conhecimento (D45)
+
+**Triagem** (`triarChamadosNovos`, no relógio, a cada 10 min, até 5 por volta):
+- **Quem entra:** chamado de usuário (`is_internal = false`), fora do Kanban, pendente ou em andamento, aberto depois de `ti_agente_config.triagem_desde` e ainda sem sugestão `promover_card`. Os do LAB-BRAIN já ganham a sugestão na criação. A migration grava em `triagem_desde` a hora em que foi aplicada: o que já estava na fila não vira uma enxurrada de sugestões. `NULL` desliga.
+- **A análise é a do LAB-BRAIN** (`criarSugestaoDePromocao`, agora com a origem `triagem`): coluna, prioridade, responsáveis e prazo, com a regra fixa de reserva. O sino avisa "Chamado novo para o Kanban". O WhatsApp e a tela mostram "chamado novo".
+- **Recusar** a de um chamado da tela não cancela o chamado: ele fica fora do Kanban e segue em Solicitações de TI ("Não levar ao Kanban"). A do LAB-BRAIN cancela, como antes.
+
+**Repetido e solução anterior** (as duas origens, prompt `promover-card-v2`):
+- a busca por palavras (`domain/conhecimento.ts`: sem acento, sem palavras vazias, peso maior para as raras, título em dobro) separa até 5 chamados dos últimos 30 dias e até 3 resoluções parecidas com o pedido;
+- a IA diz `repetido_de`, `solucao_anterior` e `dica`. Só vale código que ela recebeu;
+- vira aviso no cartão da sugestão: "Parece repetido do IT-877 (aberto em 23/11 por Carla Dias)" e "Já resolvido antes no IT-812: …".
+
+**Base de conhecimento no chat e no WhatsApp** (`conhecimentoPara`):
+- só quando a mensagem relata um problema ou pede uma solução ("como resolvemos…", "não imprime", "travou");
+- as até 3 resoluções parecidas entram no conteúdo da pergunta, não no contexto, que fica em cache;
+- a resposta cita o código ("no IT-812, resolvemos …") e não inventa solução fora delas.
+
+**Rascunho da resolução** (`POST /api/ti/agente-rascunho`):
+- No Resolver chamado, o botão "Rascunhar com a EVA" escreve de 2 a 5 frases para o solicitante, só com o que a conversa do chamado diz.
+- Sem o que foi feito, deixa "[o que foi feito]" para completar.
+- "Desfazer" volta ao texto anterior. A pessoa revisa e envia; nada sai sozinho.
+
+**Conferido com a IA real, dados fictícios** (pelo Gemini: o crédito da conta da Anthropic estava zerado no teste):
+- o pedido "VPN não conecta na Asa Sul, erro de certificado" saiu como repetido do chamado aberto na véspera, com a solução do caso resolvido ("instalar o certificado novo do FortiClient e reiniciar o túnel");
+- um pedido de monitor saiu sem nenhum dos dois;
+- o rascunho de "papel atolado no rolo de trás, tirei, limpei e testei" só usou o que estava na conversa.
+
+**Migration `20261124201700_eva_triagem_e_conhecimento.sql`:**
+- a origem `triagem`;
+- `ti_agente_config.triagem_desde`;
+- a finalidade `rascunho_resolucao`;
+- a rejeição que só cancela o chamado do LAB-BRAIN.
 
 ---
 

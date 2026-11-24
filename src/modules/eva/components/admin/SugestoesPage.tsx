@@ -24,8 +24,21 @@ const TEXTOS_REJEITAR: TextosRejeicao = {
   botao: 'Rejeitar',
 };
 
-/** Rejeitar promover_card cancela o chamado do LAB-BRAIN (se ainda aberto), e o motivo vai para quem pediu. */
+/**
+ * Rejeitar promover_card do LAB-BRAIN cancela o chamado (se ainda aberto), e o motivo vai para quem
+ * pediu. O da triagem (D45, aberto pela tela) só fica fora do Kanban: segue em Solicitações de TI.
+ */
 function textosRejeitarChamado(s: Sugestao): TextosRejeicao {
+  if (s.origem === 'triagem') {
+    return {
+      titulo: 'Não levar ao Kanban',
+      subtitulo: `O chamado ${s.card?.codigo ?? ''} continua aberto em Solicitações de TI, fora do Kanban. Nada vai para o solicitante.`,
+      rotulo: 'Motivo',
+      aviso: null,
+      exemplo: 'Ex.: resolvo direto pelo chamado, é rápido',
+      botao: 'Não levar',
+    };
+  }
   return {
     titulo: 'Rejeitar chamado do LAB-BRAIN',
     subtitulo: `O chamado ${s.card?.codigo ?? 'do LAB-BRAIN'} é cancelado, se ainda estiver aberto.`,

@@ -2,8 +2,9 @@
 // A Vercel do plano Hobby só agenda cron uma vez por dia. A VPS, que já roda a cada minuto, chama
 // esta rota a cada 10 min (minuto 0, 10, 20…), e o que depende de hora fica aqui, na Vercel: muda
 // com o deploy, sem gerar e copiar o pacote da VPS de novo.
-// Hoje: os alertas de gestão (D38, antes conferidos dentro do script da VPS) e as mídias que
-// ficaram para trás (D43). As próximas rotinas de horário entram aqui.
+// Hoje: os alertas de gestão (D38, antes conferidos dentro do script da VPS), as mídias que
+// ficaram para trás (D43) e a triagem dos chamados novos da tela (D45). As próximas rotinas de
+// horário entram aqui.
 // Responde 202 na hora e trabalha em segundo plano (waitUntil): a VPS não fica parada esperando,
 // porque é ela que envia as mensagens. Para conferir à mão, ?esperar=true devolve o resultado.
 // Segurança: Authorization: Bearer <CRON_SECRET>. Cada parte falha sozinha, sem derrubar as outras.
@@ -15,6 +16,7 @@ import { cronAutorizado } from '../ti-agente/autorizacao.js';
 import { verificarAlertas } from '../ti-agente/gestao.js';
 import { retomarMidias } from '../ti-agente/midia.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
+import { triarChamadosNovos } from '../ti-agente/triagem.js';
 
 const ROTA = 'ti/agente-relogio';
 
@@ -30,11 +32,14 @@ async function parte<T>(nome: string, fn: () => Promise<T>): Promise<T | { erro:
 /** Uma volta do relógio. Exportada para os testes. */
 export async function rodarRelogio(agora = new Date()) {
   const db = getSupabaseAdminClient();
-  const [alertas, midias] = await Promise.all([
+  const ia = dependenciasIA(db);
+  const [alertas, midias, triagem] = await Promise.all([
     parte('alertas', () => verificarAlertas(db, { agora, linkInicio: `${APP_BASE_URL}/it/inicio` })),
-    parte('midias', () => retomarMidias(db, dependenciasIA(db), agora)),
+    parte('midias', () => retomarMidias(db, ia, agora)),
+    // D45: os chamados novos da tela viram sugestão de entrada no Kanban.
+    parte('triagem', () => triarChamadosNovos(db, ia)),
   ]);
-  return { em: agora.toISOString(), alertas, midias };
+  return { em: agora.toISOString(), alertas, midias, triagem };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

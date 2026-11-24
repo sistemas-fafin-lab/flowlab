@@ -12,6 +12,7 @@ import { lerContexto } from '../ti-agente/dados.js';
 import { lerBlocoGestao, lerPautaUmAUm } from '../ti-agente/gestao.js';
 import { gerarEstruturado } from '../ti-agente/ia/gerarEstruturado.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
+import { conhecimentoPara } from '../ti-agente/conhecimento.js';
 import {
   INSTRUCOES_CHAT, LIMITE_DIARIO, MAX_FILA, MAX_PERGUNTA, SchemaChat, montarContextoChat, montarConteudoChat, recortarParaVisao,
   validarRespostaChat, type AvisoChat, type MensagemFila, type MensagemHistorico,
@@ -92,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const ehGestor = tem(auth, 'canManageAgenteTI');
     // D37: quem aprova e o gestor confirmam a proposta e a EVA aplica na hora; os demais, fila.
     const executa = ehGestor || tem(auth, 'canApproveAgenteTI');
-    const [ctxCompleto, { data: reuniao }, fila, gestao] = await Promise.all([
+    const [ctxCompleto, { data: reuniao }, fila, gestao, conhecimento] = await Promise.all([
       lerContexto(db),
       db.from('ti_agente_reunioes')
         .select('titulo, realizada_em, observacoes, resumo_markdown')
@@ -104,6 +105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ehGestor ? lerFila(db, visao === 'me' ? auth.userId : null) : Promise.resolve(null),
       // D38: o PAINEL DE GESTÃO também, para as perguntas de gestão.
       ehGestor ? lerBlocoGestao(db).catch((e) => { console.error('[ti/agente-perguntar] painel de gestão', e); return null; }) : Promise.resolve(null),
+      // D45: as resoluções parecidas, quando a pergunta relata um problema ou pede uma solução.
+      conhecimentoPara(db, pergunta).catch((e) => { console.error('[ti/agente-perguntar] base de conhecimento', e); return null; }),
     ]);
     const ctx = recortarParaVisao(ctxCompleto, visao, auth.userId);
     const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -121,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           executa,
           gestao,
         ),
-        conteudo: montarConteudoChat(pergunta, historico),
+        conteudo: montarConteudoChat(pergunta, historico, conhecimento),
         schema: SchemaChat,
         esforco: 'low',
         userId: auth.userId,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, MessageSquare, Sparkles, Users } from 'lucide-react';
+import { Bot, Inbox, MessageSquare, Sparkles, Users } from 'lucide-react';
 import { IT_REQUESTS_PATH } from '../../../../utils/itRequestLink';
 import OrigemChamadoBadge from '../../../../components/IT/OrigemChamadoBadge';
 import { StatusBadge } from '../ui';
@@ -29,6 +29,8 @@ const ORIGEM: Record<Sugestao['origem'], { rotulo: string; Icon: React.Component
   comentario: { rotulo: 'Comentário da EVA', Icon: Sparkles },
   whatsapp: { rotulo: 'WhatsApp', Icon: Bot },
   'lab-brain': { rotulo: 'Chamado do LAB-BRAIN', Icon: Bot },
+  // D45: chamado aberto pela tela de Solicitações de TI, triado pela EVA.
+  triagem: { rotulo: 'Chamado novo', Icon: Inbox },
 };
 
 const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprovar, onEditar, onRejeitar }) => {
