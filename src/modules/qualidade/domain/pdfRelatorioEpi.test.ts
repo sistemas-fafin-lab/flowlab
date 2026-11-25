@@ -56,6 +56,16 @@ describe('montarPdfRelatorioEpi', () => {
     expect(texto.match(/Bruno Lima/g)).toHaveLength(1 + 1);
   });
 
+  it('depois das assinaturas nominais, tem linhas em branco para outros membros da equipe', () => {
+    // 3 colaboradores = uma fileira cheia; mais duas fileiras em branco (6 linhas).
+    expect(textoDoPdf(pdf()).match(/Nome:/g)).toHaveLength(6);
+    // 4 colaboradores: completa a segunda fileira (2) e mais duas fileiras (6).
+    const quatro = [...linhas, linha({ itemId: 'i4', solicitante: 'Davi Reis' })];
+    expect(textoDoPdf(pdf(quatro)).match(/Nome:/g)).toHaveLength(8);
+    // Mês sem entregas ainda traz as linhas em branco.
+    expect(textoDoPdf(pdf([]))).toContain('Assinaturas dos colaboradores');
+  });
+
   it('tem uma linha por item, com a data, a identificação formatada, a quantidade e o solicitante', () => {
     const texto = textoDoPdf(pdf());
 

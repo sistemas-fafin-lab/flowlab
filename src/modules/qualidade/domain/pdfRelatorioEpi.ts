@@ -93,13 +93,26 @@ export const colaboradoresQueAssinam = (linhas: LinhaRelatorioEpi[]) =>
 
 const COLUNAS_ASSINATURA = 3;
 const ALTURA_LINHA_ASSINATURA = 18;
+/** Linhas extras (fileiras de três) sem nome, para outros membros da equipe que receberam os EPIs. */
+const FILEIRAS_EM_BRANCO = 2;
+
+/**
+ * Quantas linhas de assinatura em branco vão depois das nominais: completam a última fileira e
+ * acrescentam mais `FILEIRAS_EM_BRANCO` fileiras inteiras.
+ */
+export const linhasEmBrancoDeAssinatura = (nominais: number) =>
+  ((COLUNAS_ASSINATURA - (nominais % COLUNAS_ASSINATURA)) % COLUNAS_ASSINATURA) + FILEIRAS_EM_BRANCO * COLUNAS_ASSINATURA;
 
 /**
  * Espaço de assinatura dos colaboradores abaixo da tabela: uma linha por colaborador, com o nome
- * embaixo, em três colunas. Quebra página quando não cabe.
+ * embaixo, em três colunas, seguida de linhas em branco (com "Nome:" para preencher à mão) para os
+ * demais membros da equipe. Quebra página quando não cabe.
  */
 function blocoAssinaturasColaboradores(doc: jsPDF, colaboradores: string[]) {
-  if (colaboradores.length === 0) return;
+  const vagas: (string | null)[] = [
+    ...colaboradores,
+    ...Array<null>(linhasEmBrancoDeAssinatura(colaboradores.length)).fill(null),
+  ];
   const largura = doc.internal.pageSize.getWidth();
   const limite = doc.internal.pageSize.getHeight() - ALTURA_RODAPE;
   const larguraColuna = (largura - 2 * MARGEM) / COLUNAS_ASSINATURA;
@@ -121,17 +134,17 @@ function blocoAssinaturasColaboradores(doc: jsPDF, colaboradores: string[]) {
   doc.setFont('helvetica', 'normal');
   doc.setDrawColor(...textoEscuro);
   doc.setLineWidth(0.2);
-  for (let i = 0; i < colaboradores.length; i += COLUNAS_ASSINATURA) {
+  for (let i = 0; i < vagas.length; i += COLUNAS_ASSINATURA) {
     if (y + ALTURA_LINHA_ASSINATURA > limite) {
       doc.addPage();
       y = MARGEM + 6;
     }
     const traco = y + 10;
-    colaboradores.slice(i, i + COLUNAS_ASSINATURA).forEach((nome, coluna) => {
+    vagas.slice(i, i + COLUNAS_ASSINATURA).forEach((nome, coluna) => {
       const x = MARGEM + coluna * larguraColuna;
       doc.line(x, traco, x + larguraTraco, traco);
       doc.setFontSize(9);
-      doc.text(nome, x, traco + 4.5, { maxWidth: larguraTraco });
+      doc.text(nome ?? 'Nome:', x, traco + 4.5, { maxWidth: larguraTraco });
     });
     y += ALTURA_LINHA_ASSINATURA;
   }
