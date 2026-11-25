@@ -206,7 +206,8 @@ const LeituraPedidoMedicoModal: React.FC<{
   escolha: EscolhaCobertura | null;
   onEscolher: (escolha: EscolhaCobertura | null) => void;
   onFechar: () => void;
-  onAdicionar: (exames: ItemGeradorOrcamento[]) => void;
+  /** `paciente`: o nome lido no pedido (null se a IA não achou), para o atendente confirmar no carrinho. */
+  onAdicionar: (exames: ItemGeradorOrcamento[], paciente: string | null) => void;
 }> = ({ exames, fontes, convenios, escolha, onEscolher, onFechar, onAdicionar }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [arquivos, setArquivos] = useState<File[]>([]);
@@ -214,6 +215,7 @@ const LeituraPedidoMedicoModal: React.FC<{
   const [analisando, setAnalisando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [leitura, setLeitura] = useState<LeituraDoPedido | null>(null);
+  const [pacienteLido, setPacienteLido] = useState<string | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
 
   const problema = arquivos.length > 0 ? problemaNosArquivosDoPedido(arquivos) : null;
@@ -235,8 +237,9 @@ const LeituraPedidoMedicoModal: React.FC<{
     setAnalisando(true);
     setErro(null);
     try {
-      const resultado = resolverLeituraDoPedido(await analisarPedidoMedico(arquivos), exames);
-      setLeitura(resultado);
+      const analise = await analisarPedidoMedico(arquivos);
+      setPacienteLido(analise.paciente);
+      setLeitura(resolverLeituraDoPedido(analise.exames, exames));
     } catch (err) {
       setErro(err instanceof Error && err.message ? err.message : 'Não foi possível analisar o pedido médico.');
     } finally {
@@ -585,6 +588,7 @@ const LeituraPedidoMedicoModal: React.FC<{
                 type="button"
                 onClick={() => {
                   setLeitura(null);
+                  setPacienteLido(null);
                   setArquivos([]);
                 }}
                 className={BOTAO_SECUNDARIO}
@@ -594,7 +598,7 @@ const LeituraPedidoMedicoModal: React.FC<{
               <button
                 type="button"
                 onClick={() => {
-                  onAdicionar(selecionados);
+                  onAdicionar(selecionados, pacienteLido);
                   onFechar();
                 }}
                 disabled={selecionados.length === 0}

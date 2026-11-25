@@ -24,6 +24,16 @@ describe('montarPromptPedidoMedico', () => {
     expect(prompt).toMatch(/Material diferente .* ou outro analito é OUTRO exame/);
   });
 
+  it('pede o nome do paciente, e não o do médico, com ou sem lista de exames', () => {
+    const semLista = montarPromptPedidoMedico([]);
+    for (const texto of [prompt, semLista]) {
+      expect(texto).toContain('"paciente"');
+    }
+    expect(prompt).toMatch(/nome do paciente como está no pedido \(não o nome do médico/);
+    // O ramo com lista repete a estrutura do JSON: o campo precisa estar nela também.
+    expect(prompt.split('"paciente"').length - 1).toBeGreaterThanOrEqual(3);
+  });
+
   it('inclui a lista de exames', () => {
     expect(prompt).toContain('HEMOGRAMA COMPLETO\nLIPOPROTEÍNA - a');
   });

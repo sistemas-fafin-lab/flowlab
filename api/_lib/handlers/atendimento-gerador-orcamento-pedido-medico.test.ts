@@ -27,6 +27,7 @@ interface CorpoResposta {
   success: boolean;
   error?: string;
   exames?: { nomeNoPedido: string; item: { tuss: string; nome: string } | null }[];
+  paciente?: string | null;
 }
 
 const LISTA = [
@@ -162,9 +163,33 @@ describe('POST /api/atendimento/gerador-orcamento-pedido-medico', () => {
         // Relacionado fora da lista de preços é descartado.
         { nomeNoPedido: 'Vitamina D', item: null, relacionados: ['Hemograma Completo'], tipo: 'variante' },
       ],
+      // A IA não mandou o nome do paciente: a tela pede para o atendente digitar.
+      paciente: null,
     });
     expect(res.headers['Cache-Control']).toBe('no-store');
     expect(apagados.sort()).toEqual(['user-1/abc/pedido-1.jpg', 'user-1/abc/pedido-2.pdf']);
+  });
+
+  it('devolve o nome do paciente lido no pedido, sem espaços sobrando', async () => {
+    buildOrcamentoParticularMock.mockResolvedValue(LISTA);
+    geminiMock.mockResolvedValue('{"paciente":"  Maria   da Silva ","exams":[{"name":"Hemograma","matched":"Hemograma Completo"}]}');
+
+    const { res } = await executar();
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body?.paciente).toBe('Maria da Silva');
+    expect(res.body?.exames).toHaveLength(1);
+  });
+
+  it('nome do paciente que a IA devolve como null ou fora do formato vira null', async () => {
+    buildOrcamentoParticularMock.mockResolvedValue(LISTA);
+
+    for (const resposta of ['{"paciente":null,"exams":[]}', '{"paciente":42,"exams":[]}']) {
+      geminiMock.mockResolvedValue(resposta);
+      const { res } = await executar();
+      expect(res.statusCode).toBe(200);
+      expect(res.body?.paciente).toBeNull();
+    }
   });
 
   it('manda à IA os arquivos baixados e os nomes da lista sem custo', async () => {

@@ -17,7 +17,8 @@
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do usuário
  * (exige canUseGeradorOrcamento). Regra em api/_lib/atendimento/autorizacao.ts.
  * Body: { paths: string[] (1..5, todos em `<user id>/`) } — resposta:
- * { success, exames: [{ nomeNoPedido, item: { tuss, nome } | null }] }.
+ * { success, exames: [{ nomeNoPedido, item: { tuss, nome } | null }], paciente: string | null }
+ * (o nome do paciente lido no pedido, para o atendente confirmar na tela; não é gravado).
  *
  * Variáveis de ambiente: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY,
  *   GEMINI_MODEL (opcional).
@@ -30,7 +31,7 @@ import { describeError } from '../errors.js';
 import { autorizarGeradorOrcamento, tokenDoHeader } from '../atendimento/autorizacao.js';
 import { buildOrcamentoParticular } from '../orcamentoParticular.js';
 import { montarPromptPedidoMedico } from '../atendimento/promptPedidoMedico.js';
-import { casarExamesLidos, lerRespostaIa } from '../atendimento/leituraPedidoMedico.js';
+import { casarExamesLidos, lerPacienteDaResposta, lerRespostaIa } from '../atendimento/leituraPedidoMedico.js';
 import {
   lerPedidoMedicoComGemini,
   TempoEsgotadoIaError,
@@ -98,17 +99,22 @@ async function lerPedido(supabase: SupabaseClient, paths: string[]) {
     throw new FalhaLeitura(502, 'A IA não conseguiu ler o pedido agora. Tente de novo em instantes.');
   }
 
-  const exames = casarExamesLidos(lerRespostaIa(texto), lista);
+  const resposta = lerRespostaIa(texto);
+  const exames = casarExamesLidos(resposta, lista);
   if (!exames) {
-    console.error('[atendimento/gerador-orcamento-pedido-medico] resposta sem lista de exames:', texto.slice(0, 500));
+    // Sem o texto da IA no log: ele pode trazer o nome do paciente.
+    console.error(`[atendimento/gerador-orcamento-pedido-medico] resposta sem lista de exames (${texto.length} caracteres)`);
     throw new FalhaLeitura(502, 'A IA não devolveu uma lista de exames. Tente com uma foto mais nítida.');
   }
-  return exames.map(({ nomeNoPedido, item, relacionados, tipo }) => ({
-    nomeNoPedido,
-    item: item ? { tuss: item.tuss, nome: item.nome } : null,
-    relacionados,
-    tipo,
-  }));
+  return {
+    exames: exames.map(({ nomeNoPedido, item, relacionados, tipo }) => ({
+      nomeNoPedido,
+      item: item ? { tuss: item.tuss, nome: item.nome } : null,
+      relacionados,
+      tipo,
+    })),
+    paciente: lerPacienteDaResposta(resposta),
+  };
 }
 
 async function apagarArquivos(supabase: SupabaseClient, paths: string[]): Promise<void> {
@@ -151,14 +157,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   // Apaga antes de responder: depois da resposta a Vercel pode congelar a função.
   const desfecho = await lerPedido(supabase, paths).then(
-    (exames) => ({ exames }),
+    (leitura) => ({ leitura }),
     (erro: unknown) => ({ erro }),
   );
   await apagarArquivos(supabase, paths);
 
-  if ('exames' in desfecho) {
+  if ('leitura' in desfecho) {
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ success: true, exames: desfecho.exames });
+    res.status(200).json({ success: true, exames: desfecho.leitura.exames, paciente: desfecho.leitura.paciente });
   } else if (desfecho.erro instanceof FalhaLeitura) {
     res.status(desfecho.erro.status).json({ success: false, error: desfecho.erro.message });
   } else {

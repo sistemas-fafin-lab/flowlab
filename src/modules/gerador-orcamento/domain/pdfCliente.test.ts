@@ -24,13 +24,14 @@ const carrinho: ItemCarrinho[] = [
 ];
 
 const emitidoEm = new Date(2026, 9, 20);
+const paciente = 'Maria da Silva';
 
 // PNG 1×1 transparente.
 const LOGO =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
-const pdf = (linhas: ItemCarrinho[] = carrinho, logo: string | null = null) =>
-  montarPdfOrcamentoCliente({ carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm }, logo);
+const pdf = (linhas: ItemCarrinho[] = carrinho, logo: string | null = null, nome = paciente) =>
+  montarPdfOrcamentoCliente({ carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm, paciente: nome }, logo);
 
 const montar = (linhas: ItemCarrinho[] = carrinho) => textoDoPdf(pdf(linhas));
 
@@ -79,6 +80,23 @@ describe('montarPdfOrcamentoCliente', () => {
     expect(texto).toContain('Emitido: 20/10/2026');
   });
 
+  it('traz o nome do paciente abaixo do título e antes da tabela de exames', () => {
+    const texto = montar();
+
+    expect(texto).toContain('Paciente: Maria da Silva');
+    expect(texto.indexOf('Paciente: Maria da Silva')).toBeGreaterThan(texto.indexOf('ORÇAMENTO'));
+    expect(texto.indexOf('Paciente: Maria da Silva')).toBeLessThan(texto.indexOf('Descrição'));
+  });
+
+  it('nome comprido em caixa alta quebra de linha e a tabela segue abaixo dele', () => {
+    const longo = 'MARIA APARECIDA DE FATIMA DOS SANTOS OLIVEIRA PEREIRA DA SILVA SOUZA RODRIGUES ALVES';
+    const texto = textoDoPdf(pdf(carrinho, null, longo));
+
+    expect(texto).toContain('Paciente: MARIA APARECIDA');
+    expect(texto).toContain('ALVES');
+    expect(texto.indexOf('ALVES')).toBeLessThan(texto.indexOf('Descrição'));
+  });
+
   it('avisa a validade de 10 dias com a data final, abaixo dos totais', () => {
     const texto = montar();
 
@@ -89,7 +107,7 @@ describe('montarPdfOrcamentoCliente', () => {
   it('a data final da validade vira o mês e o ano', () => {
     const linhas = carrinho;
     const doc = montarPdfOrcamentoCliente(
-      { carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm: new Date(2026, 11, 25) },
+      { carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm: new Date(2026, 11, 25), paciente },
       null,
     );
 

@@ -56,6 +56,20 @@ export function lerRespostaIa(texto: string): unknown {
   }
 }
 
+/** Teto do nome do paciente (o campo da tela usa o mesmo): corta lixo que a IA possa devolver. */
+export const MAX_CARACTERES_PACIENTE = 100;
+
+/**
+ * O nome do paciente lido pela IA, sem espaços repetidos nas pontas e no meio. null
+ * quando a resposta não traz nome (ausente, null, vazio ou que não é texto): quem
+ * decide o nome do Orçamento é o atendente, que confirma na tela.
+ */
+export function lerPacienteDaResposta(resposta: unknown): string | null {
+  if (!isRecord(resposta) || typeof resposta.paciente !== 'string') return null;
+  const nome = resposta.paciente.replace(/\s+/g, ' ').trim().slice(0, MAX_CARACTERES_PACIENTE).trim();
+  return nome || null;
+}
+
 /**
  * Casa os exames da resposta da IA com a lista de preços, na ordem em que vieram.
  * null quando a resposta não traz a lista `exams` (formato inesperado).

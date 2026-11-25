@@ -5,8 +5,8 @@
 // local lib/prompt.txt da Tabela-Particular, sem o "correspondente mais próximo" de
 // lá — a IA escolhia exame diferente só por ser parecido.
 //
-// O formato de resposta pedido ({ exams: [{ name, matched, relacionados, tipo }] }) é
-// o que leituraPedidoMedico.ts lê — mudar um exige mudar o outro.
+// O formato de resposta pedido ({ paciente, exams: [{ name, matched, relacionados, tipo }] })
+// é o que leituraPedidoMedico.ts lê — mudar um exige mudar o outro.
 
 const PROMPT_BASE = `Prompt de Especialista em Identificação de Exames.
 Sua função é analisar imagens de pedidos médicos e extrair os nomes dos exames solicitados.
@@ -25,9 +25,11 @@ Fluxo de Trabalho:
    - Em "relacionados", liste os nomes exatos da lista que são da mesma família ou do mesmo tipo do exame pedido (ex: para "Lipo B", "LIPOPROTEÍNA - a"). Use [] se não houver.
    - Em "tipo", use "variante" quando o pedido especifica uma variante que não está na lista (ex: pede Lipoproteína B e a lista só tem a A), "generico" quando o pedido cita a família sem especificar qual exame (ex: só "Lipoproteína"), ou null se nenhum dos dois se aplica.
    - Para exames com "matched" preenchido, use "relacionados": [] e "tipo": null.
+6. Em "paciente", escreva o nome do paciente como está no pedido (não o nome do médico nem o de outra pessoa). Use null quando o pedido não trouxer o nome do paciente ou ele estiver ilegível.
 
 Estrutura do JSON:
 {
+  "paciente": "Nome do paciente como está no pedido, ou null",
   "exams": [
     {
       "name": "Nome do exame como está no pedido",
@@ -43,9 +45,9 @@ O resultado deve ser uma lista única, sem repetições.`;
 
 /** Prompt completo: instruções + a lista de nomes de exames da lista de preços. */
 export function montarPromptPedidoMedico(nomesExames: readonly string[]): string {
-  let prompt = `${PROMPT_BASE}\n\nAnalise os arquivos do pedido médico anexos e extraia os nomes dos exames.`;
+  let prompt = `${PROMPT_BASE}\n\nAnalise os arquivos do pedido médico anexos e extraia o nome do paciente e os nomes dos exames.`;
   if (nomesExames.length > 0) {
-    prompt += `\n\nLista de procedimentos disponíveis (em "matched" e "relacionados", retorne exatamente o nome que está na lista):\n\n${nomesExames.join('\n')}\n\nNo JSON de retorno, use obrigatoriamente esta estrutura:\n{\n  "exams": [\n    { "name": "nome no pedido", "matched": "nome exato do mesmo exame na lista ou null", "relacionados": [], "tipo": null },\n    ...\n  ]\n}`;
+    prompt += `\n\nLista de procedimentos disponíveis (em "matched" e "relacionados", retorne exatamente o nome que está na lista):\n\n${nomesExames.join('\n')}\n\nNo JSON de retorno, use obrigatoriamente esta estrutura:\n{\n  "paciente": "nome do paciente no pedido ou null",\n  "exams": [\n    { "name": "nome no pedido", "matched": "nome exato do mesmo exame na lista ou null", "relacionados": [], "tipo": null },\n    ...\n  ]\n}`;
   }
   return prompt;
 }

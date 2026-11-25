@@ -12,6 +12,7 @@ import {
   MARGEM,
   corPrimaria,
   desenharCabecalho,
+  desenharPaciente,
   desenharRodapes,
   desenharValidade,
   fundoClaro,
@@ -45,7 +46,7 @@ function desenharMarcaDagua(doc: jsPDF) {
  * Os itens precisam trazer `custo` (lista de preços de quem pode ver custos).
  */
 export function montarPdfOrcamentoInterno(
-  { carrinho, orcamento, emitidoEm }: DadosPdfOrcamento,
+  { carrinho, orcamento, emitidoEm, paciente }: DadosPdfOrcamento,
   logo: string | null,
 ): jsPDF {
   // Sem custo (chave ausente, ou null de exame sem custo cadastrado), o PDF sairia com
@@ -83,11 +84,12 @@ export function montarPdfOrcamentoInterno(
 
   const doc = new jsPDF();
   desenharCabecalho(doc, logo, emitidoEm, 'ORÇAMENTO INTERNO');
+  const inicioDaTabela = desenharPaciente(doc, paciente);
 
   const corDaMargem = (margem: number) => (margem >= 0 ? corMargemPositiva : corMargemNegativa);
 
   autoTable(doc, {
-    startY: 62,
+    startY: inicioDaTabela,
     margin: { left: MARGEM, right: MARGEM, bottom: ALTURA_RODAPE },
     head: [['Descrição', 'Qtd', 'Preço Un. (R$)', 'Total (R$)', 'Custo (R$)', 'Margem (R$)']],
     body: linhas.map((l) => [
