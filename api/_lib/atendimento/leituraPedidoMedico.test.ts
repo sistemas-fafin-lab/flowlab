@@ -4,7 +4,45 @@
 // de exames vira `null` (o handler responde erro).
 
 import { describe, expect, it } from 'vitest';
-import { casarExamesLidos, lerRespostaIa } from './leituraPedidoMedico.js';
+import {
+  casarExamesLidos,
+  lerPacienteDaResposta,
+  lerRespostaIa,
+  MAX_CARACTERES_PACIENTE,
+} from './leituraPedidoMedico.js';
+
+describe('lerPacienteDaResposta', () => {
+  it('devolve o nome do paciente da resposta da IA', () => {
+    expect(lerPacienteDaResposta({ paciente: 'Maria da Silva', exams: [] })).toBe('Maria da Silva');
+  });
+
+  it('tira espaços das pontas e repetidos no meio', () => {
+    expect(lerPacienteDaResposta({ paciente: '  Maria   da \n Silva  ' })).toBe('Maria da Silva');
+  });
+
+  it('nome ausente, null, vazio ou só espaços vira null', () => {
+    expect(lerPacienteDaResposta({ exams: [] })).toBeNull();
+    expect(lerPacienteDaResposta({ paciente: null })).toBeNull();
+    expect(lerPacienteDaResposta({ paciente: '' })).toBeNull();
+    expect(lerPacienteDaResposta({ paciente: '   ' })).toBeNull();
+  });
+
+  it('valor que não é texto vira null', () => {
+    expect(lerPacienteDaResposta({ paciente: 42 })).toBeNull();
+    expect(lerPacienteDaResposta({ paciente: ['Maria'] })).toBeNull();
+    expect(lerPacienteDaResposta({ paciente: { nome: 'Maria' } })).toBeNull();
+  });
+
+  it('resposta que não é objeto vira null', () => {
+    expect(lerPacienteDaResposta(null)).toBeNull();
+    expect(lerPacienteDaResposta('Maria da Silva')).toBeNull();
+  });
+
+  it('corta nome acima do limite', () => {
+    const nome = lerPacienteDaResposta({ paciente: 'A'.repeat(MAX_CARACTERES_PACIENTE + 50) });
+    expect(nome).toHaveLength(MAX_CARACTERES_PACIENTE);
+  });
+});
 
 describe('lerRespostaIa', () => {
   it('interpreta JSON puro devolvido pela IA', () => {

@@ -31,12 +31,22 @@ const carrinho: ItemCarrinho[] = [
 
 const emitidoEm = new Date(2026, 9, 20);
 
+const paciente = 'Maria da Silva';
+
 const pdf = (linhas: ItemCarrinho[] = carrinho) =>
-  montarPdfOrcamentoInterno({ carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm }, null);
+  montarPdfOrcamentoInterno({ carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm, paciente }, null);
 
 const montar = (linhas: ItemCarrinho[] = carrinho) => textoDoPdf(pdf(linhas));
 
 describe('montarPdfOrcamentoInterno', () => {
+  it('traz o nome do paciente abaixo do título e antes da tabela de exames', () => {
+    const texto = montar();
+
+    expect(texto).toContain('Paciente: Maria da Silva');
+    expect(texto.indexOf('Paciente: Maria da Silva')).toBeGreaterThan(texto.indexOf('ORÇAMENTO INTERNO'));
+    expect(texto.indexOf('Paciente: Maria da Silva')).toBeLessThan(texto.indexOf('Descrição'));
+  });
+
   it('avisa a validade de 10 dias com a data final', () => {
     expect(montar()).toContain('Orçamento válido por 10 dias, até 30/10/2026');
   });

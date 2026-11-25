@@ -70,6 +70,13 @@ interface RespostaPedidoMedico {
   success?: boolean;
   error?: string;
   exames?: ExameLidoNoPedido[];
+  paciente?: string | null;
+}
+
+/** O que a IA leu no pedido: os exames e o nome do paciente (null quando não achou). */
+export interface AnaliseDoPedido {
+  exames: ExameLidoNoPedido[];
+  paciente: string | null;
 }
 
 // PDF que o navegador não tipou (só a extensão diz o que é) sairia como
@@ -103,8 +110,8 @@ async function subirArquivosDoPedido(arquivos: File[], userId: string): Promise<
   }
 }
 
-/** Envia o pedido médico à IA e devolve os exames lidos. Lança com uma mensagem pronta para a tela. */
-export async function analisarPedidoMedico(arquivos: File[]): Promise<ExameLidoNoPedido[]> {
+/** Envia o pedido médico à IA e devolve os exames e o paciente lidos. Lança com uma mensagem pronta para a tela. */
+export async function analisarPedidoMedico(arquivos: File[]): Promise<AnaliseDoPedido> {
   const { token, userId } = await sessaoAtual();
   const paths = await subirArquivosDoPedido(arquivos, userId);
 
@@ -127,10 +134,13 @@ export async function analisarPedidoMedico(arquivos: File[]): Promise<ExameLidoN
     if (res.status === 504 && !body.error) throw new Error('A análise demorou demais. Tente de novo.');
     throw new Error(body.error || FALHA_ANALISE);
   }
-  // Servidor de antes da mudança (deploy em andamento) não manda relacionados nem tipo.
-  return body.exames.map((exame) => ({
-    ...exame,
-    relacionados: Array.isArray(exame.relacionados) ? exame.relacionados : [],
-    tipo: exame.tipo ?? null,
-  }));
+  // Servidor de antes da mudança (deploy em andamento) não manda relacionados, tipo nem paciente.
+  return {
+    exames: body.exames.map((exame) => ({
+      ...exame,
+      relacionados: Array.isArray(exame.relacionados) ? exame.relacionados : [],
+      tipo: exame.tipo ?? null,
+    })),
+    paciente: typeof body.paciente === 'string' && body.paciente.trim() ? body.paciente.trim() : null,
+  };
 }

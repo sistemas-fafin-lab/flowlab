@@ -11,6 +11,8 @@ export interface DadosPdfOrcamento {
   /** O mesmo resultado que a tela mostra no resumo. */
   orcamento: ResultadoOrcamento;
   emitidoEm: Date;
+  /** Nome do paciente que o atendente confirmou na tela; sai logo abaixo do título. */
+  paciente: string;
 }
 
 // Identidade do laboratório no cabeçalho, como no PDF da Tabela-Particular.
@@ -61,6 +63,20 @@ export function desenharCabecalho(doc: jsPDF, logo: string | null, emitidoEm: Da
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text(titulo, largura / 2, 54, { align: 'center' });
+}
+
+/**
+ * Linha "Paciente: <nome>" logo abaixo do título. Nome comprido (caixa alta é largo) quebra
+ * em mais de uma linha. Devolve o `startY` da tabela, já abaixo do que foi desenhado.
+ */
+export function desenharPaciente(doc: jsPDF, paciente: string): number {
+  const larguraUtil = doc.internal.pageSize.getWidth() - MARGEM * 2;
+  doc.setTextColor(...textoEscuro);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  const linhas: string[] = doc.splitTextToSize(`Paciente: ${paciente}`, larguraUtil);
+  doc.text(linhas, MARGEM, 64);
+  return 64 + (linhas.length - 1) * 5 + 6;
 }
 
 export const DIAS_VALIDADE = 10;

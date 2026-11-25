@@ -1,5 +1,5 @@
-import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Tag, Trash2, X } from 'lucide-react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Tag, Trash2, User, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
@@ -12,6 +12,15 @@ import {
   type ResumoCobertura,
 } from '../domain/cobertura';
 import { orcamentoDoCarrinho, proximaFaixaDoCarrinho, type ProximaFaixa } from '../domain/orcamento';
+import {
+  MAX_CARACTERES_PACIENTE,
+  SEM_PACIENTE,
+  confirmarPaciente,
+  editarPaciente,
+  nomeValido,
+  sugerirPaciente,
+  type PacienteDoOrcamento,
+} from '../domain/paciente';
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
 import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
 import type { DadosPdfOrcamento } from '../domain/pdfComum';
@@ -277,19 +286,31 @@ const GeradorOrcamentoPage: React.FC = () => {
     setCarrinho((atual) => alterarQuantidade(atual, chave, quantidade));
   const remover = (chave: string) => setCarrinho((atual) => removerDoCarrinho(atual, chave));
 
+  // Paciente do Orçamento: a IA sugere o nome lido no pedido e o atendente confirma (ou
+  // digita, num carrinho montado à mão). O PDF só sai com o nome confirmado. Não persiste.
+  // Carrinho vazio (Limpar tudo ou o último exame removido) começa outro Orçamento: o nome
+  // confirmado de um paciente não pode passar para o próximo.
+  const [paciente, setPaciente] = useState<PacienteDoOrcamento>(SEM_PACIENTE);
+  useEffect(() => {
+    if (carrinho.length === 0) setPaciente(SEM_PACIENTE);
+  }, [carrinho.length]);
+
   const [lendoPedido, setLendoPedido] = useState(false);
-  const adicionarDoPedido = (doPedido: ItemGeradorOrcamento[]) =>
+  const adicionarDoPedido = (doPedido: ItemGeradorOrcamento[], pacienteLido: string | null) => {
     setCarrinho((atual) => doPedido.reduce<ItemCarrinho[]>(adicionarAoCarrinho, atual));
+    setPaciente((atual) => sugerirPaciente(atual, pacienteLido));
+  };
 
   const [gerandoPdf, setGerandoPdf] = useState<TipoPdf | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
   const gerarPdf = async (tipo: TipoPdf) => {
+    if (!paciente.confirmado) return;
     setGerandoPdf(tipo);
     setErroPdf(null);
     try {
       const emitidoEm = new Date();
       const { montar, arquivo } = PDFS[tipo];
-      const doc = montar({ carrinho, orcamento, emitidoEm }, await carregarLogoPdf());
+      const doc = montar({ carrinho, orcamento, emitidoEm, paciente: paciente.nome.trim() }, await carregarLogoPdf());
       doc.save(`${arquivo}_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
     } catch (error) {
       console.error('Falha ao gerar o PDF do Orçamento:', error);
@@ -412,6 +433,59 @@ const GeradorOrcamentoPage: React.FC = () => {
                 {conferencia && convenio && <IndicadorCobertura resumo={conferencia.resumo} convenio={convenio} />}
               </div>
               {carrinho.length > 0 && (
+                <div className="mb-3">
+                  <label
+                    htmlFor="paciente-orcamento"
+                    className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-300"
+                  >
+                    Paciente
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1 min-w-0">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        id="paciente-orcamento"
+                        type="text"
+                        autoComplete="off"
+                        value={paciente.nome}
+                        maxLength={MAX_CARACTERES_PACIENTE}
+                        onChange={(e) => setPaciente(editarPaciente(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setPaciente((atual) => confirmarPaciente(atual));
+                        }}
+                        placeholder="Nome do paciente"
+                        className="w-full pl-10 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+                      />
+                    </div>
+                    {/* O mesmo botão confirma e desconfirma: desconfirmar volta a bloquear o PDF. */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPaciente((atual) => (atual.confirmado ? editarPaciente(atual.nome) : confirmarPaciente(atual)))
+                      }
+                      disabled={!paciente.confirmado && !nomeValido(paciente.nome)}
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200 disabled:cursor-not-allowed ${
+                        paciente.confirmado
+                          ? 'text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700'
+                          : 'text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:shadow-none'
+                      }`}
+                    >
+                      {paciente.confirmado ? <RotateCcw className="w-4 h-4" /> : <Check className="w-4 h-4" />}{' '}
+                      {paciente.confirmado ? 'Desconfirmar' : 'Confirmar'}
+                    </button>
+                  </div>
+                  {paciente.confirmado ? (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-green-700 dark:text-green-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Nome do paciente confirmado.
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Confirme o nome do paciente para gerar o PDF.
+                    </p>
+                  )}
+                </div>
+              )}
+              {carrinho.length > 0 && (
                 // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
                 <dl className="mt-2 space-y-2">
                   <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -434,7 +508,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => gerarPdf('cliente')}
-                  disabled={carrinho.length === 0 || gerandoPdf !== null}
+                  disabled={carrinho.length === 0 || gerandoPdf !== null || !paciente.confirmado}
                   className="flex-1 min-w-0 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 >
                   {gerandoPdf === 'cliente' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
@@ -443,7 +517,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => gerarPdf('interno')}
-                    disabled={carrinho.length === 0 || gerandoPdf !== null}
+                    disabled={carrinho.length === 0 || gerandoPdf !== null || !paciente.confirmado}
                     className="flex-1 min-w-0 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {gerandoPdf === 'interno' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileLock2 className="w-4 h-4" />} Gerar PDF Interno

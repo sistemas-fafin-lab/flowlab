@@ -10,6 +10,7 @@ import {
   MARGEM,
   corPrimaria,
   desenharCabecalho,
+  desenharPaciente,
   desenharRodapes,
   desenharValidade,
   fundoClaro,
@@ -19,14 +20,15 @@ import {
 
 /** Orçamento do cliente: exames, quantidades, preços, Valor Total e, se houver desconto, Valor com Desconto. */
 export function montarPdfOrcamentoCliente(
-  { carrinho, orcamento, emitidoEm }: DadosPdfOrcamento,
+  { carrinho, orcamento, emitidoEm, paciente }: DadosPdfOrcamento,
   logo: string | null,
 ): jsPDF {
   const doc = new jsPDF();
   desenharCabecalho(doc, logo, emitidoEm, 'ORÇAMENTO');
+  const inicioDaTabela = desenharPaciente(doc, paciente);
 
   autoTable(doc, {
-    startY: 62,
+    startY: inicioDaTabela,
     margin: { left: MARGEM, right: MARGEM, bottom: ALTURA_RODAPE },
     head: [['Descrição', 'Qtd', 'Preço Un. (R$)', 'Total (R$)']],
     body: carrinho.map(({ item, quantidade }) => [
