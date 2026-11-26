@@ -46,6 +46,18 @@ _Avoid_: meta calculada, meta automática (a meta salva nunca muda sozinha)
 A glosa que o financeiro leva para a DRE, por mês de solicitação: soma de (líquido − recebido) das cobranças (`fatrequisicaoprocedimento`) com motivo de glosa preenchido e saldo positivo, de requisições cobráveis. É a conta que ele faz sobre a Análise de Faturamento do apLIS; aparece no bloco "Glosa por mês de solicitação" da aba Comparativos. É um saldo: o valor de um mês cai conforme os recursos são pagos.
 _Avoid_: glosa total do funil (é por mês de emissão do título e soma recuperada + acatada + em disputa), glosa da tabela `glosas` (lançamentos importados de planilha)
 
+**Calendário de recursos**:
+A aba de Glosas e Recursos com os lotes de faturamento que ainda têm glosa não recorrida (status 6, com motivo de glosa), cada um no dia do prazo para recorrer (data de recebimento + regra "Glosa – Recurso" do convênio), com os painéis Hoje/Amanhã/Atrasados, pelas regras de `.scratch/glosas-recursos-calendario-pendencias/spec.md`. O item sai sozinho quando entra num lote de recurso enviado.
+_Avoid_: Calendário de envios (é o do envio dos lotes de faturamento), agenda de recurso
+
+**Pendências de glosa**:
+O bloco do Dashboard de glosa com o que está vencido: glosa sem recurso com prazo para recorrer vencido, recurso com retorno atrasado (envio + Análise) e recurso com pagamento atrasado (envio + Análise + Pagamento).
+_Avoid_: Pendências de faturamento (requisições não faturadas, NF), atraso do lote (é só o selo do lote de recurso)
+
+**Instância do recurso**:
+A rodada de recurso de uma requisição: 1º, 2º ou 3º. Vem do apLIS (evento 7 → 1º, 16 → 2º; não existe evento de 3º recurso), guarda a maior já vista e pode ser marcada à mão pelo lápis, que prevalece.
+_Avoid_: lote de recurso (uma requisição em 2º recurso costuma ficar no mesmo lote ou sem lote), tentativa
+
 ### Estoque e Qualidade
 
 **EPI**:
