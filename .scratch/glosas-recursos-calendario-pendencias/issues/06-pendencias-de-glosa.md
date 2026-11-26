@@ -17,7 +17,7 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 
 - Implementada como `pendenciasDeGlosa` em `api/_lib/faturamento/recursoGlosa.ts`. A leitura da foto fica em `api/_lib/faturamento/dadosPendenciasGlosa.ts` e é a mesma do endpoint novo `glosas-recursos-pendencias` e dos filtros novos das listas. O bloco é `PendenciasGlosaBloco.tsx`.
 - **Recorte:** o período do cabeçalho não filtra (como no Calendário de recursos); o convênio filtra. O mês é o mês em que o prazo venceu. Com filtro de pendência (`pendencia=vencidos | retorno-atrasado | pagamento-atrasado`, `mesVencimento`), as listas também cobrem todos os meses de faturamento e mostram um aviso; a paginação é em memória.
-- **Card 1:** o universo é o da lista que ele abre (status 6, fora de qualquer lote de recurso). A requisição em lote de recurso ainda não enviado fica fora; glosa fixada em branco conta com valor 0. O calendário é diferente: só exclui lote enviado e exige glosa > 0 e motivo. A confirmar.
+- **Card 1:** o universo é o da lista que ele abre (status 6, fora de qualquer lote de recurso). A requisição em lote de recurso ainda não enviado fica fora; glosa fixada em branco conta com valor 0. O calendário é diferente: só exclui lote enviado e exige glosa > 0 e motivo. **Decidido (26/11/2026): fica igual à lista.**
 - **Card 2:** soma o recursado com as edições do lápis; a coluna "Valor recorrido" da lista vem da view, sem as edições.
 - **Card 3:** conta requisições, e a lista aberta mostra os lotes que as contêm (o subtítulo do card dá as duas quantidades).
 - **Visual:** mesmas classes do bloco do Contas a Receber (vidro, `Kpi`, variantes `dark:`). Não foi conferido no navegador: a tela exige login.
