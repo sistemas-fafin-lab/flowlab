@@ -6,8 +6,12 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A grade (semanas de segunda a sexta, cabeçalho, navegação de mês, dia de hoje destacado) não conhece mais agendamentos, atividades nem feriados; o que é de envio entra pelo chamador.
-- [ ] O Calendário de envios mostra exatamente o mesmo de antes (chips, atividades, feriados, ações de clique), conferido na tela nos temas claro e escuro.
-- [ ] Os testes do Calendário de envios continuam passando.
+- [x] A grade (semanas de segunda a sexta, cabeçalho, navegação de mês, dia de hoje destacado) não conhece mais agendamentos, atividades nem feriados; o que é de envio entra pelo chamador.
+- [x] O Calendário de envios mostra exatamente o mesmo de antes (chips, atividades, feriados, ações de clique), conferido na tela nos temas claro e escuro.
+- [x] Os testes do Calendário de envios continuam passando.
+
+## Comments
+
+Entregue no commit `9803bf0` (`GradeMes.tsx`, `utils/mesCalendario`), usado depois pela grade do Calendário de recursos (issue 04). Os testes do Calendário de envios passam na suíte completa de 26/11/2026. A conferência visual do Calendário de envios nos dois temas não ficou registrada aqui.

@@ -6,7 +6,7 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Para cada requisição, a função devolve: datas previstas (com a data real de retorno, quando existe, como base do pagamento), se tem resultado final, valor em aberto (recursado − recebido de glosa) e motivo de não ter data (lote não enviado, convênio sem regra de Análise ou de Pagamento).
 - [x] Testes: lote não enviado; retorno real substitui o previsto; regra sem prazo; cada classe de resultado final; edições do lápis valem acima do apLIS.
