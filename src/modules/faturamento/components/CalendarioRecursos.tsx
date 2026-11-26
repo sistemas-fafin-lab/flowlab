@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, CalendarX, CheckCircle2, Eye, X } from 'lucide-react';
 import { useCalendarioRecursos } from '../hooks/useGlosasRecursos';
 import type {
@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { formatCurrency, formatData, hojeIso, plural } from '../utils/formato';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
+import GradeMes from './GradeMes';
 import ListaResumida from './ListaResumida';
 
 // Aba "Calendário de recursos" (.scratch/glosas-recursos-calendario-pendencias,
@@ -17,6 +18,8 @@ import ListaResumida from './ListaResumida';
 // a data de exibição (fim de semana → sexta anterior) e os selos vêm do
 // servidor. O item sai sozinho quando as requisições entram num lote de recurso
 // enviado; clicar nele abre as requisições, com o card "Detalhes do recurso".
+// Abaixo dos painéis, a grade do mês (issue 04) com os itens de cada dia pela
+// data de exibição, navegada pelo próprio mês.
 // O período do cabeçalho não vale aqui; o convênio, sim.
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
@@ -24,6 +27,7 @@ const NOME_DIA = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-dig
 const PILULA = 'px-1.5 py-px text-[10px] font-semibold rounded-full whitespace-nowrap';
 
 const VENCE_EM = { sab: 'vence sáb', dom: 'vence dom' } as const;
+const SELO_FIM_DE_SEMANA = `${PILULA} bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300`;
 
 const MOTIVO_SEM_PRAZO: Record<MotivoSemPrazoRecurso, string> = {
   'sem-regra': 'Convênio sem regra de prazo',
@@ -40,6 +44,8 @@ function chave(s: Selecionado): string {
   const fim = s.tipo === 'prazo' ? s.item.prazo : s.item.motivoSemPrazo;
   return `${item.idLoteFaturamento}|${item.fontePagadora.id}|${fim}`;
 }
+
+const chavePrazo = (item: ItemCalendarioRecursos): string => chave({ tipo: 'prazo', item });
 
 /** Convênio, lote, protocolo, quantidade, valor e motivos: o que todo item mostra. */
 const ResumoLote: React.FC<{
@@ -94,7 +100,7 @@ const ResumoLote: React.FC<{
 const SeloFimDeSemana: React.FC<{ item: ItemCalendarioRecursos }> = ({ item }) =>
   item.venceEm ? (
     <span
-      className={`${PILULA} bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300`}
+      className={SELO_FIM_DE_SEMANA}
       title={`O prazo é ${formatData(item.prazo)}`}
     >
       {VENCE_EM[item.venceEm]}
@@ -110,9 +116,9 @@ const ListaItens: React.FC<{
   <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-700 max-h-[28rem] overflow-y-auto -mr-2 pr-2">
     {itens.map((item) => (
       <ResumoLote
-        key={chave({ tipo: 'prazo', item })}
+        key={chavePrazo(item)}
         item={item}
-        ativo={selecionado === chave({ tipo: 'prazo', item })}
+        ativo={selecionado === chavePrazo(item)}
         onAbrir={() => onAbrir(item)}
         selos={(comPrazo || item.venceEm) && (
           <>
@@ -227,6 +233,89 @@ const ListaSemPrazo: React.FC<{
   </section>
 );
 
+const ESTILO_SELO_GRADE: Record<ItemCalendarioRecursos['selo'], { nome: string; chip: string; amostra: string }> = {
+  atrasado: {
+    nome: 'Atrasado',
+    chip: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-200 dark:border-red-800/60',
+    amostra: 'bg-red-100 border border-red-200 dark:bg-red-900/40 dark:border-red-800',
+  },
+  hoje: {
+    nome: 'Hoje',
+    chip: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-800/60',
+    amostra: 'bg-blue-100 border border-blue-200 dark:bg-blue-900/40 dark:border-blue-800',
+  },
+  amanha: {
+    nome: 'Amanhã',
+    chip: 'bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-900/20 dark:text-sky-200 dark:border-sky-800/60',
+    amostra: 'bg-sky-100 border border-sky-200 dark:bg-sky-900/40 dark:border-sky-800',
+  },
+  futuro: {
+    nome: 'A vencer',
+    chip: 'bg-gray-50 text-gray-800 border-gray-200 dark:bg-gray-700/40 dark:text-gray-100 dark:border-gray-600',
+    amostra: 'bg-gray-100 border border-gray-200 dark:bg-gray-700 dark:border-gray-600',
+  },
+};
+
+/** O item na célula da grade: o resumo dos painéis em versão compacta (o motivo principal; os demais na dica). */
+const ChipRecurso: React.FC<{
+  item: ItemCalendarioRecursos;
+  ativo: boolean;
+  onAbrir: () => void;
+}> = ({ item, ativo, onAbrir }) => {
+  const convenio = item.fontePagadora.nome ?? 'Convênio não identificado';
+  const dica = [
+    `${convenio} · ${formatCurrency(item.valor)}`,
+    [`Lote ${item.idLoteFaturamento}`, item.protocolo && `Prot. ${item.protocolo}`, plural(item.quantidade, 'requisição', 'requisições')]
+      .filter(Boolean)
+      .join(' · '),
+    `Prazo para recorrer: ${formatData(item.prazo)}`,
+    ...item.motivos.map((m) => (item.quantidade > 1 ? `${m.motivo} (${m.quantidade})` : m.motivo)),
+    item.qtdOutrosMotivos > 0 && `+${plural(item.qtdOutrosMotivos, 'motivo', 'motivos')}`,
+  ].filter(Boolean).join('\n');
+  return (
+    <button
+      type="button"
+      title={dica}
+      onClick={onAbrir}
+      aria-pressed={ativo}
+      className={`w-full min-w-0 px-2 py-1 rounded-lg border text-left text-xs hover:ring-2 hover:ring-blue-400/40 ${ESTILO_SELO_GRADE[item.selo].chip} ${
+        ativo ? 'ring-2 ring-blue-500' : ''
+      }`}
+    >
+      <span className="flex items-baseline gap-1 min-w-0">
+        <span className="truncate font-medium">{convenio}</span>
+        <span className="ml-auto shrink-0 font-semibold tabular-nums">{formatCurrency(item.valor)}</span>
+      </span>
+      <span className="block truncate opacity-80">
+        Lote {item.idLoteFaturamento}
+        {item.protocolo && <> · Prot. {item.protocolo}</>}
+        {' · '}
+        {item.quantidade} req.
+      </span>
+      {item.motivos[0] && (
+        <span className="block truncate opacity-80">
+          {item.motivos[0].motivo}
+          {item.motivos.length + item.qtdOutrosMotivos > 1 && ` +${item.motivos.length - 1 + item.qtdOutrosMotivos}`}
+        </span>
+      )}
+      {(item.venceEm || item.selo === 'atrasado') && (
+        <span className="mt-0.5 flex flex-wrap gap-1">
+          {item.selo === 'atrasado' && (
+            <span className={`${PILULA} bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300`}>atrasado</span>
+          )}
+          <SeloFimDeSemana item={item} />
+        </span>
+      )}
+    </button>
+  );
+};
+
+function porDiaDeExibicao(itens: ItemCalendarioRecursos[]): Map<string, ItemCalendarioRecursos[]> {
+  const porDia = new Map<string, ItemCalendarioRecursos[]>();
+  for (const item of itens) porDia.set(item.dataExibicao, [...(porDia.get(item.dataExibicao) ?? []), item]);
+  return porDia;
+}
+
 /** As requisições do item aberto; o olho abre o card "Detalhes do recurso". */
 const RequisicoesDoItem: React.FC<{
   selecionado: Selecionado;
@@ -313,8 +402,8 @@ interface Props {
 }
 
 const CalendarioRecursos: React.FC<Props> = ({ fontePagadoraId, versao, podeEditar, onEditado, onAbrirRegras }) => {
-  // A grade do mês (issue 04) navega este mês; os painéis valem para qualquer mês.
-  const [mes] = useState(() => hojeIso().slice(0, 7));
+  // A grade do mês navega este mês; os painéis valem para qualquer mês.
+  const [mes, setMes] = useState(() => hojeIso().slice(0, 7));
   const { calendario, loading, error, refetch } = useCalendarioRecursos(mes, fontePagadoraId);
   const [selecionado, setSelecionado] = useState<Selecionado | null>(null);
   const [idAberto, setIdAberto] = useState<number | null>(null);
@@ -343,7 +432,7 @@ const CalendarioRecursos: React.FC<Props> = ({ fontePagadoraId, versao, podeEdit
         return item ? { tipo: 'sem-prazo', item } : null;
       }
       const todos = [...calendario.paineis.hoje, ...calendario.paineis.amanha, ...calendario.paineis.atrasados, ...calendario.itens];
-      const item = todos.find((i) => chave({ tipo: 'prazo', item: i }) === alvo);
+      const item = todos.find((i) => chavePrazo(i) === alvo);
       return item ? { tipo: 'prazo', item } : null;
     });
   }, [calendario]);
@@ -357,6 +446,7 @@ const CalendarioRecursos: React.FC<Props> = ({ fontePagadoraId, versao, podeEdit
     setSelecionado((atual) => (atual && chave(atual) === chave(s) ? null : s));
   };
   const chaveSelecionada = selecionado ? chave(selecionado) : null;
+  const itensPorDia = useMemo(() => porDiaDeExibicao(calendario?.itens ?? []), [calendario]);
 
   if (error) {
     return (
@@ -431,6 +521,36 @@ const CalendarioRecursos: React.FC<Props> = ({ fontePagadoraId, versao, podeEdit
           )}
         </div>
       )}
+
+      <GradeMes
+        mes={mes}
+        hoje={calendario.hoje}
+        carregando={loading}
+        onMudarMes={setMes}
+        legenda={
+          <>
+            {(Object.keys(ESTILO_SELO_GRADE) as ItemCalendarioRecursos['selo'][]).map((selo) => (
+              <span key={selo} className="flex items-center gap-1.5">
+                <span className={`w-3 h-3 rounded ${ESTILO_SELO_GRADE[selo].amostra}`} />
+                {ESTILO_SELO_GRADE[selo].nome}
+              </span>
+            ))}
+            <span className="flex items-center gap-1.5">
+              <span className={SELO_FIM_DE_SEMANA}>vence sáb/dom</span>
+              Prazo no fim de semana, exibido na sexta
+            </span>
+          </>
+        }
+        itensPorDia={itensPorDia}
+        chaveItem={chavePrazo}
+        renderItem={(item) => (
+          <ChipRecurso
+            item={item}
+            ativo={chaveSelecionada === chavePrazo(item)}
+            onAbrir={() => abrir({ tipo: 'prazo', item })}
+          />
+        )}
+      />
 
       <ListaSemPrazo
         itens={calendario.semPrazo}
