@@ -33,6 +33,15 @@ describe('cliente do Granola', () => {
     expect('erro' in r && r.erro).toBe('Granola respondeu HTTP 400 (updated_after: Invalid date)');
   });
 
+  it('assinatura do workspace inativa (403 SUBSCRIPTION_INACTIVE): diz isso, não "sem acesso à pasta" (D39)', async () => {
+    const corpo = { code: 'SUBSCRIPTION_INACTIVE', message: 'Workspace subscription is not active. Please renew your subscription to use the API.' };
+    const r = await criarClienteGranola({ apiKey: 'grn_x', fetch: vi.fn().mockResolvedValue(resposta(403, corpo)) }).listarNotas({ pastaId: 'fol_1' });
+    expect('erro' in r && r.erro).toBe('a assinatura do workspace do Granola está inativa (renove no Granola para a sincronização voltar)');
+    // Outro 403 continua sendo a falta de acesso à pasta.
+    const outro = await criarClienteGranola({ apiKey: 'grn_x', fetch: vi.fn().mockResolvedValue(resposta(403, {})) }).listarNotas({ pastaId: 'fol_1' });
+    expect('erro' in outro && outro.erro).toBe('a chave do Granola não tem acesso a esta pasta');
+  });
+
   it.each([
     [401, 'chave do Granola inválida'],
     [429, 'limite de requisições'],

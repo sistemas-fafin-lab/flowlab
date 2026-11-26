@@ -125,7 +125,7 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
     ]);
     setCobrancasHoje(n);
     setFila(f);
-    setMembrosZap(w ? new Map(w.map((m) => [m.user_id, { whatsapp: m.whatsapp, recebe: m.recebe }])) : null);
+    setMembrosZap(w ? new Map(w.map((m) => [m.user_id, { whatsapp: m.whatsapp, recebe: m.recebe, ausencia: m.ausencia }])) : null);
     setAgora(Date.now());
   }, [usuarioId, ehGestor]);
 

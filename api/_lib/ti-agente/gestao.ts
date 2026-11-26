@@ -8,14 +8,15 @@ import { diaDaSemana, ehDiaUtil, hojeSP, somarDias, type Dia } from '../../../sr
 import { estaAtrasado, type CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import { JANELA_COBRANCA_MS, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
 import {
-  detectarAlertas, montarBlocoGestao, montarPainelGestao, montarRelatorioDiario, montarRelatorioSemanal, periodoAnterior,
+  detectarAlertas, montarBlocoGestao, montarPainelGestao, montarPautaUmAUm, montarRelatorioDiario, montarRelatorioSemanal, periodoAnterior,
   semanaAnterior, ultimos7Dias, type ChamadoGestao, type EntradaGestao, type PainelGestao, type Periodo,
 } from '../../../src/modules/eva/domain/gestao.js';
 import { CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
 import type { ProjetoTI, SprintTI } from '../../../src/modules/eva/domain/projetos.js';
 import { ultimoContato, type MensagemFila } from '../../../src/modules/eva/domain/whatsapp.js';
 import { CAMPOS_CARD, lerConfigCobranca, ultimosComentarios } from './cobranca.js';
-import { lerNomes, lerQuemTem, lerTudo } from './dados.js';
+import { lerNomes, lerQuemTem, lerTudo, lerUltimaReuniao } from './dados.js';
+import { lerDaReuniaoParaPessoa } from './pessoal.js';
 
 type Pagina<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
@@ -54,7 +55,9 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
         .or(`status.in.(pending,in_progress),created_at.gte.${desde},resolved_at.gte.${desde}`)
         .order('id')
         .range(de, ate) as unknown as Pagina<ChamadoGestao>),
-    db.from('ti_agente_membros').select('user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)').eq('ativo', true),
+    db.from('ti_agente_membros')
+      .select('user_id, ausente_de, ausente_ate, ausencia_motivo, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)')
+      .eq('ativo', true),
     db.from('ti_agente_sugestoes').select('created_at', { count: 'exact' }).eq('status', 'pendente').order('created_at').limit(1),
     lerFilaRecente(db, agora),
   ]);
@@ -64,7 +67,11 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
   const cards = cardsBrutos.map((c) => ({ ...c, assigned_to: c.assigned_to ?? [], kanban_hidden: !!c.kanban_hidden }));
   type Perfil = { name: string; deleted_at: string | null } | null;
   const equipe = (membros.data ?? [])
-    .map((m) => ({ id: m.user_id as string, perfil: m.perfil as unknown as Perfil }))
+    .map((m) => ({
+      id: m.user_id as string,
+      perfil: m.perfil as unknown as Perfil,
+      ausencia: { ausente_de: (m.ausente_de as string | null) ?? null, ausente_ate: (m.ausente_ate as string | null) ?? null, ausencia_motivo: (m.ausencia_motivo as string | null) ?? null },
+    }))
     .filter((m) => m.perfil && !m.perfil.deleted_at);
   const daEquipe = Object.fromEntries(equipe.map((m) => [m.id, m.perfil!.name]));
   const outros = cards.flatMap((c) => c.assigned_to).filter((id) => !daEquipe[id]);
@@ -76,7 +83,7 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
     if (!estaAtrasado(c, hoje)) return false;
     const contato = ultimoContato(c.id, c.assigned_to, fila, agora.getTime(), hoje, JANELA_COBRANCA_MS);
     return !!contato.semResposta && agora.getTime() - Date.parse(contato.semResposta.desde) >= JANELA_COBRANCA_MS;
-  }).length;
+  }).map((c) => c.id);
 
   return {
     hoje,
@@ -92,7 +99,8 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
     ultimoComentario: comentarios,
     sugestoesPendentes: sugestoes.count ?? 0,
     sugestaoMaisAntiga: (sugestoes.data?.[0]?.created_at as string | undefined) ?? null,
-    cobrancasSemResposta: semResposta,
+    cardsSemResposta: semResposta,
+    ausencias: Object.fromEntries(equipe.map((m) => [m.id, m.ausencia])),
   };
 }
 
@@ -120,6 +128,17 @@ export async function lerPainelGestao(db: SupabaseClient, agora: Date, periodo =
 /** O painel no contexto da IA (perguntas de gestão do gestor, no chat e no WhatsApp). */
 export async function lerBlocoGestao(db: SupabaseClient, agora = new Date()): Promise<string> {
   return montarBlocoGestao(await lerPainelGestao(db, agora));
+}
+
+/** "Prepara minha 1:1 com o Bruno" (D41): a pauta da pessoa, pelo painel dos últimos 7 dias. */
+export async function lerPautaUmAUm(db: SupabaseClient, pessoaId: string, formato: 'whatsapp' | 'chat', agora = new Date()): Promise<string> {
+  const [entrada, reuniao] = await Promise.all([lerEntradaGestao(db, agora, ultimos7Dias(hojeSP(agora))), lerUltimaReuniao(db)]);
+  const itens = reuniao?.id ? await lerDaReuniaoParaPessoa(db, reuniao.id, pessoaId) : [];
+  return montarPautaUmAUm(
+    entrada, montarPainelGestao(entrada), pessoaId,
+    reuniao ? { titulo: reuniao.titulo, realizadaEm: reuniao.realizadaEm, itens } : null,
+    formato,
+  );
 }
 
 export interface DestinoGestao { membroId: string; userId: string; nome: string }
@@ -246,6 +265,8 @@ export async function verificarAlertas(db: SupabaseClient, opcoes: { agora?: Dat
       .select('id', { count: 'exact', head: true })
       .eq('membro_id', d.membroId)
       .eq('tipo', 'alerta')
+      // Só os de gestão: os avisos de saúde das integrações (D39) também são 'alerta', com chave "saude:…".
+      .like('chave_dia', 'alerta:%')
       .gte('created_at', inicioDoDia(hoje));
     if (eCount) throw new Error(eCount.message);
     let vagas = MAX_ALERTAS_DIA - (count ?? 0);

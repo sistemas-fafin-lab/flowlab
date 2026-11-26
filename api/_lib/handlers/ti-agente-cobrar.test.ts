@@ -127,6 +127,21 @@ describe('POST /api/ti/agente-cobrar (D22, RN16)', () => {
     });
   });
 
+  it('responsável ausente (D40): não cobra, e a recusa diz até quando', async () => {
+    const { db, inserts } = criarDb({
+      membros: [{
+        id: 'm-bruno', user_id: 'u-bruno', whatsapp: '5561999924986', recebe_cobranca: true, ativo: true,
+        ausente_de: '2026-01-01', ausente_ate: '2099-12-31', ausencia_motivo: 'férias', perfil: { name: 'Bruno Mendes', deleted_at: null },
+      }],
+    });
+    dbMock.mockReturnValue(db);
+    autorizarMock.mockResolvedValue(usuario(['canManageAgenteTI']));
+    const { r, api } = res();
+    await handler(req({ card_id: 'c1' }), api);
+    expect(r).toMatchObject({ statusCode: 422, body: { error: 'Bruno está de férias até 31/12: a cobrança do IT-031 fica para a volta.' } });
+    expect(inserts).toEqual([]);
+  });
+
   it('no Lembrar, sem adesão continua recusado: o lembrete é pessoal, não vai para o grupo', async () => {
     const { db, inserts } = criarDb({
       grupo: '120363000000000001@g.us',

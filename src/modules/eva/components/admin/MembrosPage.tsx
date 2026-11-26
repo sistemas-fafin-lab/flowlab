@@ -4,6 +4,7 @@ import { Send, UserPlus, Users } from 'lucide-react';
 import EvaAdminShell from './EvaAdminShell';
 import EvaModal from './EvaModal';
 import HistoricoMembro from './HistoricoMembro';
+import DatePicker from '../../../../components/DatePicker';
 import Select from '../../../../components/Select';
 import Switch from '../../../../components/Switch';
 import { GlassCard, StatusBadge } from '../ui';
@@ -11,6 +12,8 @@ import { EvaToast } from '../EvaToast';
 import { useMembros, usePessoas } from '../../hooks/useAgenteAdmin';
 import { agenteAdmin, type Membro } from '../../services/agenteAdmin';
 import { formatarWhatsapp, normalizarNome, primeiroNome } from '../../domain/pessoas';
+import { descreverAusencia } from '../../domain/ausencia';
+import { hojeSP } from '../../domain/datas';
 import type { AvisoEva } from '../../hooks/useEvaHome';
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CAMPO, LINHA, ROTULO } from './estilos';
 
@@ -25,9 +28,16 @@ interface Rascunho {
   ativo: boolean;
   /** Gestor da EVA: só ele vê as adesões de gestão (D38). Membro novo aparece depois de salvo. */
   gestor: boolean;
+  /** Ausência (D40), AAAA-MM-DD; "" = sem ausência. */
+  ausente_de: string;
+  ausente_ate: string;
+  ausencia_motivo: string;
 }
 
 const soDigitos = (s: string) => s.replace(/\D/g, '');
+
+/** O período da ausência: sem "até", não há ausência; "de" depois do "até" não vale. */
+const ausenciaValida = (r: Rascunho) => !r.ausente_ate ? !r.ausente_de : !r.ausente_de || r.ausente_de <= r.ausente_ate;
 
 /** /it/eva/membros — quem a EVA conhece: apelidos nas reuniões, WhatsApp e adesão (issue 07, D10). */
 const MembrosPage: React.FC = () => {
@@ -37,6 +47,7 @@ const MembrosPage: React.FC = () => {
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<AvisoEva | null>(null);
   const membros = useMemo(() => dados ?? [], [dados]);
+  const hoje = hojeSP();
   const [aberto, setAberto] = useState<string | null>(null);
   const [versao, setVersao] = useState(0);
   const [testando, setTestando] = useState<Record<string, string>>({});
@@ -87,11 +98,15 @@ const MembrosPage: React.FC = () => {
   }, [membros]);
 
   const novo = () =>
-    setRascunho({ user_id: '', apelidos: '', whatsapp: '', recebe_cobranca: false, recebe_relatorio: false, recebe_alertas: false, ativo: true, gestor: false });
+    setRascunho({
+      user_id: '', apelidos: '', whatsapp: '', recebe_cobranca: false, recebe_relatorio: false, recebe_alertas: false, ativo: true, gestor: false,
+      ausente_de: '', ausente_ate: '', ausencia_motivo: '',
+    });
   const editar = (m: Membro) =>
     setRascunho({
       id: m.id, user_id: m.user_id, apelidos: m.apelidos.join(', '), whatsapp: m.whatsapp ?? '', recebe_cobranca: m.recebe_cobranca,
       recebe_relatorio: m.recebe_relatorio, recebe_alertas: m.recebe_alertas, ativo: m.ativo, gestor: m.papeis.gestor,
+      ausente_de: m.ausente_de ?? '', ausente_ate: m.ausente_ate ?? '', ausencia_motivo: m.ausencia_motivo ?? '',
     });
 
   const escolherPessoa = (userId: string) => {
@@ -114,6 +129,9 @@ const MembrosPage: React.FC = () => {
         recebe_relatorio: rascunho.recebe_relatorio && !!soDigitos(rascunho.whatsapp),
         recebe_alertas: rascunho.recebe_alertas && !!soDigitos(rascunho.whatsapp),
         ativo: rascunho.ativo,
+        ausente_de: rascunho.ausente_ate ? rascunho.ausente_de || null : null,
+        ausente_ate: rascunho.ausente_ate || null,
+        ausencia_motivo: rascunho.ausente_ate ? rascunho.ausencia_motivo.trim() || null : null,
       });
       setRascunho(null);
       setAviso({ id: Date.now(), texto: 'Membro salvo.', tom: 'sucesso' });
@@ -207,6 +225,11 @@ const MembrosPage: React.FC = () => {
                     </span>
                   )}
                   {!m.ativo && <StatusBadge tone="neutral">Inativo</StatusBadge>}
+                  {m.ausente_ate && m.ausente_ate >= hoje && (
+                    <span title="Nesse período a pessoa não recebe cobrança e sai da conta de sobrecarga do relatório">
+                      <StatusBadge tone="warning">{descreverAusencia({ ausente_de: m.ausente_de, ausente_ate: m.ausente_ate, ausencia_motivo: m.ausencia_motivo }, hoje)}</StatusBadge>
+                    </span>
+                  )}
                   {m.whatsapp && m.ativo && (
                     <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void enviarTeste(m)} disabled={!!testando[m.id]}>
                       <Send className="w-3.5 h-3.5" /> {testando[m.id] || 'Enviar teste'}
@@ -231,7 +254,12 @@ const MembrosPage: React.FC = () => {
         rodape={
           <>
             <button type="button" className={BOTAO_SECUNDARIO} onClick={() => setRascunho(null)} disabled={salvando}>Cancelar</button>
-            <button type="button" className={BOTAO_PRIMARIO} onClick={() => void salvar()} disabled={salvando || !rascunho?.user_id || !whatsappValido(rascunho?.whatsapp ?? '')}>
+            <button
+              type="button"
+              className={BOTAO_PRIMARIO}
+              onClick={() => void salvar()}
+              disabled={salvando || !rascunho?.user_id || !whatsappValido(rascunho?.whatsapp ?? '') || !(rascunho && ausenciaValida(rascunho))}
+            >
               {salvando ? 'Salvando…' : 'Salvar'}
             </button>
           </>
@@ -292,6 +320,44 @@ const MembrosPage: React.FC = () => {
               <Switch size="sm" checked={rascunho.ativo} onChange={(v) => setRascunho({ ...rascunho, ativo: v })} />
               Ativo
             </label>
+            <div>
+              <span className={ROTULO}>Ausência (férias, licença, folga)</span>
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                Nesse período a pessoa não recebe cobrança, e o relatório de gestão avisa dos cards dela que vencem. A própria pessoa também marca pelo WhatsApp.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <DatePicker
+                  tone="vidro"
+                  value={rascunho.ausente_de}
+                  onChange={(v) => setRascunho({ ...rascunho, ausente_de: v })}
+                  placeholder="De (opcional)"
+                  controlClass={CAMPO}
+                  wrapperClass="flex-1 min-w-[9rem]"
+                  ariaLabel="Primeiro dia da ausência"
+                  allowClear
+                />
+                <DatePicker
+                  tone="vidro"
+                  value={rascunho.ausente_ate}
+                  onChange={(v) => setRascunho({ ...rascunho, ausente_ate: v })}
+                  placeholder="Até"
+                  controlClass={CAMPO}
+                  wrapperClass="flex-1 min-w-[9rem]"
+                  ariaLabel="Último dia da ausência"
+                  allowClear
+                />
+                <input
+                  className={`${CAMPO} flex-1 min-w-[9rem]`}
+                  value={rascunho.ausencia_motivo}
+                  onChange={(e) => setRascunho({ ...rascunho, ausencia_motivo: e.target.value })}
+                  placeholder="Motivo (ex.: férias)"
+                  aria-label="Motivo da ausência"
+                />
+              </div>
+              {!ausenciaValida(rascunho) && (
+                <p className="mt-1 text-[11px] text-red-600">{rascunho.ausente_ate ? 'O primeiro dia vem depois do último.' : 'Escolha também o último dia da ausência.'}</p>
+              )}
+            </div>
           </div>
         )}
       </EvaModal>

@@ -12,6 +12,7 @@
 > - **Cobrança e aviso pelo grupo (16/Out/2026, D35):** nos pedidos do gestor, quem não recebe pelo WhatsApp é citado no grupo da equipe (§10, §11.6, issue 24).
 > - **Aviso para a equipe toda (04/Nov/2026, D36):** "avisa todo mundo que…", no privado de cada um, pelo chat e pelo WhatsApp, com uma confirmação só (§11.6, issue 25).
 > - **Gestor executa direto (04/Nov/2026, D37):** o gestor confirma e a EVA aplica o pedido dele na hora, sem passar pela fila, pelo chat e pelo WhatsApp (§11.4, issue 26).
+> - **Saúde das integrações, ausências e 1:1 (24/Nov/2026, D39 a D41):** quem configura é avisado quando Granola, VPS, WhatsApp ou IA param; férias e folgas pausam a cobrança; "prepara minha 1:1 com o Bruno" (§11.8, issues 28 a 30).
 > - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
@@ -104,6 +105,9 @@ Entregáveis, na ordem em que geram valor:
 | **D36** | Aviso para a equipe toda | ✅ **Fechado (04/Nov), pedido do usuário** ("ela não consegue encaminhar para todos os membros de uma vez"). Detalhes na §11.6.<br>• **Como chega (escolha do usuário):** no privado de cada um, "📢 Aviso de <quem pediu>: …". Quem não tem WhatsApp é citado numa mensagem só no grupo da equipe (D35); sem grupo escolhido, fica de fora, e a prévia diz quem. "Avisa no grupo" continua sendo o post no grupo (D29).<br>• **Quem recebe (escolha do usuário):** todos os ativos da aba Membros, menos quem pede, com ou sem a adesão à cobrança (como na D32). Usuário removido ou desativado, não.<br>• **Onde (escolha do usuário):** no chat do Início, um cartão só ("Aviso para a equipe"), com quem recebe, o texto editável e "Enviar para todos"; pelo WhatsApp, a intenção `avisar_equipe` ("avisa todo mundo que…"), com a prévia e um SIM só.<br>• **Só gestor** (`canManageAgenteTI`), conferido de novo no envio. Segue o horário da EVA.<br>• O limite de 3 avisos por resposta do chat continua para os avisos a pessoas específicas.<br>• Migration `20261104120000_eva_aviso_equipe_gestor_direto.sql`: o comando `avisar_equipe`. | Fase 4 |
 | **D37** | Gestor executa direto, sem a fila | ✅ **Fechado (04/Nov), pedido do usuário** ("se o usuário for gestor, ele pode pedir para a eva executar ações diretamente, sem necessidade de ir para a fila de aprovação, tanto via chat quanto whatsapp"). Muda a D28 e a D31 só para o próprio pedido do gestor. Detalhes na §11.4.<br>• **O que muda:** o gestor (`canManageAgenteTI`) passa a fazer o que quem aprova já fazia: confirma e a EVA aplica na hora. No chat e nos comentários da EVA, o botão é "Aprovar e executar". Pelo WhatsApp, a prévia e o SIM, no pedido de mudança e também no andamento contado ("IT-045 concluída", "IT-052 vai para sexta"), que antes ia para a fila para qualquer pessoa.<br>• **A confirmação continua:** nada muda sem o clique ou o SIM (interpretação, para conferir com o usuário: "diretamente" é sem a fila, não sem confirmar).<br>• **Só o próprio pedido:** no banco, o gestor aplica só a sugestão que ele pediu (chat, comentário ou WhatsApp). Sugestão de reunião ou de outra pessoa continua sendo de quem aprova (`canApproveAgenteTI`), na tela de Sugestões e no "aprovar 1 e 3".<br>• **O histórico não muda:** a sugestão continua gravada, "aprovada" pelo gestor, em EVA → Sugestões; o responsável do card é avisado como antes.<br>• Quem aprova também passa a ter o andamento que conta aplicado na hora, com SIM.<br>• Migration `20261104120000_eva_aviso_equipe_gestor_direto.sql`: `ti_agente_aprovar_sugestao_como` e `ti_agente_propor_sugestao` aceitam o gestor no próprio pedido. | Fase 4 |
 | **D38** | A EVA para a gestão | ✅ **Fechado (13/Nov), pedido do usuário** ("preciso que a EVA passe a me encaminhar no WhatsApp um relatório de gestão, diferente do de cobrança"; "ela precisa funcionar melhor para função de gestão"). Ele escolheu as quatro partes propostas. Detalhes na §11.7.<br>• **Relatório (escolha do usuário: diário e semanal):** todo dia útil por volta das 8h, o retrato do Kanban e dos chamados e o que pede atenção; na segunda, o da semana anterior, com entregas, chamados e tempo médio de resolução comparados com a semana de antes, por pessoa e por projeto.<br>• **Conteúdo (escolha do usuário: tudo):** Kanban e atrasos, chamados dos usuários (fila, fora do prazo para iniciar, tempo médio de resolução), pessoas e projetos, e as pendências do gestor (sugestões aguardando, cobranças sem resposta). Os números saem das regras do Início e do painel das Solicitações de TI; nada é escrito pela IA.<br>• **Quem recebe (escolha do usuário):** o gestor que marcar "Recebe o relatório de gestão" na aba Membros, com WhatsApp. O papel é conferido no envio.<br>• **Na hora:** "relatório" ou "como foi a semana?" pelo WhatsApp.<br>• **Perguntas de gestão:** no chat e no WhatsApp, o gestor recebe o PAINEL DE GESTÃO no contexto, e a IA responde com os números dele.<br>• **Alertas na hora:** chamado de prioridade alta ou crítica fora do prazo para iniciar, card crítico que atrasou e projeto em risco, para o gestor que marcar "Recebe alertas". Uma vez por acontecimento, até 5 por dia, no horário da EVA. Rodam no script da VPS a cada 10 min, porque a Vercel do plano Hobby só agenda cron uma vez por dia.<br>• Migration `20261113150100_eva_relatorio_gestao.sql`: as duas adesões e os tipos `relatorio` e `alerta`. | Fase 4 |
+| **D39** | Saúde das integrações | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário** (o Granola ficou dias parado pela assinatura vencida, e só ele percebeu). Detalhes na §11.8.<br>• **O que vigia:** Granola com erro ou parado, VPS sem sinal, sessão do WhatsApp desconectada e IA sem responder.<br>• **Quem é avisado:** quem configura a EVA, no sino sempre e no WhatsApp quando o problema não é o próprio WhatsApp. O aviso sai quando o problema aparece, de novo a cada 24 h e quando se resolve.<br>• **Onde roda:** nos crons das 8h, 9h e 18h (a Vercel é quem vê a VPS parar).<br>• O erro do Granola com a assinatura inativa passa a dizer isso, e não "sem acesso à pasta".<br>• Migration `20261124153700_eva_saude_e_ausencias.sql` (tabela `ti_agente_saude`). | Fase 4 |
+| **D40** | Ausências da equipe | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.8.<br>• **Onde:** na aba Membros (de, até, motivo) e pelo WhatsApp ("vou estar de férias de 01/12 a 05/12", "voltei"); o gestor marca a de outra pessoa.<br>• **Efeito:** sem cobrança no período, nem a da manhã nem a pedida pelo gestor; fora da conta de sobrecarga; o relatório avisa dos cards que vencem na ausência e sugere quem cobre.<br>• Quem marca a própria avisa os gestores no sino.<br>• Migration `20261124153700_eva_saude_e_ausencias.sql` (`ausente_de`, `ausente_ate`, `ausencia_motivo`). | Fase 4 |
+| **D41** | Preparação de 1:1 | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.8.<br>• "Prepara minha 1:1 com o Bruno", pelo WhatsApp e no chat, só o gestor.<br>• **A pauta** é montada pelo sistema: entregas, atrasados, parados, o que vence, cobranças sem resposta, a ausência e o que a última reunião combinou com a pessoa. Os pontos para conversar saem de regras fixas.<br>• Sem migration. | Fase 4 |
 
 ---
 
@@ -970,6 +974,56 @@ O painel do gestor fica em `src/modules/eva/domain/gestao.ts` (`montarPainelGest
 - os tipos `relatorio` e `alerta` em `ti_agente_mensagens`.
 
 O relatório e o alerta entram na conversa recente do gestor (§11.5), para ele perguntar "e a Ana?" em cima deles. O histórico do membro mostra "Relatório de gestão" e "Alerta de gestão".
+
+### 11.8 Saúde das integrações, ausências e 1:1 (D39, D40, D41)
+
+**Saúde das integrações (D39):**
+- **As regras** ficam em `src/modules/eva/domain/saude.ts` (`diagnosticarSaude`). São as mesmas dos chips do Início (`integracoes.ts` passou a importar os limites daqui), com mais folga para a VPS.
+  - `granola_erro`: a sincronização gravou erro. `explicarErroGranola` diz a causa e o que fazer; por exemplo, "a assinatura do workspace do Granola está inativa", o 403 `SUBSCRIPTION_INACTIVE` de 22/Out, que agora o cliente do Granola reconhece.
+  - `granola_parou`: mais de 4 dias sem sincronizar.
+  - `waha_sem_sinal`: a VPS sem dar sinal há mais de 15 min. O chip do Início usa 5 min.
+  - `waha_desconectado`: a sessão do WhatsApp não está `WORKING` (o QR code, o WAHA fora do ar). `STARTING` não avisa.
+  - `ia_fora`: nas últimas 2 h, 3 ou mais chamadas que falharam no Gemini, a última tentativa, e nenhuma que deu certo.
+- **A tabela `ti_agente_saude`** guarda um problema por linha. Ele é avisado quando aparece, de novo a cada 24 h enquanto continuar ("continua") e quando se resolve ("O Granola voltou a sincronizar").
+- **Quem recebe:** quem configura a EVA (`canConfigureAgenteTI`).
+  - O sino recebe sempre.
+  - O WhatsApp recebe quando quem configura tem número na aba Membros e o problema não é o próprio WhatsApp (VPS ou sessão). A mensagem é do tipo `alerta`, com a chave `saude:…`, e não conta para o limite dos alertas de gestão.
+- **Onde roda:** nos crons do dia, a cobrança às 8h, a sincronização às 9h e o fechamento às 18h, por `verificarSaudeSemFalhar`, que nunca derruba o cron e não roda no `dryRun`. É a Vercel que vê a VPS parar.
+
+**Ausências (D40):**
+- **Onde:** na aba Membros, em Editar, com o primeiro dia (opcional; sem ele, desde já), o último dia e o motivo. Pelo WhatsApp, a intenção `ausencia`:
+  - "vou estar de férias de 01/12 a 05/12" e "amanhã vou faltar" marcam;
+  - "voltei" desfaz;
+  - o gestor marca a de outra pessoa ("o Bruno está de folga até sexta").
+- **Regras** (`domain/ausencia.ts`): o último dia é obrigatório, sem passado e até 120 dias. Quando a própria pessoa marca, os gestores são avisados no sino, com os cards dela que vencem no período.
+- **Efeito na cobrança:** ninguém cobra quem está ausente, nem a cobrança da manhã nem a pedida pelo gestor. Com todos os responsáveis fora, a recusa diz até quando ("Bruno está de férias até 05/12: a cobrança do IT-031 fica para a volta"), e o botão Cobrar do Início também.
+- **Efeito no relatório de gestão:**
+  - quem já está fora não entra na sobrecarga;
+  - a lista por pessoa mostra a ausência;
+  - a "Atenção" avisa de quem sai em até 7 dias e deixa card vencendo no período, com quem pode cobrir: o presente com menos cards abertos (`coberturas`).
+- Os lembretes e os avisos para a pessoa continuam saindo.
+
+**Preparação de 1:1 (D41):**
+- **Como pedir:** "prepara minha 1:1 com o Bruno". Pelo WhatsApp, a intenção `preparar_1a1`, com `pessoa_id`. No chat, o campo `pauta_1a1`, e o servidor troca a resposta pela pauta. Só o gestor.
+- **O que a pauta traz** (`montarPautaUmAUm`, no painel dos últimos 7 dias):
+  - as entregas comparadas com os 7 dias antes, e os abertos, atrasados e parados;
+  - a ausência marcada;
+  - os atrasados, os parados, o que vence em 7 dias e as cobranças sem resposta;
+  - o que a última reunião combinou com a pessoa (`lerDaReuniaoParaPessoa`, a mesma leitura do "o dia de…").
+- **Os pontos para conversar** saem de regras fixas:
+  - repactuar o que está atrasado há mais de 7 dias;
+  - destravar o parado;
+  - as cobranças sem resposta;
+  - carga 50% acima da média da equipe;
+  - quem cobre durante a ausência;
+  - reconhecer as entregas, ou entender por que não houve.
+- **Formatos:** WhatsApp, com • e emojis, ou chat, com negrito e listas do `TextoEva`.
+
+**Conferido com o Claude real, dados fictícios:** as 8 frases de ausência e de 1:1 viraram a intenção certa, com as datas, a pessoa e o motivo, pelo WhatsApp e no chat. No meio do teste, a conta da Anthropic ficou sem crédito. As três últimas foram refeitas e reconhecidas, provavelmente já pelo Gemini.
+
+**Migration `20261124153700_eva_saude_e_ausencias.sql`:**
+- a tabela `ti_agente_saude`, com leitura para quem configura;
+- `ti_agente_membros.ausente_de`, `ausente_ate` e `ausencia_motivo`, com o check de que o fim não vem antes do início.
 
 ---
 
