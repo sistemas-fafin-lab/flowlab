@@ -15,4 +15,4 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 ## Comments
 
 - Implementada como `prazosDasRequisicoes` em `api/_lib/faturamento/recursoGlosa.ts`. A `prazosDoLote` (lista de Lotes de recurso) tira dela a regra do selo e divide o mesmo cálculo de datas; o handler não mudou.
-- Para o ticket do Aging (07): com data real de retorno e regra de Análise "sem prazo", a função dá data de pagamento (o retorno real é a base). O spec do Aging diz que "convênio sem regra de Análise" vai para "Fora das faixas". Confirmar qual vale.
+- Para o ticket do Aging (07): com data real de retorno e regra de Análise "sem prazo", a função dá data de pagamento (o retorno real é a base). O spec do Aging diz que "convênio sem regra de Análise" vai para "Fora das faixas". Confirmar qual vale. **Decidido (26/11/2026): fica fora das faixas.** Registrado no spec e na issue 07; esta função não muda.

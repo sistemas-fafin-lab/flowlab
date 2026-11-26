@@ -9,5 +9,6 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 **Status:** ready-for-agent
 
 - [ ] Funções puras de aging (a partir dos prazos por requisição da issue 02) e de saldo por operadora, com testes dos limites de faixa (0, 30, 31, 60, 61, 90, 91), "A vencer", fora das faixas e "Outras".
+- [ ] Convênio sem regra de Análise (sem vínculo ou "sem prazo") vai para "Fora das faixas" mesmo quando há data real de retorno e `prazosDasRequisicoes` dá data de pagamento (decisão de 26/11/2026). Teste para esse caso.
 - [ ] O saldo por operadora usa a mesma classe "em disputa" do card Saldo pendente.
 - [ ] Respeita o filtro de convênio; gráficos no padrão do Aging da carteira e do Saldo por operadora do Contas a Receber, nos temas claro e escuro.

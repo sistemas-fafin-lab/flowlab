@@ -177,6 +177,7 @@ Cada requisição da foto do período é classificada pela mesma função de fun
 - **Valor:** recursado − recebido de glosa.
 - **Faixa:** dias de hoje − data de pagamento prevista. Data não alcançada = "A vencer".
 - **Fora das faixas:** requisição sem data de envio ou de convênio sem regra de Análise ou de Pagamento. O valor aparece numa nota acima do gráfico.
+  - Convênio sem regra de Análise (sem vínculo ou "sem prazo") fica fora **mesmo com data real de retorno**, ainda que os prazos por requisição deem uma data de pagamento a partir dela (decisão de 26/11/2026). A lista de Lotes de recurso e o card de pagamento atrasado continuam usando essa data.
 - **Visual:** empilhado por operadora, com as 7 maiores e "Outras", no padrão do aging do Contas a Receber. O recorte é próprio: não copia as exclusões do aging de títulos.
 
 ### Saldo de glosa por operadora
