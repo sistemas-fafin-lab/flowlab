@@ -4,7 +4,10 @@
 export type ProvedorIA = 'claude' | 'gemini';
 export type Esforco = 'low' | 'medium' | 'high';
 /** Mesmos valores do CHECK de ti_agente_chamadas_ia.finalidade. */
-export type Finalidade = 'analise_reuniao' | 'resposta_whatsapp' | 'chat' | 'analise_chamado';
+export type Finalidade = 'analise_reuniao' | 'resposta_whatsapp' | 'chat' | 'analise_chamado' | 'transcricao_audio' | 'rascunho_resolucao';
+
+/** Um arquivo junto do pedido (D43): o áudio do WhatsApp, em base64. Só o Gemini ouve áudio. */
+export interface AnexoIA { mimetype: string; base64: string }
 
 /** Mesmos valores do CHECK de ti_agente_chamadas_ia.resultado. */
 export type ResultadoChamada = 'ok' | 'erro' | 'configuracao' | 'recusa' | 'cortada' | 'schema_invalido';
@@ -19,6 +22,10 @@ export interface PedidoIA {
   /** JSON Schema da saída (já convertido do zod). */
   schema: Record<string, unknown>;
   esforco: Esforco;
+  /** Arquivos que vão antes do conteúdo (D43). */
+  anexos?: AnexoIA[];
+  /** Só o Gemini usa (D43: a transcrição vai com 0, para não inventar fala). */
+  temperatura?: number;
 }
 
 export interface TentativaIA {

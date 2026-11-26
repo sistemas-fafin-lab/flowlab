@@ -101,6 +101,17 @@ describe('resumoKanban', () => {
     expect(done.total).toBe(1);
     expect(concluidoNaSemana(antigo, HOJE)).toBe(false);
   });
+  it('D42: vale a data da resolução (resolved_at); editar depois não muda a semana da entrega', () => {
+    // Resolvido na sexta anterior e comentado nesta segunda: não é desta semana.
+    const editadoDepois = card({ kanban_status: 'done', resolved_at: '2026-10-09T15:00:00Z', updated_at: '2026-10-12T10:00:00Z' });
+    // Resolvido nesta segunda às 23h de Brasília (terça em UTC): é desta semana.
+    const noiteDeSegunda = card({ kanban_status: 'done', resolved_at: '2026-10-13T02:00:00Z', updated_at: '2026-10-13T02:00:00Z' });
+    expect(concluidoNaSemana(editadoDepois, HOJE)).toBe(false);
+    expect(concluidoNaSemana(noiteDeSegunda, HOJE)).toBe(true);
+    // Concluído ontem e comentado hoje não volta para o "meu dia".
+    const feitoOntem = card({ assigned_to: ['u1'], due_date: '2026-10-12', kanban_status: 'done', status: 'resolved', resolved_at: '2026-10-12T14:00:00Z', updated_at: '2026-10-13T11:00:00Z' });
+    expect(tasksDoDia([feitoOntem], 'u1', HOJE)).toEqual([]);
+  });
 });
 
 describe('ordenarAtrasados', () => {

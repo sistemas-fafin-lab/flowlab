@@ -34,12 +34,15 @@ vi.mock('./aviso.js', async (original) => ({
     ok: true, ids: ['a1', 'a2', 'a3'], para: ['Bruno Mendes', 'Caio Lima'], citadosNoGrupo: ['Dani'], grupoNome: 'TI FAFIN', semDestino: [], agendadaPara: null,
   })),
 }));
+// D43: a imagem que espera o código do card (anexos.ts tem os próprios testes, em midia.test).
+vi.mock('./anexos.js', () => ({ anexarAguardando: vi.fn(async () => null) }));
 vi.mock('./gestao.js', () => ({
   relatorioAgora: vi.fn(async (_db: unknown, recorte: string) => `RELATÓRIO (${recorte})`),
   lerBlocoGestao: vi.fn(async () => 'PAINEL DE GESTÃO (teste)'),
   lerPautaUmAUm: vi.fn(async (_db: unknown, pessoa: string, formato: string) => `PAUTA (${pessoa}, ${formato})`),
 }));
 
+import { anexarAguardando } from './anexos.js';
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
 import { lerBlocoGestao, relatorioAgora } from './gestao.js';
 import { checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
@@ -277,6 +280,29 @@ describe('processarRecebida: equipe', () => {
     const pedido = gerarMock.mock.calls[0][0] as { contexto: string; finalidade: string };
     expect(pedido.finalidade).toBe('resposta_whatsapp');
     expect(pedido.contexto).not.toContain('IT-099');
+  });
+
+  it('D43: imagem esperando e só o código: anexa e confirma, sem IA', async () => {
+    vi.mocked(anexarAguardando).mockResolvedValueOnce({ codigos: ['IT-045'], imagens: 1 });
+    const r = await mandar('é do IT-045');
+    expect(r).toMatchObject({ acao: 'anexo', resposta: '📎 Anexei a imagem ao IT-045.' });
+    expect(anexarAguardando).toHaveBeenCalledWith(banco.db, expect.objectContaining({ membro: BRUNO, codigos: ['IT-045'] }));
+    expect(gerarMock).not.toHaveBeenCalled();
+  });
+
+  it('D43: imagem esperando e o código com mais texto: anexa e a resposta da IA vem depois do aviso', async () => {
+    vi.mocked(anexarAguardando).mockResolvedValueOnce({ codigos: ['IT-045'], imagens: 1 });
+    ia({ intencao: 'conversa', resposta: 'Vou olhar o erro.' });
+    const r = await mandar('IT-045 deu esse erro de novo');
+    expect(r.resposta).toBe('📎 Anexei a imagem ao IT-045.\n\nVou olhar o erro.');
+  });
+
+  it('D43: da imagem já anexada, o "atualizar" não comenta de novo; o prefixo vai na confirmação', async () => {
+    ia({ intencao: 'atualizar_cards', itens: [{ card_codigo: 'IT-045', intencao: 'atualizar', nova_data: '', prazo_texto: '' }] });
+    estado.texto = 'IT-045 deu esse erro de novo';
+    const r = await processarRecebida(banco.db as never, {} as Dependencias, 'msg1', AGORA, { prefixo: '📎 Anexei a imagem ao IT-045.', semComentarioEm: ['c1'] });
+    expect(banco.inserts.map((i) => i.tabela)).not.toContain('it_task_comments');
+    expect(r.resposta).toMatch(/^📎 Anexei a imagem ao IT-045\.\n\n/);
   });
 
   it('pedido de gestor vindo da equipe: recusa, sem comando', async () => {

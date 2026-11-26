@@ -8,7 +8,7 @@ import { chamarEva } from './agenteApi';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card' | 'promover_card';
 export type StatusSugestao = 'pendente' | 'aprovada' | 'rejeitada' | 'substituida';
-export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain';
+export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain' | 'triagem';
 
 export interface PropostaCard {
   titulo?: string;
@@ -364,14 +364,21 @@ export const agenteAdmin = {
     return data as { status: string; erro: string | null } | null;
   },
 
-  /** Histórico de um membro (RF21): enviadas, falhas e recebidas. */
-  async historicoMembro(membroId: string): Promise<{ id: string; direcao: 'saida' | 'entrada'; tipo: string; texto: string; status: string; erro: string | null; created_at: string; enviada_em: string | null }[]> {
-    const { data, error } = await supabase
+  /** Histórico de um membro (RF21): enviadas, falhas e recebidas; o áudio e a imagem marcados (D43). */
+  async historicoMembro(membroId: string): Promise<{
+    id: string; direcao: 'saida' | 'entrada'; tipo: string; texto: string; status: string; erro: string | null; created_at: string; enviada_em: string | null;
+    midia_tipo?: 'audio' | 'imagem' | null; midia_status?: string | null;
+  }[]> {
+    const ler = (campos: string) => supabase
       .from('ti_agente_mensagens')
-      .select('id, direcao, tipo, texto, status, erro, created_at, enviada_em')
+      .select(campos)
       .eq('membro_id', membroId)
       .order('created_at', { ascending: false })
       .limit(30);
+    const base = 'id, direcao, tipo, texto, status, erro, created_at, enviada_em';
+    let { data, error } = await ler(`${base}, midia_tipo, midia_status`);
+    // Sem a migration de D43, as colunas de mídia não existem: o histórico sai sem elas.
+    if (error && /midia_/.test(error.message)) ({ data, error } = await ler(base));
     erro(error);
     return (data ?? []) as never;
   },

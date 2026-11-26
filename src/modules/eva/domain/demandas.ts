@@ -22,6 +22,8 @@ export interface CardTI {
   sprint_id: string | null;
   updated_at: string;
   created_at: string;
+  /** Quando virou "resolvido" (gravado pelo banco desde 23/10/2026). Sem ele, vale o updated_at (D42). */
+  resolved_at?: string | null;
 }
 
 export const COLUNAS: ColunaKanban[] = ['backlog', 'todo', 'in_progress', 'review', 'done'];
@@ -82,10 +84,17 @@ export function ehDoUsuario(card: CardTI, usuarioId: string): boolean {
   return (card.assigned_to ?? []).includes(usuarioId);
 }
 
-/** Concluído nesta semana (segunda a hoje), pelo updated_at — não há coluna de conclusão. */
+/**
+ * O dia em que o card foi concluído (D42): o resolved_at, que o banco grava quando ele vira
+ * "resolvido"; sem ele (só na coluna Concluído, ou antes de 23/10), o updated_at, que muda a
+ * cada edição e por isso é só uma aproximação.
+ */
+export const diaDaConclusao = (card: CardTI): Dia => diaSP(card.resolved_at ?? card.updated_at);
+
+/** Concluído nesta semana (segunda a hoje). */
 export function concluidoNaSemana(card: CardTI, hoje: Dia): boolean {
   if (!estaVisivel(card) || !estaConcluido(card)) return false;
-  const dia = diaSP(card.updated_at);
+  const dia = diaDaConclusao(card);
   return dia >= inicioDaSemana(hoje) && dia <= hoje;
 }
 
@@ -100,7 +109,7 @@ export function tasksDoDia(cards: CardTI[], usuarioId: string, hoje: Dia): CardT
     .filter((c) => {
       const venc = diaVencimento(c);
       if (venc === null || venc > hoje) return false;
-      return estaAberto(c) || diaSP(c.updated_at) === hoje;
+      return estaAberto(c) || diaDaConclusao(c) === hoje;
     })
     .sort((a, b) => {
       const va = diaVencimento(a)!;

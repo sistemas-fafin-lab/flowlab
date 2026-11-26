@@ -2,25 +2,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 vi.mock('../supabase.js', () => ({ getSupabaseAdminClient: vi.fn() }));
-vi.mock('../ti-agente/comandos.js', () => ({ processarRecebida: vi.fn(async () => ({ ok: true })) }));
+vi.mock('../ti-agente/comandos.js', () => ({ processarRecebida: vi.fn(async () => ({ ok: true })), responder: vi.fn(async () => undefined) }));
 vi.mock('../ti-agente/servicos.js', () => ({ dependenciasIA: vi.fn(() => ({})) }));
 vi.mock('@vercel/functions', () => ({ waitUntil: vi.fn() }));
 
 import { getSupabaseAdminClient } from '../supabase.js';
-import { processarRecebida } from '../ti-agente/comandos.js';
+import { processarRecebida, responder } from '../ti-agente/comandos.js';
+import { AUDIO_AINDA_NAO } from '../../../src/modules/eva/domain/midia.js';
 import handler from './ti-waha-webhook.js';
 
 const dbMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;
 const processarMock = processarRecebida as ReturnType<typeof vi.fn>;
+const responderMock = responder as ReturnType<typeof vi.fn>;
 
-function criarDb(opcoes: { insertErro?: { code: string; message: string }; saida?: { id: string; status: string } | null } = {}) {
+function criarDb(opcoes: {
+  insertErro?: { code: string; message: string };
+  saida?: { id: string; status: string } | null;
+  /** ti_agente_config: o que a VPS anunciou (D43). */
+  config?: { vps_recursos: string[]; waha_verificado_em: string } | null;
+} = {}) {
   const inserts: Record<string, unknown>[] = [];
   const updates: { dados: Record<string, unknown>; filtros: unknown[][] }[] = [];
-  const from = () => {
+  const from = (tabela: string) => {
     const filtros: unknown[][] = [];
     const q: Record<string, unknown> = {};
     for (const m of ['select', 'eq', 'like', 'limit']) q[m] = (...a: unknown[]) => { filtros.push([m, ...a]); return q; };
-    q.maybeSingle = async () => ({ data: opcoes.saida ?? null, error: null });
+    q.maybeSingle = async () => ({ data: tabela === 'ti_agente_config' ? (opcoes.config ?? null) : (opcoes.saida ?? null), error: null });
     q.single = async () => (opcoes.insertErro ? { data: null, error: opcoes.insertErro } : { data: { id: 'nova' }, error: null });
     q.then = (ok: (v: unknown) => unknown) =>
       Promise.resolve({ data: [{ id: 'm-bruno', user_id: 'u-bruno', whatsapp: '5561999924986', whatsapp_chat_id: null, ativo: true }], error: null }).then(ok);
@@ -110,6 +117,44 @@ describe('POST /api/ti/waha-webhook', () => {
     await handler(req({ event: 'message.ack', session: 'eva', payload: { id: 'true_x@c.us_B', ack: 2 } }), api2);
     expect(r2.body).toMatchObject({ ack: 'sem mudança' });
     expect(outro.updates).toEqual([]);
+  });
+
+  describe('áudio e imagem (D43)', () => {
+    const URL_AUDIO = 'http://localhost:3000/api/files/eva/false_x_AAA.oga';
+    const audio = () => mensagem('556199924986@c.us', { body: '', hasMedia: true, media: { url: URL_AUDIO, mimetype: 'audio/ogg; codecs=opus' } });
+
+    it('com a VPS nova: grava a mídia pendente e espera a VPS baixar, sem interpretar', async () => {
+      const { db, inserts } = criarDb({ config: { vps_recursos: ['midia', 'relogio'], waha_verificado_em: new Date().toISOString() } });
+      dbMock.mockReturnValue(db);
+      const { r, api } = res();
+      await handler(req(audio()), api);
+      expect(r.body).toMatchObject({ recebida: 'nova', aguardando: 'vps' });
+      expect(inserts[0]).toMatchObject({
+        membro_id: 'm-bruno', texto: '(áudio)', midia_tipo: 'audio', midia_mimetype: 'audio/ogg; codecs=opus', midia_url: URL_AUDIO, midia_status: 'pendente',
+      });
+      expect(processarMock).not.toHaveBeenCalled();
+      expect(responderMock).not.toHaveBeenCalled();
+    });
+
+    it('sem a VPS nova (ou parada): responde que ainda não ouve áudio, sem as colunas de mídia', async () => {
+      const { db, inserts } = criarDb({ config: { vps_recursos: ['midia'], waha_verificado_em: '2026-01-01T00:00:00Z' } });
+      dbMock.mockReturnValue(db);
+      const { api } = res();
+      await handler(req(audio()), api);
+      expect(inserts[0]).not.toHaveProperty('midia_status');
+      expect(responderMock).toHaveBeenCalledWith(db, 'm-bruno', AUDIO_AINDA_NAO);
+      expect(processarMock).not.toHaveBeenCalled();
+    });
+
+    it('figurinha: registrada, sem resposta', async () => {
+      const { db } = criarDb({ config: { vps_recursos: ['midia'], waha_verificado_em: new Date().toISOString() } });
+      dbMock.mockReturnValue(db);
+      const { r, api } = res();
+      await handler(req(mensagem('556199924986@c.us', { body: '', hasMedia: true, media: { url: URL_AUDIO, mimetype: 'image/webp' } })), api);
+      expect(r.body).toMatchObject({ ignorado: 'figurinha' });
+      expect(processarMock).not.toHaveBeenCalled();
+      expect(responderMock).not.toHaveBeenCalled();
+    });
   });
 
   it('sem WAHA_WEBHOOK_SECRET configurado: 503', async () => {

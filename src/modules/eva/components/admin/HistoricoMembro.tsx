@@ -20,6 +20,13 @@ const TIPO: Record<string, string> = {
 };
 const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
+/** D43: o áudio aparece transcrito; a imagem, com onde foi parar. */
+const MIDIA: Record<string, string> = { audio: '🎤 Áudio', imagem: '📎 Imagem' };
+const SITUACAO_MIDIA: Record<string, string> = {
+  pendente: 'baixando', baixada: 'baixando', processando: 'tratando', nao_baixou: 'não baixou', erro: 'não entendi',
+  aguardando_card: 'esperando o código do card', expirada: 'sem card (expirou)',
+};
+
 /** Histórico de mensagens de um membro (RF21): enviadas, falhas (com o erro) e recebidas. */
 const HistoricoMembro: React.FC<{ membroId: string; versao: number }> = ({ membroId, versao }) => {
   const [linhas, setLinhas] = useState<Linha[] | null>(null);
@@ -44,7 +51,10 @@ const HistoricoMembro: React.FC<{ membroId: string; versao: number }> = ({ membr
           <li key={m.id} className={`rounded-xl px-3 py-2 text-xs ${m.direcao === 'entrada' ? 'bg-emerald-500/[.06]' : 'bg-white/70 dark:bg-slate-900/50'}`}>
             <div className="flex items-center justify-between gap-2">
               <span className="font-semibold text-slate-600 dark:text-slate-300">
-                {m.direcao === 'entrada' ? '← ' : '→ '}{TIPO[m.tipo] ?? m.tipo} · {quando(m.enviada_em ?? m.created_at)}
+                {m.direcao === 'entrada' ? '← ' : '→ '}{(m.midia_tipo && MIDIA[m.midia_tipo]) || TIPO[m.tipo] || m.tipo} · {quando(m.enviada_em ?? m.created_at)}
+                {m.midia_status && SITUACAO_MIDIA[m.midia_status] && (
+                  <span className="font-normal text-slate-400 dark:text-slate-500"> · {SITUACAO_MIDIA[m.midia_status]}</span>
+                )}
               </span>
               <StatusBadge tone={r.tom}>{r.texto}</StatusBadge>
             </div>

@@ -5,12 +5,13 @@
 // A api/ (NodeNext) importa este arquivo: os imports levam ".js".
 import { diaSP, diferencaDias, ehDiaUtil, formatarDiaMes, inicioDaSemana, pluralDias, somarDias, diaDaSemana, type Dia } from './datas.js';
 import {
-  diasDeAtraso, diaVencimento, ehDoUsuario, estaAberto, estaConcluido, estaParado, estaVisivel, ordenarAtrasados,
+  diaDaConclusao, diasDeAtraso, diaVencimento, ehDoUsuario, estaAberto, estaConcluido, estaParado, estaVisivel, ordenarAtrasados,
   type CardTI, type ColunaKanban, type Prioridade, type StatusChamado,
 } from './demandas.js';
 import { projetosEmAndamento, tempoDecorrido, type ProjetoTI, type ResumoProjeto, type SprintTI } from './projetos.js';
 import { ausenciaProxima, descreverAusencia, estaAusente, inicioDaAusencia, type Ausencia } from './ausencia.js';
 import { nomeParaCitar } from './pessoas.js';
+import type { FotoDia } from './tendencias.js';
 import { getSlaStatus } from '../../../utils/itSla.js';
 import { formatarDuracao } from '../../../utils/itDashboard.js';
 
@@ -81,6 +82,8 @@ export interface EntradaGestao {
   cardsSemResposta: string[];
   /** Ausência marcada de cada pessoa (D40), por user id. */
   ausencias?: Record<string, Ausencia>;
+  /** A foto diária mais recente antes do período (D42): "eram 9 atrasados em 06/11". */
+  fotoAnterior?: FotoDia | null;
 }
 
 // ── O painel ─────────────────────────────────────────────────────────────────
@@ -134,6 +137,10 @@ export interface PainelGestao {
   pendencias: { sugestoes: number; sugestaoHaDias: number | null; cobrancasSemResposta: number };
   /** Ausências com cards vencendo no período, e quem pode cobrir (o presente com menos abertos). */
   coberturas: CoberturaAusencia[];
+  /** D42: a foto de antes do período, para comparar (null sem foto ainda). */
+  fotoAnterior: FotoDia | null;
+  /** D42: cards concluídos por semana, nas últimas 4 (a última é a atual, até hoje). */
+  entregasSemanas: { semana: Dia; entregas: number }[];
   /** Como cada pessoa aparece no texto: o primeiro nome, ou o inteiro quando há xará. */
   nomes: Record<string, string>;
 }
@@ -150,7 +157,7 @@ export function montarPainelGestao(e: EntradaGestao): PainelGestao {
   const atrasados = ordenarAtrasados(visiveis, hoje);
   const desde = diaUtilAnterior(hoje);
   const parado = (c: CardTI) => estaParado(c, hoje, e.diasParado, e.ultimoComentario?.[c.id] ?? null);
-  const concluidoEm = (c: CardTI, p: Periodo) => estaConcluido(c) && noPeriodo(diaSP(c.updated_at), p);
+  const concluidoEm = (c: CardTI, p: Periodo) => estaConcluido(c) && noPeriodo(diaDaConclusao(c), p);
 
   // Chamados: as contas do painel das Solicitações de TI, com o período em dias de Brasília.
   const agora = new Date(e.agora);
@@ -248,6 +255,11 @@ export function montarPainelGestao(e: EntradaGestao): PainelGestao {
       cobrancasSemResposta: e.cardsSemResposta.length,
     },
     coberturas,
+    fotoAnterior: e.fotoAnterior ?? null,
+    entregasSemanas: [3, 2, 1, 0].map((i) => {
+      const semana = somarDias(inicioDaSemana(hoje), -7 * i);
+      return { semana, entregas: visiveis.filter((c) => concluidoEm(c, { de: semana, ate: somarDias(semana, 6) })).length };
+    }),
     nomes,
   };
 }
@@ -358,6 +370,10 @@ export function montarRelatorioSemanal(p: PainelGestao, linkInicio: string, reco
     'Agora',
     `• Kanban: ${linhaKanban(p)}`,
     `• Chamados: ${linhaChamados(p)}`,
+    // D42: a foto de antes do período diz se melhorou ou piorou.
+    ...(p.fotoAnterior
+      ? [`• Em ${formatarDiaMes(p.fotoAnterior.dia)}: ${n(p.fotoAnterior.atrasados, 'atrasado', 'atrasados')} e ${p.fotoAnterior.naFila} na fila (agora ${p.kanban.atrasados} e ${c.naFila})`]
+      : []),
     ...(pessoas.length
       ? ['', '👥 Por pessoa (concluídos · abertos · atrasados)', ...pessoas.map((x) => `• ${p.nomes[x.id] ?? '—'}: ${x.concluidos} · ${x.abertos} · ${x.atrasados}${x.ausencia ? ` (${x.ausencia})` : ''}`), ...restante(p.pessoas.length, pessoas.length)]
       : []),
@@ -399,6 +415,10 @@ export function montarBlocoGestao(p: PainelGestao): string {
     ...(p.coberturas.length
       ? ['Ausências com cards vencendo no período (D40):', ...p.coberturas.map((x) => `- ${nome(x.id)} ${x.ausencia}: ${x.vencem.map((c) => c.codigo).join(', ')}${x.sugestao ? `; pode cobrir: ${nome(x.sugestao)}` : ''}`)]
       : []),
+    `Entregas por semana (cards concluídos, das 4 últimas semanas, a última é a atual, até hoje): ${p.entregasSemanas.map((s) => `${formatarDiaMes(s.semana)}: ${s.entregas}`).join('; ')}.`,
+    ...(p.fotoAnterior
+      ? [`Tendência: em ${formatarDiaMes(p.fotoAnterior.dia)} eram ${p.fotoAnterior.abertos} abertos, ${p.fotoAnterior.atrasados} atrasados e ${p.fotoAnterior.naFila} chamados na fila (agora ${p.kanban.abertos}, ${p.kanban.atrasados} e ${c.naFila}).`]
+      : []),
   ].join('\n');
 }
 
@@ -431,7 +451,7 @@ export function montarPautaUmAUm(
   const vencem = abertos.filter((c) => { const v = diaVencimento(c); return v !== null && v >= hoje && diferencaDias(hoje, v) <= 7; })
     .sort((a, b) => diaVencimento(a)!.localeCompare(diaVencimento(b)!));
   const semResposta = dela.filter((c) => e.cardsSemResposta.includes(c.id));
-  const concluidos = (per: Periodo) => dela.filter((c) => estaConcluido(c) && noPeriodo(diaSP(c.updated_at), per)).length;
+  const concluidos = (per: Periodo) => dela.filter((c) => estaConcluido(c) && noPeriodo(diaDaConclusao(c), per)).length;
   const ausencia = e.ausencias?.[pessoaId];
   const sobreAusencia = ausencia && ausenciaProxima(ausencia, hoje) ? descreverAusencia(ausencia, hoje) : null;
 

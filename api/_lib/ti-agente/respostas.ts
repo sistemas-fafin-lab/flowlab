@@ -120,15 +120,20 @@ export interface SugestaoRegistrada { id: string; card: CardTI; proposta: Record
  */
 export async function registrarAtualizacoes(
   db: SupabaseClient,
-  e: { mensagemId: string; membro: Remetente; texto: string; itens: ItemResposta[]; confianca: SaidaResposta['confianca']; executa?: boolean },
+  e: {
+    mensagemId: string; membro: Remetente; texto: string; itens: ItemResposta[]; confianca: SaidaResposta['confianca']; executa?: boolean;
+    /** D43: cards que já têm o comentário (com a imagem anexada): não comenta de novo. */
+    semComentarioEm?: string[];
+  },
 ): Promise<{ sugestoes: SugestaoRegistrada[]; confirmacao: string; cardIds: string[] }> {
   const { mensagemId, membro, texto, itens } = e;
   const nome = membro.nome;
   const cardIds = itens.map((i) => i.card.id);
-  if (itens.length > 0) {
+  const comentar = itens.filter((i) => !(e.semComentarioEm ?? []).includes(i.card.id));
+  if (comentar.length > 0) {
     // Comentário no card, com as palavras da própria pessoa (D12).
     const { error: eCom } = await db.from('it_task_comments').insert(
-      itens.map((i) => ({ task_id: i.card.id, user_id: membro.user_id, content: `via WhatsApp: ${texto.slice(0, MAX_TEXTO)}` })),
+      comentar.map((i) => ({ task_id: i.card.id, user_id: membro.user_id, content: `via WhatsApp: ${texto.slice(0, MAX_TEXTO)}` })),
     );
     if (eCom) throw new Error(eCom.message);
   }

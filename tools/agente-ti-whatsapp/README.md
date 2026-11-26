@@ -24,12 +24,21 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts`, com testes. Este diretório só
 
 10. Por até 50 s, relê a fila a cada 5 s e repete os passos acima quando há mensagem pronta. Assim, a resposta da EVA a uma mensagem sai em segundos, e não no minuto seguinte. Com o envio desligado ou a sessão fora de `WORKING`, a execução termina logo.
 
-**Alertas de gestão (D38, plano §11.7):** nos minutos 0, 10, 20…, antes do passo 1, a execução confere os alertas:
-- chamado de prioridade alta ou crítica fora do prazo para iniciar;
-- card crítico que atrasou;
-- projeto em risco.
+**Relógio da Vercel (D44, plano §11.10):** nos minutos 0, 10, 20…, antes do passo 1, a execução chama `POST /api/ti/agente-relogio`. A Vercel do plano Hobby só agenda cron uma vez por dia; com o relógio, o que depende de hora fica na Vercel e muda com o deploy, sem gerar o pacote da VPS de novo. Hoje ele faz duas coisas:
+- confere os alertas de gestão (D38, plano §11.7): chamado de prioridade alta ou crítica fora do prazo para iniciar, card crítico que atrasou e projeto em risco;
+- retoma o áudio e a imagem que ficaram para trás.
 
-O que encontrar vai para a fila dos gestores que marcaram "Recebe alertas" na aba Membros e sai nos passos seguintes. A conferência mora aqui porque a Vercel do plano Hobby só agenda cron uma vez por dia. Ela só roda no horário da EVA e com o WhatsApp ligado, e uma falha vai para o log sem segurar a fila. **Para ligar, gere o pacote de novo e reinstale** (abaixo).
+O relógio precisa do `CRON_SECRET`. Sem ele, ou com a Vercel fora do ar, a VPS confere os alertas ela mesma, como antes.
+
+**Áudio e imagem (D43, plano §11.10):** o WAHA baixa o arquivo da mensagem recebida e guarda no `localhost` da VPS, onde a Vercel não alcança. A cada passada (a cada 5 s, dentro da janela de 50 s), a execução:
+1. pega as mensagens com a mídia `pendente`;
+2. baixa o arquivo do WAHA (`GET /api/files/…`, com a `X-Api-Key`);
+3. sobe para o bucket privado `ti-agente-midias`;
+4. avisa a Vercel (`POST /api/ti/agente-midia`). A Vercel transcreve o áudio ou anexa a imagem ao card, e a resposta entra na fila.
+
+O WAHA apaga o arquivo depois de alguns minutos. Se o download falhar por mais de 3 minutos, ou o arquivo passar de 10 MB, a EVA pede para a pessoa mandar de novo. Isso também depende do `CRON_SECRET`: sem ele, a VPS não anuncia o recurso, e o webhook responde ao áudio com "ainda não consigo ouvir áudio por aqui".
+
+**Para ligar os dois:** gere o pacote de novo e reinstale com o `CRON_SECRET` (abaixo).
 
 **Se o WAHA ou a VPS caírem, o resto da EVA continua funcionando:** Início, chat, reuniões, sugestões, aprovações e o botão Cobrar. As mensagens esperam na fila e saem quando o WAHA voltar, se ainda estiverem dentro da validade.
 
@@ -76,6 +85,14 @@ Há dois modos. O recomendado é o **arquivo único**: a VPS não precisa de uma
 
 **Para atualizar:** gere o pacote de novo, copie e rode o `install.sh` outra vez.
 
+**Para ligar o áudio, a imagem e o relógio (D43, D44):** rode o `install.sh` com o `CRON_SECRET`, o mesmo valor configurado na Vercel. As outras chaves são reaproveitadas do arquivo de ambiente:
+
+```bash
+ sudo ARQUIVO=~/eva-whatsapp.mjs CRON_SECRET=<o-mesmo-da-vercel> bash ~/install.sh
+```
+
+O espaço no começo da linha deixa o comando fora do histórico do bash.
+
 ### Checkout do repositório
 
 Com o repositório clonado na VPS e `npm ci` feito, troque `ARQUIVO=…` por `REPO_DIR=/caminho/do/flowlab`. O timer roda o `.ts` com `tsx`, e para atualizar basta `git pull && npm ci`.
@@ -115,6 +132,8 @@ O comando tem de rodar de dentro do checkout, ou apontar para o `eva-whatsapp.mj
 | `WAHA_API_KEY` | sim | — | Chave de API do WAHA (`X-Api-Key`) |
 | `WAHA_URL` | não | `http://127.0.0.1:3000` | O localhost da VPS. O script recusa uma URL do ngrok |
 | `WAHA_SESSION` | não | `eva` | Sessão do número da EVA (+55 61 9992-4986) |
+| `CRON_SECRET` | não | — | O mesmo da Vercel. Liga o áudio, a imagem e o relógio (D43, D44) |
+| `APP_URL` | não | `https://flow-lab.vercel.app` | A URL do app, para chamar a Vercel |
 
 Nenhuma delas leva o prefixo `VITE_`.
 
@@ -128,3 +147,6 @@ Nenhuma delas leva o prefixo `VITE_`.
 | "O número … não está no WhatsApp" na aba Membros | O número cadastrado está errado ou não tem WhatsApp |
 | Lista de grupos vazia em Configurações | O número da EVA não está em nenhum grupo, a sessão não está `WORKING` ou a VPS roda um pacote anterior a 14/Out. Veja no `journalctl` se aparece "Não consegui ler os grupos do WAHA" |
 | Mensagem do grupo parada em "Agendada" | Fora do horário (dia útil, 7h às 20h): ela sai na próxima janela |
+| A EVA responde "ainda não consigo ouvir áudio" | A VPS roda sem o `CRON_SECRET`, ou um pacote anterior a 24/Nov, ou a migration de D43 não foi aplicada |
+| "Relógio da Vercel: Vercel HTTP 401" no `journalctl` | O `CRON_SECRET` da VPS é diferente do da Vercel |
+| "Relógio da Vercel: Vercel HTTP 404" no `journalctl` | O deploy com a rota `/api/ti/agente-relogio` ainda não foi feito |

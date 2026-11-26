@@ -109,6 +109,26 @@ describe('gerarEstruturado — reserva (D17)', () => {
     expect(r.ok).toBe(true);
   });
 
+  it('D43: com provedores = só Gemini, o Claude nem é tentado; o anexo vai junto do pedido', async () => {
+    const claude = falso('claude', { texto: VALIDO });
+    const gemini = falso('gemini', { texto: VALIDO });
+    const linhas: LinhaChamadaIA[] = [];
+    const r = await gerarEstruturado(
+      {
+        finalidade: 'transcricao_audio', instrucoes: 'transcreva', conteudo: 'o áudio', schema: Schema, esforco: 'low',
+        anexos: [{ mimetype: 'audio/ogg', base64: 'AQID' }], provedores: ['gemini'],
+      },
+      { claude, gemini, registrar: async (l) => { linhas.push(l); } },
+    );
+    expect(r.ok && r.provedor).toBe('gemini');
+    expect(claude.chamar).not.toHaveBeenCalled();
+    expect(gemini.chamar).toHaveBeenCalledWith(expect.objectContaining({ anexos: [{ mimetype: 'audio/ogg', base64: 'AQID' }] }));
+    expect(linhas.map((l) => [l.finalidade, l.provedor])).toEqual([['transcricao_audio', 'gemini']]);
+    // Sem anexos, o pedido segue com o mesmo formato de antes.
+    await rodar(claude, gemini);
+    expect(claude.chamar.mock.calls[0][0]).not.toHaveProperty('anexos');
+  });
+
   it('o JSON Schema enviado aos provedores não leva "$schema" e fecha os objetos', () => {
     const s = paraJsonSchema(Schema);
     expect(s.$schema).toBeUndefined();

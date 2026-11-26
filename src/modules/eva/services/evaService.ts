@@ -8,7 +8,11 @@ import type { EvaView, PropostaEva } from '../types';
 import type { MensagemFila } from '../domain/whatsapp';
 import type { BlocoChat, PassoChat } from '../domain/blocos';
 import { chamarEva } from './agenteApi';
-import { hojeSP, somarDias, type Dia } from '../domain/datas';
+import { hojeSP, inicioDaSemana, somarDias, type Dia } from '../domain/datas';
+import type { FotoDia, Resolvido } from '../domain/tendencias';
+
+/** Semanas no cartão de tendências (D42). */
+export const SEMANAS_TENDENCIA = 8;
 import { descreverAusencia, estaAusente } from '../domain/ausencia';
 import type { CardTI, ColunaKanban, StatusChamado } from '../domain/demandas';
 import type { ProjetoTI, SprintTI } from '../domain/projetos';
@@ -20,7 +24,7 @@ const TAMANHO_PAGINA = 1000;
 const DIAS_CONCLUIDOS = 14;
 
 const CAMPOS_CARD =
-  'id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at';
+  'id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at, resolved_at';
 
 export interface DadosInicio {
   hoje: Dia;
@@ -193,6 +197,30 @@ export const evaService = {
    * Os ativos da aba Membros, com WhatsApp e adesão (só gestores leem ti_agente_membros): o botão
    * Cobrar e o cartão de aviso sabem quem recebe no privado e quem vai pelo grupo (D35).
    */
+  /**
+   * Tendências do Início (D42): as fotos diárias dos últimos 45 dias e o que foi resolvido nas
+   * últimas 8 semanas (entregas e tempo de resolução por semana). Sem a tabela de fotos (migration
+   * ainda não aplicada), as fotos vêm vazias.
+   */
+  async lerTendencias(hoje: Dia): Promise<{ fotos: FotoDia[]; resolvidos: Resolvido[] }> {
+    const desdeSemanas = somarDias(inicioDaSemana(hoje), -7 * (SEMANAS_TENDENCIA - 1));
+    const [fotos, resolvidos] = await Promise.all([
+      supabase.from('ti_agente_fotos').select('foto').gte('dia', somarDias(hoje, -45)).order('dia'),
+      lerTudo<Resolvido>((de, ate) =>
+        supabase
+          .from('it_requests')
+          .select('resolved_at, created_at, is_internal, kanban_hidden')
+          .eq('status', 'resolved')
+          .gte('resolved_at', new Date(`${desdeSemanas}T03:00:00Z`).toISOString())
+          .order('resolved_at')
+          .range(de, ate) as unknown as Pagina<Resolvido>),
+    ]);
+    return {
+      fotos: fotos.error ? [] : (fotos.data ?? []).map((l) => l.foto as FotoDia),
+      resolvidos: resolvidos.map((r) => ({ ...r, is_internal: !!r.is_internal, kanban_hidden: !!r.kanban_hidden })),
+    };
+  },
+
   async membrosNoWhatsapp(): Promise<{ user_id: string; whatsapp: boolean; recebe: boolean; ausencia: string | null }[]> {
     const { data, error } = await supabase
       .from('ti_agente_membros')
