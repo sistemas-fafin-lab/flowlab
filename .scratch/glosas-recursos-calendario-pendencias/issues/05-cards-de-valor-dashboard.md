@@ -26,9 +26,9 @@ Implementação: `cardsValorGlosa` em `api/_lib/faturamento/glosaRecuperada.ts` 
 
 ### Divergência com os cards do Contas a Receber (revisão, 26/11/2026)
 
-Os quatro cards seguem a tabela do spec: Acatado = classe "acatada" e Saldo pendente = "em disputa", ambos do funil. No Contas a Receber, porém:
-- o Acatado vem de `notas.valor_glosa_acatada`;
-- o Saldo pendente é Faturado − Recebido − Acatado dos títulos;
-- a Recuperada é cortada pela data da glosa no funil (emissão do título).
-
-Então só a classificação é a mesma. Os valores de um mesmo mês podem diferir entre as duas telas. Para revisar com a gestora se isso incomodar.
+- **Valor acatado** e **Glosa recuperada**: mesma conta nas duas telas.
+  - O acatado do Contas a Receber (`notas.valor_glosa_acatada`, via `fat_glosa_acatada_nota`) é Σ líquido − recebido das requisições da foto em 18, 8 e 15. É a classe "acatada" do funil (`valorPerdaDefinitiva`).
+  - Os números só diferem pelo recorte: lá é a emissão do título, aqui o mês do lote original, como o spec pede.
+- **Saldo pendente**: são conceitos diferentes.
+  - No Contas a Receber é Faturado − Recebido − Acatado dos títulos, isto é, o total a receber.
+  - Aqui é a glosa em disputa (história 20), e Glosado = Recuperada + Acatado + Saldo pendente.

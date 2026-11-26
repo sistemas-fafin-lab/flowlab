@@ -220,8 +220,9 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
       {/* Cards de valor: a classificação do funil (recuperada, acatada, em disputa)
           dos cards de glosa do Contas a Receber, pelo mês do lote original
           (api/_lib/faturamento/glosaRecuperada.ts → cardsValorGlosa).
-          Glosado = Recuperada + Acatado + Saldo pendente. Acatado e Saldo pendente
-          vêm do funil; no Contas a Receber vêm dos títulos, então podem diferir. */}
+          Glosado = Recuperada + Acatado + Saldo pendente. Acatado e Recuperada são a
+          mesma conta do Contas a Receber, que só recorta pela emissão do título; lá o
+          Saldo pendente é o total a receber, aqui é a glosa em disputa. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <Kpi
           icon={<Scissors className="w-4 h-4 sm:w-5 sm:h-5" />}
