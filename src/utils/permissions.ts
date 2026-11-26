@@ -158,6 +158,13 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string; d
   // veem (20261026150000). Gerenciar implica ver, na tela e na RLS das tabelas custo_*.
   { key: 'canViewControleCustos', label: 'Visualizar Controle de Custos', group: 'Controle de Custos' },
   { key: 'canManageControleCustos', label: 'Gerenciar Controle de Custos', group: 'Controle de Custos' },
+  // ── Site institucional (laboratoriolab.com.br) ──────────────────────────────
+  // Não é um módulo do FlowLab: o /admin do site usa este ecossistema de autenticação e
+  // permissões, como o WhatsApp em "Sistemas Externos". As chaves são conferidas no servidor
+  // do site (Edge Function admin-data e /api/conteudo), não por RLS deste banco. Médicos
+  // acessam a área do médico pelo próprio cargo, sem depender destas chaves.
+  { key: 'canViewSaudePreventiva', label: 'Acessar Saúde Preventiva no site', group: 'Site institucional', description: 'Ver anamneses, lista de espera e pedidos ao patologista no /admin do site, e mudar o status deles.' },
+  { key: 'canManageSite', label: 'Publicar conteúdo do site', group: 'Site institucional', description: 'Editar e publicar sedes, especialidades, convênios, contato e responsável técnico no Painel do Site (/admin).' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
