@@ -51,3 +51,10 @@ status via `STATUS_TITULOS_PENDENTES` só quando não há status manual
 selecionado, e `viewsSalvas.ts`/`viewsSalvas.test.ts` cobrem o conflito
 atalho↔status manual nos dois sentidos (ligar um desliga o outro), inclusive
 o caso de view salva antiga sem a chave `somentePendentes`.
+
+**2026-11-26 — parcialmente recebido deixa de ser pendente:** a usuária do
+setor pediu que, depois da primeira baixa, o título não conste como pendente
+— o que faltou é glosa e tem tratativa própria. `STATUS_TITULOS_PENDENTES`
+passou a ser só `aberta` (mesma regra que o aging já seguia desde
+`20261123120000_fat_aging_sem_parcial.sql`). Na carteira de 2026-11-26 isso
+tira 448 títulos (R$ 352.953,58 de saldo) do atalho.

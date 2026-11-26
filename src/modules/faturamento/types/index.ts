@@ -647,9 +647,12 @@ export type TituloStatus =
   | 'glosada'
   | 'cancelada';
 
-/** Os dois status que representam "falta receber" — preset do atalho "Somente
- *  pendentes" da aba Títulos (issue 38). */
-export const STATUS_TITULOS_PENDENTES: readonly TituloStatus[] = ['aberta', 'parcialmente_recebida'];
+/** O status que representa "falta receber" — preset do atalho "Somente
+ *  pendentes" da aba Títulos (issue 38). Título parcialmente recebido não é
+ *  pendente: depois da primeira baixa, o que faltou é glosa e se trata na tela
+ *  de Glosas (pedido do setor em 2026-11-26; mesma regra do aging em
+ *  20261123120000_fat_aging_sem_parcial.sql). */
+export const STATUS_TITULOS_PENDENTES: readonly TituloStatus[] = ['aberta'];
 
 /** Glosas ainda em disputa — o recorte `aberta` do filtro "Glosa" da aba Títulos. */
 export const STATUS_GLOSA_EM_DISPUTA: readonly GlosaStatus[] = ['aberta', 'em_recurso'];

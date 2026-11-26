@@ -128,8 +128,8 @@ interface Props {
     busca: string;
     /** Issue 16: some da lista os títulos de operadoras marcadas como clínica parceira. */
     ocultarParceiras: boolean;
-    /** Issue 38: atalho "Somente pendentes" — preset de Status (aberta + parcialmente
-     *  recebida), só surte efeito quando `status` manual está vazio (ver conflito abaixo). */
+    /** Issue 38: atalho "Somente pendentes" — preset de Status (só aberta — ver
+     *  STATUS_TITULOS_PENDENTES), só surte efeito quando `status` manual está vazio (ver conflito abaixo). */
     somentePendentes: boolean;
     /** Recorte por glosa lançada no título — ver FiltroGlosaTitulo. */
     glosa: FiltroGlosaTitulo;
@@ -488,7 +488,10 @@ const TitulosList: React.FC<Props> = ({
           <div className="hidden lg:block w-px self-stretch bg-gray-100 dark:bg-gray-700" />
 
           <div className="flex flex-col gap-1.5">
-            <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <label
+              className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+              title="Só títulos com status Aberta. Os parcialmente recebidos ficam de fora: o que faltou é glosa, tratada na tela de Glosas."
+            >
               <input
                 type="checkbox"
                 checked={filtros.somentePendentes}
