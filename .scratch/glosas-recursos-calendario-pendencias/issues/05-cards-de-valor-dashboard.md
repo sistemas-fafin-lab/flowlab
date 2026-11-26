@@ -32,3 +32,7 @@ Implementação: `cardsValorGlosa` em `api/_lib/faturamento/glosaRecuperada.ts` 
 - **Saldo pendente**: são conceitos diferentes.
   - No Contas a Receber é Faturado − Recebido − Acatado dos títulos, isto é, o total a receber.
   - Aqui é a glosa em disputa (história 20), e Glosado = Recuperada + Acatado + Saldo pendente.
+
+### Card "Saldo pendente" renomeado para "Glosa em disputa" (26/11/2026)
+
+Decisão da usuária: o card mostra a glosa em disputa e não o total a receber do Contas a Receber. Por isso o nome mudou, para não confundir com o Saldo pendente de lá. A conta continua a mesma e a chave do contrato continua `saldoPendente`.

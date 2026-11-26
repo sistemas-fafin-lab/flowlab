@@ -33,7 +33,7 @@ import { STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosaVisual';
 import { Kpi, VIDRO } from './KpiVidro';
 
 // Glosas e Recursos → aba Dashboard: cards de valor (Valor glosado, Valor
-// acatado, Glosa recuperada e Saldo pendente, no visual dos cards de glosa do
+// acatado, Glosa recuperada e Glosa em disputa, no visual dos cards de glosa do
 // Contas a Receber, com a variação sobre o mês de faturamento anterior),
 // evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
 // (api/_lib/faturamento/recursoGlosa.ts → resumirDashboard).
@@ -220,9 +220,9 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
       {/* Cards de valor: a classificação do funil (recuperada, acatada, em disputa)
           dos cards de glosa do Contas a Receber, pelo mês do lote original
           (api/_lib/faturamento/glosaRecuperada.ts → cardsValorGlosa).
-          Glosado = Recuperada + Acatado + Saldo pendente. Acatado e Recuperada são a
-          mesma conta do Contas a Receber, que só recorta pela emissão do título; lá o
-          Saldo pendente é o total a receber, aqui é a glosa em disputa. */}
+          Glosado = Recuperada + Acatado + Em disputa. Acatado e Recuperada são a
+          mesma conta do Contas a Receber, que só recorta pela emissão do título. A
+          Glosa em disputa não é o Saldo pendente de lá (o total a receber). */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <Kpi
           icon={<Scissors className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -262,8 +262,8 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
         />
         <Kpi
           icon={<Hourglass className="w-4 h-4 sm:w-5 sm:h-5" />}
-          label="Saldo pendente"
-          sub="Glosa em disputa"
+          label="Glosa em disputa"
+          sub="Ainda pode voltar"
           extra={<RodapeCard card={valores.saldoPendente} />}
           dica="Glosado − recuperada − acatado: glosa sem recurso (6) e em 1º ou 2º recurso (7, 16), pela glosa fixada."
           valor={formatCurrency(valores.saldoPendente.valor)}
