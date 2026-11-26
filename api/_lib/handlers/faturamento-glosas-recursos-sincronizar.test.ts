@@ -131,6 +131,7 @@ function requisicao(overrides: Partial<RequisicaoGlosaRecursoAplis> = {}): Requi
     numGuia: 'G-501',
     paciente: 'Paciente Teste',
     idLoteFaturamento: 6400,
+    protocoloLoteFaturamento: 'P-6400',
     competencia: '2026-09',
     fontePagadora: { id: 1000, nome: 'BRADESCO' },
     status: 6,

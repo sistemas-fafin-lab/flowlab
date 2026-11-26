@@ -826,6 +826,196 @@ export function prazoParaRecorrer(
   return { prazo, selo: seloDoPrazo(prazo, hoje) };
 }
 
+/** Requisição da foto como o Calendário de recursos a lê. */
+export interface RequisicaoCalendario {
+  /** Lote de faturamento original (`requisicao.Lote`). */
+  idLoteFaturamento: number;
+  /** `fatlote.Protocolo` do lote de faturamento original. */
+  protocoloLoteFaturamento: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+  status: number | null;
+  /** Último `DtaRecebido` dos procedimentos: base do prazo para recorrer. */
+  dataRecebimento: string | null;
+  glosaFixada: number | null;
+  /** 'código descrição' dos motivos de glosa. */
+  motivos: string[];
+  /** Está num lote de recurso com data de envio (editada ou do apLIS). */
+  loteRecursoEnviado: boolean;
+}
+
+/** Hoje, Amanhã (próximo dia útil), Atrasado (prazo real já passou) ou Futuro. */
+export type SeloCalendarioRecursos = 'hoje' | 'amanha' | 'atrasado' | 'futuro';
+
+/** O que todo item do calendário mostra: um lote de faturamento de um convênio. */
+export interface LoteCalendarioRecursos<R extends RequisicaoCalendario = RequisicaoCalendario> {
+  idLoteFaturamento: number;
+  protocolo: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+  quantidade: number;
+  /** Σ glosa fixada das requisições ainda não recorridas. */
+  valor: number;
+  /** Os motivos mais frequentes entre as requisições (até três). */
+  motivos: { motivo: string; quantidade: number }[];
+  /** Quantos motivos diferentes ficaram de fora de `motivos`. */
+  qtdOutrosMotivos: number;
+  requisicoes: R[];
+}
+
+/** Item do calendário: um lote de faturamento × um prazo para recorrer. */
+export interface ItemCalendarioRecursos<R extends RequisicaoCalendario = RequisicaoCalendario>
+  extends LoteCalendarioRecursos<R> {
+  /** Data real do prazo: é a que define o atraso. */
+  prazo: string;
+  /** Onde o item aparece: o prazo, ou a sexta anterior se ele cai no fim de semana. */
+  dataExibicao: string;
+  /** O prazo real cai no sábado ou no domingo: selo "vence sáb" / "vence dom". */
+  venceEm: 'sab' | 'dom' | null;
+  selo: SeloCalendarioRecursos;
+}
+
+/** Convênio sem vínculo com regra, regra GLOSA – RECURSO "sem prazo" ou requisição sem data de recebimento. */
+export type MotivoSemPrazo = 'sem-regra' | 'regra-sem-prazo' | 'sem-recebimento';
+
+export interface ItemSemPrazo<R extends RequisicaoCalendario = RequisicaoCalendario> extends LoteCalendarioRecursos<R> {
+  motivoSemPrazo: MotivoSemPrazo;
+}
+
+export interface CalendarioRecursos<R extends RequisicaoCalendario = RequisicaoCalendario> {
+  /** Amanhã é o próximo dia útil depois de hoje. */
+  datas: { hoje: string; amanha: string };
+  /** Itens com data de exibição no mês pedido, por data. */
+  mes: ItemCalendarioRecursos<R>[];
+  /** De qualquer mês. Atrasados do prazo mais antigo ao mais recente. */
+  paineis: {
+    hoje: ItemCalendarioRecursos<R>[];
+    amanha: ItemCalendarioRecursos<R>[];
+    atrasados: ItemCalendarioRecursos<R>[];
+  };
+  /** Lista "Sem prazo cadastrado", do maior valor ao menor. */
+  semPrazo: ItemSemPrazo<R>[];
+}
+
+const MAX_MOTIVOS_CALENDARIO = 3;
+
+/** Ainda falta recorrer: glosado sem recurso, com glosa e motivo, fora de lote de recurso enviado. */
+function entraNoCalendario(r: RequisicaoCalendario): boolean {
+  return r.status === STATUS_GLOSA.glosadoSemRecurso
+    && (r.glosaFixada ?? 0) > 0
+    && r.motivos.length > 0
+    && !r.loteRecursoEnviado;
+}
+
+/** Quantidade, valor e principais motivos das requisições de um item. */
+function resumoDoLote<R extends RequisicaoCalendario>(requisicoes: R[]): LoteCalendarioRecursos<R> {
+  const [primeira] = requisicoes;
+  const contagem = new Map<string, number>();
+  let valor = 0;
+  for (const r of requisicoes) {
+    valor = centavos(valor + (r.glosaFixada ?? 0));
+    for (const motivo of new Set(r.motivos)) contagem.set(motivo, (contagem.get(motivo) ?? 0) + 1);
+  }
+  const motivos = [...contagem]
+    .map(([motivo, quantidade]) => ({ motivo, quantidade }))
+    .sort((a, b) => b.quantidade - a.quantidade || a.motivo.localeCompare(b.motivo));
+  return {
+    idLoteFaturamento: primeira.idLoteFaturamento,
+    protocolo: primeira.protocoloLoteFaturamento,
+    fontePagadora: primeira.fontePagadora,
+    quantidade: requisicoes.length,
+    valor,
+    motivos: motivos.slice(0, MAX_MOTIVOS_CALENDARIO),
+    qtdOutrosMotivos: Math.max(0, motivos.length - MAX_MOTIVOS_CALENDARIO),
+    requisicoes,
+  };
+}
+
+/** Junta `r` ao grupo da chave; o primeiro da chave guarda `dados`. */
+function agrupar<R, D>(mapa: Map<string, { dados: D; requisicoes: R[] }>, chave: string, dados: D, r: R): void {
+  const grupo = mapa.get(chave);
+  if (grupo) grupo.requisicoes.push(r);
+  else mapa.set(chave, { dados, requisicoes: [r] });
+}
+
+/** Prazo no fim de semana vai para a sexta anterior: a grade e os painéis são de segunda a sexta. */
+function exibicaoDoPrazo(prazo: string): { dataExibicao: string; venceEm: 'sab' | 'dom' | null } {
+  const semana = paraData(prazo).getUTCDay();
+  if (semana === 6) return { dataExibicao: paraIso(somarDias(paraData(prazo), -1)), venceEm: 'sab' };
+  if (semana === 0) return { dataExibicao: paraIso(somarDias(paraData(prazo), -2)), venceEm: 'dom' };
+  return { dataExibicao: prazo, venceEm: null };
+}
+
+/**
+ * Atrasado pelo prazo real; Hoje e Amanhã pela data de exibição. No fim de
+ * semana, o prazo exibido na sexta que ainda não passou continua de hoje.
+ */
+function seloDoCalendario(
+  prazo: string,
+  dataExibicao: string,
+  datas: { hoje: string; amanha: string },
+): SeloCalendarioRecursos {
+  if (prazo < datas.hoje) return 'atrasado';
+  if (dataExibicao <= datas.hoje) return 'hoje';
+  if (dataExibicao === datas.amanha) return 'amanha';
+  return 'futuro';
+}
+
+/** Por data de exibição, depois pelo prazo real e pelo maior valor. */
+function porExibicao(a: ItemCalendarioRecursos, b: ItemCalendarioRecursos): number {
+  return a.dataExibicao.localeCompare(b.dataExibicao) || a.prazo.localeCompare(b.prazo) || b.valor - a.valor;
+}
+
+/**
+ * Calendário de recursos (spec "Calendário de recursos"): as requisições
+ * glosadas sem recurso agrupadas por lote de faturamento × prazo para
+ * recorrer. `regraRecursoPorFonte`: a regra GLOSA – RECURSO de cada convênio
+ * com vínculo. `mes` é 'YYYY-MM' e `hoje` 'YYYY-MM-DD'.
+ */
+export function calendarioDeRecursos<R extends RequisicaoCalendario>(
+  requisicoes: R[],
+  regraRecursoPorFonte: Map<number, RegraPrazo>,
+  mes: string,
+  hoje: string,
+): CalendarioRecursos<R> {
+  const datas = { hoje, amanha: paraIso(somarDiasUteis(paraData(hoje), 1)) };
+  const comPrazo = new Map<string, { dados: string; requisicoes: R[] }>();
+  const semPrazo = new Map<string, { dados: MotivoSemPrazo; requisicoes: R[] }>();
+
+  for (const r of requisicoes.filter(entraNoCalendario)) {
+    const regra = r.fontePagadora.id === null ? null : regraRecursoPorFonte.get(r.fontePagadora.id) ?? null;
+    const { prazo } = prazoParaRecorrer(r.dataRecebimento, regra, hoje);
+    const lote = `${r.idLoteFaturamento}|${r.fontePagadora.id}`;
+    if (prazo !== null) {
+      agrupar(comPrazo, `${lote}|${prazo}`, prazo, r);
+      continue;
+    }
+    const motivo: MotivoSemPrazo = regra === null ? 'sem-regra' : regra.tipo === 'sem_prazo' ? 'regra-sem-prazo' : 'sem-recebimento';
+    agrupar(semPrazo, `${lote}|${motivo}`, motivo, r);
+  }
+
+  const itens = [...comPrazo.values()].map(({ dados: prazo, requisicoes: grupo }): ItemCalendarioRecursos<R> => {
+    const exibicao = exibicaoDoPrazo(prazo);
+    return {
+      ...resumoDoLote(grupo),
+      prazo,
+      ...exibicao,
+      selo: seloDoCalendario(prazo, exibicao.dataExibicao, datas),
+    };
+  }).sort(porExibicao);
+
+  return {
+    datas,
+    mes: itens.filter((i) => i.dataExibicao.startsWith(mes)),
+    paineis: {
+      hoje: itens.filter((i) => i.selo === 'hoje'),
+      amanha: itens.filter((i) => i.selo === 'amanha'),
+      atrasados: itens.filter((i) => i.selo === 'atrasado'),
+    },
+    semPrazo: [...semPrazo.values()]
+      .map(({ dados: motivoSemPrazo, requisicoes: grupo }): ItemSemPrazo<R> => ({ ...resumoDoLote(grupo), motivoSemPrazo }))
+      .sort((a, b) => b.valor - a.valor),
+  };
+}
+
 /** Rótulo do evento de faturamento no histórico; espelha rotuloStatusAplis da tela (src/…/recursoGlosaVisual.ts). */
 const ROTULO_STATUS: Record<number, string> = {
   5: 'Recebido',

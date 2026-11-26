@@ -3,6 +3,7 @@ import {
   AlertCircle,
   AlertTriangle,
   BarChart3,
+  CalendarClock,
   CheckCircle,
   Clock,
   ListChecks,
@@ -14,6 +15,7 @@ import { hasPermission } from '../../../utils/permissions';
 import { sincronizarGlosasRecursos, useConveniosGlosas, useUltimaSincronizacaoGlosas } from '../hooks/useGlosasRecursos';
 import type { RecorteGlosas } from '../types';
 import { formatData, formatDataHora, hojeIso } from '../utils/formato';
+import CalendarioRecursos from './CalendarioRecursos';
 import GlosasDashboard from './GlosasDashboard';
 import GlosasRecentesLista from './GlosasRecentesLista';
 import LotesRecursoLista from './LotesRecursoLista';
@@ -24,17 +26,18 @@ import ResumoRecursosCards from './ResumoRecursosCards';
 // ============================================================================
 // COMPONENTE: GlosasRecursos
 // Controle de glosas e recursos (.scratch/glosas-recursos-dashboard/spec.md):
-// três abas com um cabeçalho comum — período (mês do lote de faturamento
+// quatro abas com um cabeçalho comum — período (mês do lote de faturamento
 // original), convênio e "Atualizar", que sincroniza a foto do apLIS no recorte.
 // ============================================================================
 
-type Aba = 'dashboard' | 'recentes' | 'acompanhamento';
+type Aba = 'dashboard' | 'recentes' | 'acompanhamento' | 'calendario';
 type SubAbaAcompanhamento = 'lotes' | 'fora-de-lote' | 'regras';
 
 const ABAS: { id: Aba; label: string; icone: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icone: <BarChart3 size={16} /> },
   { id: 'recentes', label: 'Glosas recentes', icone: <Clock size={16} /> },
   { id: 'acompanhamento', label: 'Acompanhamento dos recursos', icone: <ListChecks size={16} /> },
+  { id: 'calendario', label: 'Calendário de recursos', icone: <CalendarClock size={16} /> },
 ];
 
 const SUB_ABAS: { id: SubAbaAcompanhamento; label: string }[] = [
@@ -90,7 +93,7 @@ const GlosasRecursos: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho comum às três abas */}
+      {/* Cabeçalho comum às abas */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -218,6 +221,15 @@ const GlosasRecursos: React.FC = () => {
           )}
           {subAba === 'regras' && <RegrasPrazoConvenios versao={versao} podeEditar={podeEditar} />}
         </div>
+      )}
+      {aba === 'calendario' && (
+        <CalendarioRecursos
+          fontePagadoraId={recorte.fontePagadoraId}
+          versao={versao}
+          podeEditar={podeEditar}
+          onEditado={aposEdicao}
+          onAbrirRegras={() => { setAba('acompanhamento'); setSubAba('regras'); }}
+        />
       )}
     </div>
   );

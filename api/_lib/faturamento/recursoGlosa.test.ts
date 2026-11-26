@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aplicarRegraPrazo,
+  calendarioDeRecursos,
   classificarRequisicao,
   eventosDaRequisicao,
   eventoEdicaoManual,
@@ -19,7 +20,9 @@ import {
 import type {
   EdicoesRequisicao,
   LoteParaPrazo,
+  RegraPrazo,
   RegrasPrazoLote,
+  RequisicaoCalendario,
   RequisicaoDashboard,
   RequisicaoFoto,
   RequisicaoGlosaAplis,
@@ -949,5 +952,207 @@ describe('somarGlosasDoTitulo', () => {
     expect(somarGlosasDoTitulo([10, 20, 40], porLote))
       .toEqual({ glosado: 350, glosaRecebida: 100.3, glosaAcatada: 75, recursoNaoAcatado: 25.1 });
     expect(somarGlosasDoTitulo([], porLote)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 0, recursoNaoAcatado: 0 });
+  });
+});
+
+describe('calendarioDeRecursos', () => {
+  const trintaDias: RegraPrazo = { tipo: 'dias_corridos', n: 30 };
+  const AMIL = 10;
+  const regras = new Map<number, RegraPrazo>([[AMIL, trintaDias]]);
+
+  function glosada(overrides: Partial<RequisicaoCalendario> & { id?: number } = {}): RequisicaoCalendario & { id: number } {
+    return {
+      id: 1,
+      idLoteFaturamento: 500,
+      protocoloLoteFaturamento: 'P-500',
+      fontePagadora: { id: AMIL, nome: 'AMIL' },
+      status: 6,
+      // + 30 dias = quarta, 11/11/2026
+      dataRecebimento: '2026-10-12',
+      glosaFixada: 100,
+      motivos: ['1801 Procedimento não autorizado'],
+      loteRecursoEnviado: false,
+      ...overrides,
+    };
+  }
+
+  it('agrupa as requisições do mesmo lote de faturamento e mesmo prazo num item, com quantidade e valor', () => {
+    const cal = calendarioDeRecursos(
+      [glosada({ id: 1, glosaFixada: 100.1 }), glosada({ id: 2, glosaFixada: 50.2 }), glosada({ id: 3, idLoteFaturamento: 501, protocoloLoteFaturamento: null })],
+      regras,
+      '2026-11',
+      '2026-11-02',
+    );
+    expect(cal.mes.map((i) => ({
+      lote: i.idLoteFaturamento,
+      protocolo: i.protocolo,
+      convenio: i.fontePagadora.nome,
+      prazo: i.prazo,
+      dataExibicao: i.dataExibicao,
+      quantidade: i.quantidade,
+      valor: i.valor,
+      ids: i.requisicoes.map((r) => r.id),
+    }))).toEqual([
+      { lote: 500, protocolo: 'P-500', convenio: 'AMIL', prazo: '2026-11-11', dataExibicao: '2026-11-11', quantidade: 2, valor: 150.3, ids: [1, 2] },
+      { lote: 501, protocolo: null, convenio: 'AMIL', prazo: '2026-11-11', dataExibicao: '2026-11-11', quantidade: 1, valor: 100, ids: [3] },
+    ]);
+  });
+
+  it('lote com requisições de recebimentos diferentes aparece em dois dias', () => {
+    const cal = calendarioDeRecursos(
+      [glosada({ id: 1 }), glosada({ id: 2, dataRecebimento: '2026-10-13' })],
+      regras,
+      '2026-11',
+      '2026-11-02',
+    );
+    expect(cal.mes.map((i) => [i.idLoteFaturamento, i.prazo, i.requisicoes.map((r) => r.id)])).toEqual([
+      [500, '2026-11-11', [1]],
+      [500, '2026-11-12', [2]],
+    ]);
+  });
+
+  it('prazo no sábado ou no domingo aparece na sexta anterior, com o selo do dia real', () => {
+    const cal = calendarioDeRecursos(
+      [
+        // + 30 = sábado 14/11 e domingo 15/11
+        glosada({ id: 1, dataRecebimento: '2026-10-15' }),
+        glosada({ id: 2, dataRecebimento: '2026-10-16' }),
+        // + 30 = sexta 13/11
+        glosada({ id: 3, dataRecebimento: '2026-10-14' }),
+      ],
+      regras,
+      '2026-11',
+      '2026-11-02',
+    );
+    expect(cal.mes.map((i) => [i.prazo, i.dataExibicao, i.venceEm])).toEqual([
+      ['2026-11-13', '2026-11-13', null],
+      ['2026-11-14', '2026-11-13', 'sab'],
+      ['2026-11-15', '2026-11-13', 'dom'],
+    ]);
+  });
+
+  it('virada de mês: prazo no domingo 1º fica na sexta do mês anterior', () => {
+    // + 30 dias de 02/10/2026 = domingo 01/11/2026 → sexta 30/10/2026
+    const requisicoes = [glosada({ dataRecebimento: '2026-10-02' })];
+    expect(calendarioDeRecursos(requisicoes, regras, '2026-11', '2026-10-01').mes).toEqual([]);
+    const outubro = calendarioDeRecursos(requisicoes, regras, '2026-10', '2026-10-01').mes;
+    expect(outubro.map((i) => [i.prazo, i.dataExibicao, i.venceEm])).toEqual([['2026-11-01', '2026-10-30', 'dom']]);
+  });
+
+  it('selos pela data de exibição: hoje, amanhã (próximo dia útil), atrasado (prazo real) e futuro', () => {
+    // Hoje é sexta 13/11/2026: amanhã é segunda 16/11.
+    const cal = calendarioDeRecursos(
+      [
+        glosada({ id: 1, dataRecebimento: '2026-10-12' }), // prazo qua 11/11: atrasado
+        glosada({ id: 2, dataRecebimento: '2026-10-14' }), // sex 13/11: hoje
+        glosada({ id: 3, dataRecebimento: '2026-10-15' }), // sáb 14/11 → sex 13/11: hoje
+        glosada({ id: 4, dataRecebimento: '2026-10-17' }), // seg 16/11: amanhã
+        glosada({ id: 5, dataRecebimento: '2026-10-18' }), // ter 17/11: futuro
+        glosada({ id: 6, dataRecebimento: '2026-09-01' }), // 01/10: atrasado, de outro mês
+      ],
+      regras,
+      '2026-11',
+      '2026-11-13',
+    );
+    expect(cal.datas).toEqual({ hoje: '2026-11-13', amanha: '2026-11-16' });
+    expect(cal.mes.map((i) => [i.prazo, i.selo])).toEqual([
+      ['2026-11-11', 'atrasado'],
+      ['2026-11-13', 'hoje'],
+      ['2026-11-14', 'hoje'],
+      ['2026-11-16', 'amanha'],
+      ['2026-11-17', 'futuro'],
+    ]);
+    expect(cal.paineis.hoje.map((i) => i.prazo)).toEqual(['2026-11-13', '2026-11-14']);
+    expect(cal.paineis.amanha.map((i) => i.prazo)).toEqual(['2026-11-16']);
+    // Os atrasados são de qualquer mês, do mais antigo ao mais recente.
+    expect(cal.paineis.atrasados.map((i) => i.prazo)).toEqual(['2026-10-01', '2026-11-11']);
+  });
+
+  it('olhando no fim de semana, o prazo de sábado ainda é de hoje e o de segunda é de amanhã', () => {
+    const cal = calendarioDeRecursos(
+      [glosada({ id: 1, dataRecebimento: '2026-10-15' }), glosada({ id: 2, dataRecebimento: '2026-10-17' })],
+      regras,
+      '2026-11',
+      '2026-11-14',
+    );
+    expect(cal.datas.amanha).toBe('2026-11-16');
+    expect(cal.mes.map((i) => [i.prazo, i.selo])).toEqual([['2026-11-14', 'hoje'], ['2026-11-16', 'amanha']]);
+  });
+
+  it('só entra requisição em status 6, com glosa, com motivo e fora de lote de recurso enviado', () => {
+    const cal = calendarioDeRecursos(
+      [
+        glosada({ id: 1 }),
+        glosada({ id: 2, status: 7 }),
+        glosada({ id: 3, glosaFixada: 0 }),
+        glosada({ id: 4, glosaFixada: null }),
+        glosada({ id: 5, motivos: [] }),
+        glosada({ id: 6, loteRecursoEnviado: true }),
+        // Lote de recurso ainda não enviado: continua no calendário.
+        glosada({ id: 7, loteRecursoEnviado: false }),
+      ],
+      regras,
+      '2026-11',
+      '2026-11-02',
+    );
+    expect(cal.mes.flatMap((i) => i.requisicoes.map((r) => r.id))).toEqual([1, 7]);
+    expect(cal.semPrazo).toEqual([]);
+  });
+
+  it('convênio sem regra, regra sem prazo e requisição sem recebimento vão para a lista sem prazo, por lote', () => {
+    const SELECT = 20;
+    const SEM_VINCULO = 30;
+    const cal = calendarioDeRecursos(
+      [
+        glosada({ id: 1, idLoteFaturamento: 600, fontePagadora: { id: SELECT, nome: 'SELECT' }, glosaFixada: 10 }),
+        glosada({ id: 2, idLoteFaturamento: 600, fontePagadora: { id: SELECT, nome: 'SELECT' }, glosaFixada: 15, dataRecebimento: '2026-10-20' }),
+        glosada({ id: 3, idLoteFaturamento: 700, fontePagadora: { id: SEM_VINCULO, nome: 'CASSI' }, glosaFixada: 500 }),
+        glosada({ id: 4, idLoteFaturamento: 800, dataRecebimento: null, glosaFixada: 20 }),
+        glosada({ id: 5, idLoteFaturamento: 900, fontePagadora: { id: null, nome: null }, glosaFixada: 1 }),
+      ],
+      new Map<number, RegraPrazo>([[AMIL, trintaDias], [SELECT, { tipo: 'sem_prazo', n: null }]]),
+      '2026-11',
+      '2026-11-02',
+    );
+    expect(cal.mes).toEqual([]);
+    expect(cal.semPrazo.map((i) => ({
+      lote: i.idLoteFaturamento,
+      convenio: i.fontePagadora.nome,
+      motivo: i.motivoSemPrazo,
+      quantidade: i.quantidade,
+      valor: i.valor,
+    }))).toEqual([
+      { lote: 700, convenio: 'CASSI', motivo: 'sem-regra', quantidade: 1, valor: 500 },
+      { lote: 600, convenio: 'SELECT', motivo: 'regra-sem-prazo', quantidade: 2, valor: 25 },
+      { lote: 800, convenio: 'AMIL', motivo: 'sem-recebimento', quantidade: 1, valor: 20 },
+      { lote: 900, convenio: null, motivo: 'sem-regra', quantidade: 1, valor: 1 },
+    ]);
+  });
+
+  it('uma regra alterada muda o prazo na próxima leitura', () => {
+    const requisicoes = [glosada()];
+    const antes = calendarioDeRecursos(requisicoes, regras, '2026-11', '2026-11-02');
+    const depois = calendarioDeRecursos(requisicoes, new Map([[AMIL, { tipo: 'dias_corridos', n: 31 } as RegraPrazo]]), '2026-11', '2026-11-02');
+    expect([antes.mes[0].prazo, depois.mes[0].prazo]).toEqual(['2026-11-11', '2026-11-12']);
+  });
+
+  it('principais motivos do item: os mais frequentes entre as requisições, até três', () => {
+    const cal = calendarioDeRecursos(
+      [
+        glosada({ id: 1, motivos: ['A', 'B'] }),
+        glosada({ id: 2, motivos: ['B', 'C'] }),
+        glosada({ id: 3, motivos: ['B', 'D', 'C'] }),
+        glosada({ id: 4, motivos: ['E'] }),
+      ],
+      regras,
+      '2026-11',
+      '2026-11-02',
+    );
+    expect(cal.mes[0].motivos).toEqual([
+      { motivo: 'B', quantidade: 3 },
+      { motivo: 'C', quantidade: 2 },
+      { motivo: 'A', quantidade: 1 },
+    ]);
+    expect(cal.mes[0].qtdOutrosMotivos).toBe(2);
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type {
+  CalendarioRecursos,
   DashboardGlosas,
   DetalheRequisicaoRecurso,
   EdicaoRecurso,
@@ -336,6 +337,55 @@ export function useResumoRecursos(recorte: RecorteGlosas): UseResumoRecursosResu
   }, [refetch]);
 
   return { resumo, loading, error, refetch };
+}
+
+interface RespostaCalendarioRecursos extends Partial<CalendarioRecursos> {
+  success?: boolean;
+  error?: string;
+}
+
+const MENSAGEM_ERRO_CALENDARIO = 'Não foi possível carregar o calendário de recursos.';
+
+/** Calendário de recursos do mês (grade) e convênio; os painéis valem para qualquer mês. */
+export function useCalendarioRecursos(mes: string, fontePagadoraId: number | null) {
+  const [calendario, setCalendario] = useState<CalendarioRecursos | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const buscaAtual = useRef(0);
+
+  const refetch = useCallback(async () => {
+    const reqId = ++buscaAtual.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ mes });
+      if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
+      const body = await chamarLegadoApi<RespostaCalendarioRecursos>('glosas-recursos-calendario', params, MENSAGEM_ERRO_CALENDARIO);
+      if (reqId !== buscaAtual.current) return;
+      setCalendario({
+        mes: body.mes ?? mes,
+        hoje: body.hoje ?? '',
+        amanha: body.amanha ?? '',
+        itens: body.itens ?? [],
+        paineis: body.paineis ?? { hoje: [], amanha: [], atrasados: [] },
+        semPrazo: body.semPrazo ?? [],
+      });
+    } catch (err) {
+      if (reqId !== buscaAtual.current) return;
+      setError(err instanceof Error ? err.message : MENSAGEM_ERRO_CALENDARIO);
+      setCalendario(null);
+    } finally {
+      if (reqId === buscaAtual.current) setLoading(false);
+    }
+  }, [mes, fontePagadoraId]);
+
+  useEffect(() => {
+    void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { buscaAtual.current++; };
+  }, [refetch]);
+
+  return { calendario, loading, error, refetch };
 }
 
 interface RespostaDashboardGlosas {

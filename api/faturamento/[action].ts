@@ -51,6 +51,7 @@ import faturamentoGlosasRecursosCron from '../_lib/handlers/faturamento-glosas-r
 import faturamentoGlosasRecursosForaDeLote from '../_lib/handlers/faturamento-glosas-recursos-fora-de-lote.js';
 import faturamentoGlosasRecursosRecentes from '../_lib/handlers/faturamento-glosas-recursos-recentes.js';
 import faturamentoGlosasRecursosDashboard from '../_lib/handlers/faturamento-glosas-recursos-dashboard.js';
+import faturamentoGlosasRecursosCalendario from '../_lib/handlers/faturamento-glosas-recursos-calendario.js';
 import faturamentoIndicadores from '../_lib/handlers/faturamento-indicadores.js';
 import faturamentoDashboardGlosaSaldo from '../_lib/handlers/faturamento-dashboard-glosa-saldo.js';
 import faturamentoComparativosFunilGlosa from '../_lib/handlers/faturamento-comparativos-funil-glosa.js';
@@ -113,6 +114,7 @@ const ROTAS: Record<string, Handler> = {
   'glosas-recursos-fora-de-lote': faturamentoGlosasRecursosForaDeLote,
   'glosas-recursos-recentes': faturamentoGlosasRecursosRecentes,
   'glosas-recursos-dashboard': faturamentoGlosasRecursosDashboard,
+  'glosas-recursos-calendario': faturamentoGlosasRecursosCalendario,
   indicadores: faturamentoIndicadores,
   'meta-sugerida': faturamentoMetaSugerida,
   pontuacao: faturamentoPontuacao,

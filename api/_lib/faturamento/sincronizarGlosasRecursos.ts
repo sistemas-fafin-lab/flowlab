@@ -230,6 +230,7 @@ function linhaRequisicao(
     num_guia: req.numGuia,
     paciente: req.paciente,
     id_lote_faturamento: req.idLoteFaturamento,
+    protocolo_lote_faturamento: req.protocoloLoteFaturamento,
     competencia: req.competencia,
     id_fonte_pagadora: req.fontePagadora.id,
     fonte_pagadora_nome: req.fontePagadora.nome,

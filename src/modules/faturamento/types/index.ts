@@ -1114,6 +1114,68 @@ export interface RecursoForaDeLote {
   selo: SeloAtrasoLote;
 }
 
+// ─── Calendário de recursos (.scratch/glosas-recursos-calendario-pendencias) ──
+
+/** Requisição de um item do Calendário de recursos. */
+export interface RequisicaoCalendarioRecursos {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  paciente: string | null;
+  /** YYYY-MM do lote de faturamento original. */
+  competencia: string;
+  /** Data de recebimento: base do prazo para recorrer. */
+  dataGlosa: string | null;
+  procedimentos: string[];
+  motivos: string[];
+  valorGlosado: number | null;
+  valorInicialEstimado: boolean;
+}
+
+/** Um lote de faturamento de um convênio com glosas ainda não recorridas. */
+export interface LoteCalendarioRecursos {
+  idLoteFaturamento: number;
+  protocolo: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+  quantidade: number;
+  /** Glosa ainda não recorrida. */
+  valor: number;
+  /** Os mais frequentes, até três. */
+  motivos: { motivo: string; quantidade: number }[];
+  qtdOutrosMotivos: number;
+  requisicoes: RequisicaoCalendarioRecursos[];
+}
+
+export type SeloCalendarioRecursos = 'hoje' | 'amanha' | 'atrasado' | 'futuro';
+
+/** Lote × prazo para recorrer. */
+export interface ItemCalendarioRecursos extends LoteCalendarioRecursos {
+  /** Prazo real: define o atraso. */
+  prazo: string;
+  /** O prazo, ou a sexta anterior quando ele cai no fim de semana. */
+  dataExibicao: string;
+  venceEm: 'sab' | 'dom' | null;
+  selo: SeloCalendarioRecursos;
+}
+
+export type MotivoSemPrazoRecurso = 'sem-regra' | 'regra-sem-prazo' | 'sem-recebimento';
+
+export interface ItemSemPrazoRecurso extends LoteCalendarioRecursos {
+  motivoSemPrazo: MotivoSemPrazoRecurso;
+}
+
+export interface CalendarioRecursos {
+  mes: string;
+  hoje: string;
+  /** Próximo dia útil. */
+  amanha: string;
+  /** Itens do mês pedido, pela data de exibição. */
+  itens: ItemCalendarioRecursos[];
+  /** De qualquer mês. */
+  paineis: { hoje: ItemCalendarioRecursos[]; amanha: ItemCalendarioRecursos[]; atrasados: ItemCalendarioRecursos[] };
+  semPrazo: ItemSemPrazoRecurso[];
+}
+
 /** Filtros das listas de requisições (Recursos fora de lote, Glosas recentes). */
 export interface ListaRequisicoesGlosasFiltros extends RecorteGlosas {
   busca?: string;

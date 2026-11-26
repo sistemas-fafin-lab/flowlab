@@ -3778,6 +3778,8 @@ export interface RequisicaoGlosaRecursoAplis extends RequisicaoGlosaAplis {
   paciente: string | null;
   /** Lote de faturamento original (`requisicao.Lote`). */
   idLoteFaturamento: number;
+  /** `fatlote.Protocolo` do lote de faturamento original. */
+  protocoloLoteFaturamento: string | null;
   /** YYYY-MM do fechamento (`fatlote.DtaFechamento`; sem ele, `DtaCriacao`) do lote de faturamento original. */
   competencia: string;
   fontePagadora: { id: number | null; nome: string | null };
@@ -3842,7 +3844,7 @@ const SQL_MES_FATURAMENTO = 'COALESCE(l.DtaFechamento, l.DtaCriacao)';
 
 const SQL_REQUISICOES_GLOSA_RECURSO = `
   SELECT r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente,
-         r.Lote, DATE_FORMAT(${SQL_MES_FATURAMENTO}, '%Y-%m') AS Competencia,
+         r.Lote, l.Protocolo AS ProtocoloLote, DATE_FORMAT(${SQL_MES_FATURAMENTO}, '%Y-%m') AS Competencia,
          r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur,
          SUM(p.ValorLiquido) AS Liquido, SUM(COALESCE(p.ValorRecebido, 0)) AS Recebido,
          DATE_FORMAT(MAX(p.DtaRecebido), '%Y-%m-%d') AS DtaRecebido
@@ -3852,7 +3854,7 @@ const SQL_REQUISICOES_GLOSA_RECURSO = `
     LEFT JOIN paciente pa ON pa.CodPaciente = r.CodPaciente
     LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
    WHERE %WHERE%
-   GROUP BY r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente, r.Lote,
+   GROUP BY r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente, r.Lote, l.Protocolo,
             l.DtaCriacao, l.DtaFechamento, r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur`;
 
 // Procedimento glosado: com motivo de glosa ou recebido abaixo do líquido
@@ -3996,6 +3998,7 @@ export async function glosasRecursosDoPeriodo(
         numGuia: texto(linha.NumGuiaConvenio),
         paciente: texto(linha.NomPaciente),
         idLoteFaturamento: numero(linha.Lote),
+        protocoloLoteFaturamento: texto(linha.ProtocoloLote),
         competencia: texto(linha.Competencia) ?? params.competencia,
         fontePagadora: {
           id: inteiroOuNulo(linha.IdFontePagadora),
