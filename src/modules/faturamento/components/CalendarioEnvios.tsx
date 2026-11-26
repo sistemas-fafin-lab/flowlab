@@ -6,12 +6,9 @@ import {
   BadgeCheck,
   CalendarCheck,
   CalendarClock,
-  CalendarDays,
   CalendarX,
   Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   PackageSearch,
   Plus,
@@ -36,6 +33,7 @@ import type {
 import { formatData } from '../utils/formato';
 import { ANCORA_ATRASADOS, nomeConvenio, organizarCalendario, type ItemAgendado } from '../utils/painelEnvios';
 import { textoLotes } from '../utils/lotesAplis';
+import { dataUtc, nomeCurtoMes, nomeMes } from '../utils/mesCalendario';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
 import AtividadeModal from './AtividadeModal';
 import { ESTILO_ATIVIDADE, ESTILO_STATUS } from './estiloStatusEnvio';
@@ -43,6 +41,7 @@ import { DesmarcarEnvioDialog, PainelDia } from './PainelDiaEnvios';
 import SeloForaDaJanela from './SeloForaDaJanela';
 import DetalheAgendamentoModal from './DetalheAgendamentoModal';
 import FeriadosModal from './FeriadosModal';
+import GradeMes, { type ExtrasDia } from './GradeMes';
 import MarcarEnvioModal from './MarcarEnvioModal';
 import ReagendarEnvioModal from './ReagendarEnvioModal';
 import RegrasEnvioModal from './RegrasEnvioModal';
@@ -71,45 +70,7 @@ import RegrasEnvioModal from './RegrasEnvioModal';
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
-const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'];
 const BOTAO_CADASTRO = 'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700';
-
-const NOME_MES = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-
-const dataUtc = (iso: string): Date => new Date(`${iso}T00:00:00Z`);
-const somarDias = (iso: string, dias: number): string => {
-  const d = dataUtc(iso);
-  d.setUTCDate(d.getUTCDate() + dias);
-  return d.toISOString().slice(0, 10);
-};
-const somarMeses = (mes: string, meses: number): string => {
-  const [ano, numero] = mes.split('-').map(Number);
-  const d = new Date(Date.UTC(ano, numero - 1 + meses, 1));
-  return d.toISOString().slice(0, 7);
-};
-const nomeMes = (mes: string): string => {
-  const nome = NOME_MES.format(dataUtc(`${mes}-01`));
-  return nome.charAt(0).toUpperCase() + nome.slice(1);
-};
-/** Só o nome do mês, em minúsculas ("dezembro"), para os botões. */
-const nomeCurtoMes = (mes: string): string => nomeMes(mes).split(' ')[0].toLowerCase();
-
-/**
- * Semanas do mês só de segunda a sexta: cada semana tem 5 dias, e os que caem
- * fora do mês ficam null (a primeira e a última semana podem ter buracos).
- */
-function semanasDoMes(mes: string): (string | null)[][] {
-  const primeiro = `${mes}-01`;
-  // Volta até a segunda-feira da semana do dia 1 (getUTCDay: 0 = domingo).
-  let segunda = somarDias(primeiro, -((dataUtc(primeiro).getUTCDay() + 6) % 7));
-  const semanas: (string | null)[][] = [];
-  while (segunda.slice(0, 7) <= mes) {
-    const dias = DIAS_SEMANA.map((_, i) => somarDias(segunda, i)).map((d) => (d.slice(0, 7) === mes ? d : null));
-    if (dias.some(Boolean)) semanas.push(dias);
-    segunda = somarDias(segunda, 7);
-  }
-  return semanas;
-}
 
 /** Segunda a sexta fora dos feriados do calendário; o dia útil de verdade é do servidor. */
 const ehDiaUtilNaTela = (iso: string, feriados: Map<string, FeriadoEnvio>): boolean => {
@@ -259,86 +220,67 @@ const ChipAtividade: React.FC<{
   </button>
 );
 
-const GradeMes: React.FC<{
-  mes: string;
-  hoje: string;
-  porDia: Map<string, ItemAgendado[]>;
-  atividadesPorDia: Map<string, AtividadeCalendario[]>;
-  feriados: Map<string, FeriadoEnvio>;
-  podeGerenciar: boolean;
-  onAcao: (acao: Acao) => void;
-}> = ({ mes, hoje, porDia, atividadesPorDia, feriados, podeGerenciar, onAcao }) => (
-  <div className="overflow-x-auto -mx-5 px-5">
-    <div className="min-w-[640px]">
-      <div className="grid grid-cols-5 gap-2 mb-2">
-        {DIAS_SEMANA.map((dia) => (
-          <div key={dia} className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase text-center">{dia}</div>
-        ))}
-      </div>
-      <div className="space-y-2">
-        {semanasDoMes(mes).map((semana) => (
-          <div key={semana.find(Boolean)} className="grid grid-cols-5 gap-2">
-            {semana.map((dia, i) => {
-              if (!dia) return <div key={i} className="min-h-[7rem] rounded-xl bg-gray-50/50 dark:bg-gray-900/20" />;
-              const feriado = feriados.get(dia);
-              const itens = porDia.get(dia) ?? [];
-              const ehHoje = dia === hoje;
-              return (
-                <div
-                  key={dia}
-                  className={`group min-h-[7rem] rounded-xl border p-2 flex flex-col gap-1 ${
-                    feriado
-                      ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60'
-                      : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700'
-                  } ${ehHoje ? 'ring-2 ring-blue-500' : ''}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-semibold ${ehHoje ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200'}`}>
-                      {Number(dia.slice(8))}
-                    </span>
-                    {podeGerenciar && (
-                      <span className="flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => onAcao({ tipo: 'atividade', data: dia })}
-                          aria-label={`Nova atividade em ${formatData(dia)}`}
-                          title="Nova atividade (treinamento, reunião…)"
-                          className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30"
-                        >
-                          <StickyNote className="w-4 h-4" />
-                        </button>
-                        {!feriado && (
-                          <button
-                            type="button"
-                            onClick={() => onAcao({ tipo: 'avulso', data: dia })}
-                            aria-label={`Novo agendamento em ${formatData(dia)}`}
-                            title="Novo agendamento"
-                            className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  {feriado && (
-                    <p className="text-[11px] leading-tight font-medium text-amber-700 dark:text-amber-300">{feriado.descricao}</p>
-                  )}
-                  {(atividadesPorDia.get(dia) ?? []).map((atividade) => (
-                    <ChipAtividade key={atividade.id} atividade={atividade} onAcao={onAcao} />
-                  ))}
-                  {itens.map((item) => (
-                    <ChipAgendamento key={item.agendamento.id} item={item} onAcao={onAcao} />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
+/** O que cai num dia da grade de envios: atividades primeiro, depois os agendamentos. */
+type ItemGradeEnvio =
+  | { tipo: 'atividade'; atividade: AtividadeCalendario }
+  | { tipo: 'agendamento'; item: ItemAgendado };
+
+function itensDaGrade(
+  porDia: Map<string, ItemAgendado[]>,
+  atividadesPorDia: Map<string, AtividadeCalendario[]>,
+): Map<string, ItemGradeEnvio[]> {
+  const itens = new Map<string, ItemGradeEnvio[]>();
+  for (const dia of new Set([...atividadesPorDia.keys(), ...porDia.keys()])) {
+    itens.set(dia, [
+      ...(atividadesPorDia.get(dia) ?? []).map((atividade): ItemGradeEnvio => ({ tipo: 'atividade', atividade })),
+      ...(porDia.get(dia) ?? []).map((item): ItemGradeEnvio => ({ tipo: 'agendamento', item })),
+    ]);
+  }
+  return itens;
+}
+
+const chaveItemGrade = (i: ItemGradeEnvio): string =>
+  i.tipo === 'atividade' ? `atividade:${i.atividade.id}` : `agendamento:${i.item.agendamento.id}`;
+
+/** Feriado em âmbar com o nome; quem gere ganha os botões de nova atividade e (fora de feriado) novo agendamento. */
+function extrasDoDiaEnvio(
+  dia: string,
+  feriados: Map<string, FeriadoEnvio>,
+  podeGerenciar: boolean,
+  onAcao: (acao: Acao) => void,
+): ExtrasDia {
+  const feriado = feriados.get(dia);
+  return {
+    fundo: feriado ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60' : undefined,
+    aviso: feriado && (
+      <p className="text-[11px] leading-tight font-medium text-amber-700 dark:text-amber-300">{feriado.descricao}</p>
+    ),
+    acoes: podeGerenciar && (
+      <span className="flex items-center">
+        <button
+          type="button"
+          onClick={() => onAcao({ tipo: 'atividade', data: dia })}
+          aria-label={`Nova atividade em ${formatData(dia)}`}
+          title="Nova atividade (treinamento, reunião…)"
+          className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30"
+        >
+          <StickyNote className="w-4 h-4" />
+        </button>
+        {!feriado && (
+          <button
+            type="button"
+            onClick={() => onAcao({ tipo: 'avulso', data: dia })}
+            aria-label={`Novo agendamento em ${formatData(dia)}`}
+            title="Novo agendamento"
+            className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        )}
+      </span>
+    ),
+  };
+}
 
 // ─── Lista "Pode enviar qualquer dia" ─────────────────────────────────────────
 
@@ -476,6 +418,7 @@ const CalendarioEnvios: React.FC = () => {
   }, [carregado, hash]);
 
   const { porDia, atividadesPorDia, feriados, atrasados, qualquerDia } = useMemo(() => organizarCalendario(calendario), [calendario]);
+  const itensGrade = useMemo(() => itensDaGrade(porDia, atividadesPorDia), [porDia, atividadesPorDia]);
 
   const concluir = () => {
     setAcao(null);
@@ -708,58 +651,34 @@ const CalendarioEnvios: React.FC = () => {
 
           {mesExibido && (
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_18rem] gap-4">
-              <section className={`${CARD} p-5 min-w-0`} aria-label="Calendário do mês">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <CalendarDays className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{nomeMes(mesExibido)}</h2>
-                    {loading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setMes(somarMeses(mesExibido, -1))}
-                      aria-label="Mês anterior"
-                      className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => setMes(calendario.hoje.slice(0, 7))}
-                      className="px-3 py-1.5 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
-                    >
-                      Mês atual
-                    </button>
-                    <button
-                      onClick={() => setMes(somarMeses(mesExibido, 1))}
-                      aria-label="Próximo mês"
-                      className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-4 mb-3 text-xs text-gray-500 dark:text-gray-400">
-                  {(Object.keys(ESTILO_STATUS) as StatusAgendamento[]).map((status) => (
-                    <span key={status} className="flex items-center gap-1.5">
-                      <span className={`w-3 h-3 rounded ${ESTILO_STATUS[status].amostra}`} />
-                      {ESTILO_STATUS[status].nome}
-                    </span>
-                  ))}
-                  <span className="flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />Confirmado no apLIS</span>
-                  <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
-                  <span className="flex items-center gap-1.5"><span className={`w-3 h-3 rounded ${ESTILO_ATIVIDADE.amostra}`} />Atividade</span>
-                </div>
-                <GradeMes
-                  mes={mesExibido}
-                  hoje={calendario.hoje}
-                  porDia={porDia}
-                  atividadesPorDia={atividadesPorDia}
-                  feriados={feriados}
-                  podeGerenciar={podeGerenciar}
-                  onAcao={setAcao}
-                />
-              </section>
+              <GradeMes
+                mes={mesExibido}
+                hoje={calendario.hoje}
+                carregando={loading}
+                onMudarMes={setMes}
+                legenda={
+                  <>
+                    {(Object.keys(ESTILO_STATUS) as StatusAgendamento[]).map((status) => (
+                      <span key={status} className="flex items-center gap-1.5">
+                        <span className={`w-3 h-3 rounded ${ESTILO_STATUS[status].amostra}`} />
+                        {ESTILO_STATUS[status].nome}
+                      </span>
+                    ))}
+                    <span className="flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />Confirmado no apLIS</span>
+                    <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
+                    <span className="flex items-center gap-1.5"><span className={`w-3 h-3 rounded ${ESTILO_ATIVIDADE.amostra}`} />Atividade</span>
+                  </>
+                }
+                itensPorDia={itensGrade}
+                chaveItem={chaveItemGrade}
+                renderItem={(i) =>
+                  i.tipo === 'atividade'
+                    ? <ChipAtividade atividade={i.atividade} onAcao={setAcao} />
+                    : <ChipAgendamento item={i.item} onAcao={setAcao} />
+                }
+                extrasDoDia={(dia) => extrasDoDiaEnvio(dia, feriados, podeGerenciar, setAcao)}
+              />
               <div className="space-y-4 self-start">
                 <ListaQualquerDia
                   regras={qualquerDia}
