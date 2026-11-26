@@ -22,6 +22,7 @@ import type {
   TituloReceber,
   TitulosFiltros,
   TituloLote,
+  TituloStatus,
 } from '../types';
 import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
 import { ALIAS_ENVIO_LOTE, EMBED_ENVIO_LOTE, mesesDoPeriodo } from '../utils/basePeriodoTitulos';
@@ -522,22 +523,26 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       // Lido em fatias porque o PostgREST corta cada resposta em 1000 linhas.
       // Recebido e saldo saem de `notas`; as glosas, dos lotes de cada título
       // (`lotesPorTitulo`), somadas depois de ler a foto do apLIS.
+      // Título cancelado não entra no Saldo: `valor_saldo` não é zerado no
+      // cancelamento, e somá-lo fazia o card contar como "a receber" um valor
+      // que não vai ser recebido (25 cancelados com R$ 48 mil em 2026-11-26).
       const somarTotais = async (): Promise<{ recebido: number; saldo: number; lotesPorTitulo: number[][] }> => {
         const soma = { recebido: 0, saldo: 0 };
         const lotesPorTitulo: number[][] = [];
         for (let deslocamento = 0; ; deslocamento += FATIA_SOMA) {
-          const { data: fatia, error: erroFatia } = await filtrada('valor_recebido, valor_saldo, nota_lote(lotes(aplis_id))')
+          const { data: fatia, error: erroFatia } = await filtrada('status, valor_recebido, valor_saldo, nota_lote(lotes(aplis_id))')
             .order('id_nota')
             .range(deslocamento, deslocamento + FATIA_SOMA - 1);
           if (erroFatia) throw new Error(erroFatia.message);
           const linhas = (fatia ?? []) as unknown as {
+            status: TituloStatus;
             valor_recebido: number | string;
             valor_saldo: number | string;
             nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
           }[];
           for (const linha of linhas) {
             soma.recebido += num(linha.valor_recebido);
-            soma.saldo += num(linha.valor_saldo);
+            if (linha.status !== 'cancelada') soma.saldo += num(linha.valor_saldo);
             lotesPorTitulo.push(idsAplis((linha.nota_lote ?? []).map((v) => v.lotes?.aplis_id)));
           }
           if (linhas.length < FATIA_SOMA) {

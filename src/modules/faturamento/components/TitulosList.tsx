@@ -664,6 +664,7 @@ const TitulosList: React.FC<Props> = ({
           corIcone={COR_FAIXA_SALDO[faixaSaldoRecorte].icone}
           corValor={COR_FAIXA_SALDO[faixaSaldoRecorte].valor}
           rotulo="Saldo"
+          dica="Soma o saldo dos títulos do recorte, exceto os cancelados."
           valor={loading ? '—' : formatSaldoComSinal(totais.saldo)}
         />
       </div>
