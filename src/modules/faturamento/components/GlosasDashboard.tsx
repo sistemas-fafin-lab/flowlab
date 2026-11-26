@@ -17,24 +17,25 @@ import {
 import {
   AlertCircle,
   BarChart3,
-  CheckCircle,
-  Clock,
-  FileWarning,
+  Gavel,
+  Hourglass,
   PieChart as PieChartIcon,
   Scissors,
   TrendingDown,
   TrendingUp,
-  XCircle,
+  Undo2,
 } from 'lucide-react';
 import { useTheme } from '../../../hooks/useTheme';
 import { useDashboardGlosas } from '../hooks/useGlosasRecursos';
-import type { CardDashboardGlosas, ItemRankingGlosa, RecorteGlosas, StatusGlosaDashboard } from '../types';
+import type { CardValorGlosa, ItemRankingGlosa, RecorteGlosas, StatusGlosaDashboard } from '../types';
 import { formatCompetencia, formatCurrency, formatPercentual, plural } from '../utils/formato';
 import { STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosaVisual';
+import { Kpi, VIDRO } from './KpiVidro';
 
-// Glosas e Recursos → aba Dashboard: cards por status (com a variação sobre o
-// mês de faturamento anterior), evolução de 6 meses, distribuição por status,
-// procedimentos, convênios e motivos. Os números vêm prontos do servidor
+// Glosas e Recursos → aba Dashboard: cards de valor (Valor glosado, Valor
+// acatado, Glosa recuperada e Saldo pendente, no visual dos cards de glosa do
+// Contas a Receber, com a variação sobre o mês de faturamento anterior),
+// evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
 // (api/_lib/faturamento/recursoGlosa.ts → resumirDashboard).
 //
 // Gráficos no padrão do Dashboard de Contas a Receber (recharts, eixos e
@@ -54,13 +55,6 @@ const COR_RANKING = '#6366f1'; // indigo-500
 const CORES_MOTIVOS = ['#3b82f6', '#8b5cf6', '#14b8a6', '#f59e0b', '#ec4899'];
 const COR_OUTROS = '#94a3b8'; // slate-400
 
-const TITULO_CARD: Record<StatusGlosaDashboard, string> = {
-  aberta: 'Glosas Abertas',
-  'em-recurso': 'Em Recurso',
-  revertida: 'Revertidas',
-  definitiva: 'Definitivas',
-};
-
 /** Rótulo do eixo dos rankings; o nome inteiro fica no tooltip. */
 const MAX_ROTULO = 20;
 
@@ -74,15 +68,6 @@ const eixoMoeda = (valor: number): string =>
 
 const encurtar = (nome: string): string => (nome.length > MAX_ROTULO ? `${nome.slice(0, MAX_ROTULO - 1)}…` : nome);
 
-interface CardStatusProps {
-  status: StatusGlosaDashboard;
-  card: CardDashboardGlosas;
-  icone: React.ReactNode;
-  corIcone: string;
-  /** Revertidas: subir é bom. Nas outras, subir é glosa a mais. */
-  subirEhBom?: boolean;
-}
-
 const Variacao: React.FC<{ variacao: number | null; subirEhBom: boolean }> = ({ variacao, subirEhBom }) => {
   if (variacao === null) return <>Sem valor no mês anterior</>;
   if (variacao === 0) return <>Igual ao mês anterior</>;
@@ -91,7 +76,7 @@ const Variacao: React.FC<{ variacao: number | null; subirEhBom: boolean }> = ({ 
   const Seta = sobe ? TrendingUp : TrendingDown;
   return (
     <>
-      <Seta className={`inline h-4 w-4 mr-1 align-[-3px] ${bom ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`} />
+      <Seta className={`inline h-3.5 w-3.5 mr-1 align-[-2px] ${bom ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`} />
       <span className={`font-medium ${bom ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
         {sobe ? '+' : ''}{formatPercentual(variacao)}
       </span>{' '}
@@ -100,21 +85,21 @@ const Variacao: React.FC<{ variacao: number | null; subirEhBom: boolean }> = ({ 
   );
 };
 
-const CardStatus: React.FC<CardStatusProps> = ({ status, card, icone, corIcone, subirEhBom = false }) => (
-  <div className={CARD}>
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{TITULO_CARD[status]}</p>
-        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{formatCurrency(card.valor)}</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{rotuloGlosas(card.quantidade)}</p>
-      </div>
-      <div className={`p-3 rounded-lg ${corIcone}`}>{icone}</div>
-    </div>
-    <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+/** Linha de quantidade e variação sob o card de valor. */
+const RodapeCard: React.FC<{ card: CardValorGlosa; subirEhBom?: boolean }> = ({ card, subirEhBom = false }) => (
+  <>
+    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+      {plural(card.quantidade, 'requisição', 'requisições')}
+    </p>
+    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
       <Variacao variacao={card.variacao} subirEhBom={subirEhBom} />
-    </div>
-  </div>
+    </p>
+  </>
 );
+
+/** "x% do faturado": sem base, um traço. */
+const percentualDe = (percentual: number | null, base: string): string =>
+  percentual === null ? `— ${base}` : `${formatPercentual(percentual)} ${base}`;
 
 const Painel: React.FC<{ titulo: string; sub?: string; acao?: React.ReactNode; className?: string; children: React.ReactNode }> = ({
   titulo,
@@ -200,8 +185,8 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
   if (!dashboard) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {[0, 1, 2, 3].map((i) => <div key={i} className={`${CARD} h-36 animate-pulse`} />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => <div key={i} className={`${VIDRO} rounded-2xl sm:rounded-3xl h-28 animate-pulse`} />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className={`${CARD} h-80 animate-pulse lg:col-span-2`} />
@@ -211,7 +196,7 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
     );
   }
 
-  const { cards, evolucao, distribuicao, convenios, motivos } = dashboard;
+  const { valores, evolucao, distribuicao, convenios, motivos } = dashboard;
   const serie = evolucao.map((m) => ({ ...m, rotulo: formatCompetencia(m.competencia) }));
   const temEvolucao = evolucao.some((m) => m.aberta > 0 || m.emRecurso > 0 || m.revertida > 0);
   const fatias = distribuicao.status.filter((s) => s.quantidade > 0);
@@ -232,31 +217,57 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
 
   return (
     <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <CardStatus
-          status="aberta"
-          card={cards.aberta}
-          icone={<FileWarning className="h-6 w-6 text-orange-600 dark:text-orange-400" />}
-          corIcone="bg-orange-100 dark:bg-orange-900/30"
+      {/* Cards de valor: a classificação do funil (recuperada, acatada, em disputa)
+          dos cards de glosa do Contas a Receber, pelo mês do lote original
+          (api/_lib/faturamento/glosaRecuperada.ts → cardsValorGlosa).
+          Glosado = Recuperada + Acatado + Saldo pendente. Acatado e Saldo pendente
+          vêm do funil; no Contas a Receber vêm dos títulos, então podem diferir. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <Kpi
+          icon={<Scissors className="w-4 h-4 sm:w-5 sm:h-5" />}
+          label="Valor glosado"
+          sub={percentualDe(valores.glosado.percentual, 'do faturado')}
+          extra={<RodapeCard card={valores.glosado} />}
+          dica={
+            'Recuperada + acatada + em disputa das requisições do mês do lote de faturamento original. '
+            + `"% do faturado" é sobre o valor dos lotes de faturamento criados no mês (${formatCurrency(dashboard.faturado)}).`
+          }
+          valor={formatCurrency(valores.glosado.valor)}
+          cor="from-rose-500 to-rose-600"
+          atraso={0}
         />
-        <CardStatus
-          status="em-recurso"
-          card={cards['em-recurso']}
-          icone={<Clock className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
-          corIcone="bg-blue-100 dark:bg-blue-900/30"
+        <Kpi
+          icon={<Gavel className="w-4 h-4 sm:w-5 sm:h-5" />}
+          label="Valor acatado"
+          sub={percentualDe(valores.acatado.percentual, 'do glosado')}
+          extra={<RodapeCard card={valores.acatado} />}
+          dica="Perda definitiva: recebido a menor – acatado, glosa definitiva – acatada diretoria e recurso não acatado."
+          valor={formatCurrency(valores.acatado.valor)}
+          cor="from-amber-500 to-amber-600"
+          atraso={1}
         />
-        <CardStatus
-          status="revertida"
-          card={cards.revertida}
-          icone={<CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />}
-          corIcone="bg-green-100 dark:bg-green-900/30"
-          subirEhBom
+        <Kpi
+          icon={<Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+          label="Glosa recuperada"
+          sub={percentualDe(valores.recuperado.percentual, 'do glosado')}
+          extra={<RodapeCard card={valores.recuperado} subirEhBom />}
+          dica={
+            'Regra provisória, ainda a confirmar: glosa que entrou em recurso e depois teve valor recebido '
+            + '(recurso pago, glosa recebida ou recurso que já voltou). A mesma conta do Contas a Receber.'
+          }
+          valor={formatCurrency(valores.recuperado.valor)}
+          cor="from-cyan-500 to-cyan-600"
+          atraso={2}
         />
-        <CardStatus
-          status="definitiva"
-          card={cards.definitiva}
-          icone={<XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />}
-          corIcone="bg-red-100 dark:bg-red-900/30"
+        <Kpi
+          icon={<Hourglass className="w-4 h-4 sm:w-5 sm:h-5" />}
+          label="Saldo pendente"
+          sub="Glosa em disputa"
+          extra={<RodapeCard card={valores.saldoPendente} />}
+          dica="Glosado − recuperada − acatado: glosa sem recurso (6) e em 1º ou 2º recurso (7, 16), pela glosa fixada."
+          valor={formatCurrency(valores.saldoPendente.valor)}
+          cor="from-blue-500 to-blue-600"
+          atraso={3}
         />
       </div>
 

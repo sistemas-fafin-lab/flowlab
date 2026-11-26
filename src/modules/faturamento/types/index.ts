@@ -1363,12 +1363,21 @@ export interface ResumoAcompanhamentoRecursos {
   acatada: { quantidade: number; valor: number };
 }
 
-/** Card do Dashboard: variação do valor sobre o mês de faturamento anterior (null sem valor nele). */
-export interface CardDashboardGlosas {
-  quantidade: number;
+/**
+ * Card de valor do Dashboard de glosa (classificação do funil, a dos cards de glosa do
+ * Contas a Receber). Variação do valor sobre o mês de faturamento anterior (null sem valor nele).
+ */
+export interface CardValorGlosa {
   valor: number;
+  /** Requisições na classe do card. */
+  quantidade: number;
+  /** Glosado: % do faturado; acatado e recuperado: % do glosado. null sem base e no saldo pendente. */
+  percentual: number | null;
   variacao: number | null;
 }
+
+/** Glosado = recuperado + acatado + saldo pendente (em disputa). */
+export type CardsValorGlosa = Record<'glosado' | 'acatado' | 'recuperado' | 'saldoPendente', CardValorGlosa>;
 
 /** Linha de ranking do Dashboard (procedimento, convênio, motivo). */
 export interface ItemRankingGlosa {
@@ -1382,8 +1391,9 @@ export interface ItemRankingGlosa {
 
 /** Aba Dashboard de Glosas e Recursos — contrato de GET /api/faturamento/glosas-recursos-dashboard. */
 export interface DashboardGlosas {
-  /** Revertidas: valor deferido; os outros: glosa fixada. */
-  cards: Record<StatusGlosaDashboard, CardDashboardGlosas>;
+  /** Σ valor dos lotes de faturamento criados no mês: base do "% do faturado". */
+  faturado: number;
+  valores: CardsValorGlosa;
   /** Os 6 meses até o período, do mais antigo ao filtrado. */
   evolucao: { competencia: string; aberta: number; emRecurso: number; revertida: number }[];
   /** Total = requisições nos quatro status; percentual da quantidade. */

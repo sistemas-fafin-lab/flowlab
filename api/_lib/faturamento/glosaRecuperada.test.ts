@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STATUS_GLOSA } from './recursoGlosa.js';
 import type { RequisicaoClassificavel } from './recursoGlosa.js';
-import { classificarParaFunil, STATUS_APLIS_RECUPERADA, valorRecuperado } from './glosaRecuperada.js';
+import { cardsValorGlosa, classificarParaFunil, STATUS_APLIS_RECUPERADA, valorRecuperado } from './glosaRecuperada.js';
 
 function req(parcial: Partial<RequisicaoClassificavel['foto']>, edicoes = {}): RequisicaoClassificavel {
   return {
@@ -73,5 +73,55 @@ describe('classificarParaFunil', () => {
   it('recurso não acatado (15) é perda definitiva: acatada, líquido − recebido', () => {
     expect(classificarParaFunil(req({ status: 15, liquido: 500, recebido: 272.11 }), 300))
       .toEqual({ classe: 'acatada', valor: 227.89 });
+  });
+});
+
+describe('cardsValorGlosa', () => {
+  // Uma requisição de cada classe do funil, no mês do lote 2026-10.
+  const acatada = { ...req({ status: 18, liquido: 500, recebido: 380 }), glosaFixada: 120 };
+  const emDisputa = { ...req({ status: 6, emLoteRecurso: false }), glosaFixada: 80 };
+  const recuperada = { ...req({ status: 17, recebido: 300, recebidoFixacao: 0 }), glosaFixada: 300 };
+  // Em recurso sem retorno, mas já em tratativas: fora do funil.
+  const foraDoFunil = { ...req({ status: STATUS_GLOSA.emTratativas }), glosaFixada: 50 };
+
+  it('cada card soma a classe do funil, e o glosado soma as três', () => {
+    const cards = cardsValorGlosa('2026-10', { '2026-10': [acatada, emDisputa, recuperada, foraDoFunil] }, 10000);
+    expect(cards.glosado).toMatchObject({ valor: 500, quantidade: 3 });
+    expect(cards.acatado).toMatchObject({ valor: 120, quantidade: 1 });
+    expect(cards.recuperado).toMatchObject({ valor: 300, quantidade: 1 });
+    expect(cards.saldoPendente).toMatchObject({ valor: 80, quantidade: 1 });
+  });
+
+  it('glosado em % do faturado; acatado e recuperado em % do glosado, com uma casa', () => {
+    const cards = cardsValorGlosa('2026-10', { '2026-10': [acatada, emDisputa, recuperada] }, 3000);
+    expect(cards.glosado.percentual).toBe(16.7);
+    expect(cards.acatado.percentual).toBe(24);
+    expect(cards.recuperado.percentual).toBe(60);
+    expect(cards.saldoPendente.percentual).toBeNull();
+  });
+
+  it('sem faturado o glosado fica sem percentual; sem glosado, acatado e recuperado também', () => {
+    expect(cardsValorGlosa('2026-10', { '2026-10': [acatada] }, 0).glosado.percentual).toBeNull();
+    const vazio = cardsValorGlosa('2026-10', {}, 3000);
+    expect(vazio.glosado).toMatchObject({ valor: 0, quantidade: 0, percentual: 0 });
+    expect(vazio.acatado.percentual).toBeNull();
+    expect(vazio.recuperado.percentual).toBeNull();
+  });
+
+  it('variação de cada card sobre o valor do mês anterior; null sem valor nele', () => {
+    const cards = cardsValorGlosa(
+      '2026-01',
+      {
+        '2025-12': [{ ...emDisputa, glosaFixada: 40 }, { ...acatada, foto: { ...acatada.foto, recebido: 440 } }],
+        '2026-01': [emDisputa, acatada],
+      },
+      1000,
+    );
+    // Dezembro: em disputa 40, acatada 60 → glosado 100. Janeiro: 80 e 120 → 200.
+    expect(cards.glosado.variacao).toBe(100);
+    expect(cards.saldoPendente.variacao).toBe(100);
+    expect(cards.acatado.variacao).toBe(100);
+    expect(cards.recuperado.variacao).toBeNull();
+    expect(cardsValorGlosa('2026-01', { '2025-12': [emDisputa] }, 0).saldoPendente.variacao).toBe(-100);
   });
 });

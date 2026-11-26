@@ -306,20 +306,6 @@ describe('resumirDashboard', () => {
   const revertida = () => glosa({ foto: foto({ recebido: 800 }) });
   const definitiva = () => glosa({ foto: foto({ status: 15 }) });
 
-  it('cards: glosa fixada, e nas Revertidas o valor deferido, com a variação sobre o mês anterior', () => {
-    const resumo = resumirDashboard('2026-10', {
-      '2026-09': [aberta(200), emRecurso(500), emRecurso(500)],
-      '2026-10': [aberta(), aberta(), emRecurso(), revertida(), definitiva()],
-    });
-    expect(resumo.cards).toEqual({
-      aberta: { quantidade: 2, valor: 600, variacao: 200 },
-      'em-recurso': { quantidade: 1, valor: 300, variacao: -70 },
-      // R$ 100 deferidos, não os R$ 300 da glosa fixada.
-      revertida: { quantidade: 1, valor: 100, variacao: null },
-      definitiva: { quantidade: 1, valor: 300, variacao: null },
-    });
-  });
-
   it('evolução: Abertas, Em recurso e Revertidas nos 6 meses até o período, atravessando o ano', () => {
     const resumo = resumirDashboard('2026-02', {
       '2025-08': [aberta(999)], // fora dos 6 meses

@@ -236,7 +236,8 @@ export interface ResumoAcompanhamento {
   acatada: { quantidade: number; valor: number };
 }
 
-function umaCasa(valor: number): number {
+/** Arredonda para uma casa decimal (percentuais). */
+export function umaCasa(valor: number): number {
   return Math.round(valor * 10) / 10;
 }
 
@@ -333,13 +334,6 @@ export interface RequisicaoDashboard extends RequisicaoClassificavel {
   motivos: string[];
 }
 
-export interface CardDashboard {
-  quantidade: number;
-  valor: number;
-  /** % do valor sobre o mês de faturamento anterior; null sem valor nele. */
-  variacao: number | null;
-}
-
 export interface MesEvolucao {
   competencia: string;
   aberta: number;
@@ -348,8 +342,7 @@ export interface MesEvolucao {
 }
 
 export interface ResumoDashboard {
-  cards: Record<StatusDashboard, CardDashboard>;
-  /** Os 6 meses até o período, do mais antigo ao filtrado; valores dos cards. */
+  /** Os 6 meses até o período, do mais antigo ao filtrado; valor por status. */
   evolucao: MesEvolucao[];
   /** Total = requisições nos quatro status; percentual da quantidade, uma casa. */
   distribuicao: {
@@ -392,7 +385,7 @@ export function somarMeses(competencia: string, meses: number): string {
   return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 }
 
-/** Valor da requisição no card: nas Revertidas, o deferido (ΔRec); nos outros, a glosa fixada. */
+/** Valor da requisição no status: nas Revertidas, o deferido (ΔRec); nos outros, a glosa fixada. */
 function valorNoStatus(status: StatusDashboard, r: RequisicaoDashboard): number {
   if (status === 'revertida') return valorRecebidoGlosa(r.foto, r.edicoes) ?? 0;
   return r.glosaFixada ?? 0;
@@ -474,13 +467,6 @@ export function resumirDashboard(
 ): ResumoDashboard {
   const doMes = (c: string) => porMes[c] ?? [];
   const atual = somarCards(doMes(competencia));
-  const anterior = somarCards(doMes(somarMeses(competencia, -1)));
-  const cards = Object.fromEntries(STATUS_DO_DASHBOARD.map((s) => [s, {
-    ...atual[s],
-    variacao: anterior[s].valor === 0
-      ? null
-      : umaCasa(((atual[s].valor - anterior[s].valor) / anterior[s].valor) * 100),
-  }])) as Record<StatusDashboard, CardDashboard>;
 
   const evolucao = Array.from({ length: MESES_EVOLUCAO }, (_, i) => {
     const mes = somarMeses(competencia, i - (MESES_EVOLUCAO - 1));
@@ -512,7 +498,6 @@ export function resumirDashboard(
   const motivos = agruparPorItem(glosasDoMes, (r) => r.motivos);
   const ocorrenciasMotivo = motivos.reduce((soma, m) => soma + m.quantidade, 0);
   return {
-    cards,
     evolucao,
     distribuicao,
     procedimentos: {

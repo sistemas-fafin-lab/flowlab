@@ -2,10 +2,12 @@
  * API Route: GET /api/faturamento/glosas-recursos-dashboard
  *
  * Aba Dashboard da tela Glosas e Recursos
- * (.scratch/glosas-recursos-dashboard/spec.md, issue 11): cards (Abertas, Em
- * recurso, Revertidas, Definitivas) com a variação sobre o mês de faturamento
- * anterior, evolução dos 6 meses até o período, distribuição por status,
- * procedimentos, convênios e motivos. Lê da foto do Supabase; a tradução de
+ * (.scratch/glosas-recursos-dashboard/spec.md, issue 11): evolução dos 6 meses
+ * até o período, distribuição por status, procedimentos, convênios e motivos.
+ * Os cards de valor (Valor glosado, Valor acatado, Glosa recuperada, Saldo
+ * pendente; .scratch/glosas-recursos-calendario-pendencias/issues/05) usam a
+ * classificação do funil de faturamento/glosaRecuperada.ts, com o faturado dos
+ * lotes de faturamento criados no mês (ver `faturadoDoMes`). Lê da foto do Supabase; a tradução de
  * status e as somas são de faturamento/recursoGlosa.ts, com as edições do
  * lápis valendo acima do apLIS.
  *
@@ -29,6 +31,7 @@ import {
   somarMeses,
 } from '../faturamento/recursoGlosa.js';
 import type { RequisicaoDashboard } from '../faturamento/recursoGlosa.js';
+import { cardsValorGlosa } from '../faturamento/glosaRecuperada.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 /** Linhas por página do PostgREST (o teto padrão é 1000). */
@@ -105,6 +108,40 @@ async function requisicoesPorMes(
   }
 }
 
+/**
+ * Faturado do mês do lote original: Σ `lotes.valor_total` dos lotes com
+ * `data_criacao` (DtaCriacao do apLIS, a mesma data da `competencia` da foto)
+ * no mês, da fonte pagadora do filtro (`operadoras.aplis_id`).
+ *
+ * O card do Contas a Receber soma `notas.valor_total` pela emissão do título; um
+ * título pode juntar lotes de meses diferentes, então aqui vale o valor do lote.
+ * Lote de faturamento sem título no FlowLab não está em `lotes` e fica fora.
+ */
+async function faturadoDoMes(
+  supabase: SupabaseClient,
+  competencia: string,
+  fontePagadoraId: number | undefined,
+): Promise<number> {
+  const inicio = `${competencia}-01`;
+  const fim = `${somarMeses(competencia, 1)}-01`;
+  let centavos = 0;
+  for (let de = 0; ; de += PAGINA) {
+    // A operadora só entra na consulta com o filtro de convênio.
+    let consulta = fontePagadoraId === undefined
+      ? supabase.from('lotes').select('id_lote, valor_total')
+      : supabase
+        .from('lotes')
+        .select('id_lote, valor_total, operadoras!inner(aplis_id)')
+        .eq('operadoras.aplis_id', String(fontePagadoraId));
+    consulta = consulta.gte('data_criacao', inicio).lt('data_criacao', fim);
+    const { data, error } = await consulta.order('id_lote').range(de, de + PAGINA - 1);
+    if (error) throw new ErroLeitura(error.message);
+    const linhas = (data ?? []) as { valor_total: number | string | null }[];
+    for (const l of linhas) centavos += Math.round(Number(l.valor_total ?? 0) * 100);
+    if (linhas.length < PAGINA) return centavos / 100;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -136,12 +173,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    // Os 6 meses da evolução já incluem o anterior, base da variação dos cards.
+    // Os 6 meses da evolução já incluem o anterior, base da variação dos cards de valor.
     const meses = Array.from({ length: MESES_EVOLUCAO }, (_, i) => somarMeses(competencia, -i));
     const supabase = getSupabaseUserClient(token as string);
     let dashboard;
     try {
-      dashboard = resumirDashboard(competencia, await requisicoesPorMes(supabase, meses, fontePagadoraId));
+      const [porMes, faturado] = await Promise.all([
+        requisicoesPorMes(supabase, meses, fontePagadoraId),
+        faturadoDoMes(supabase, competencia, fontePagadoraId),
+      ]);
+      dashboard = {
+        ...resumirDashboard(competencia, porMes),
+        faturado,
+        valores: cardsValorGlosa(competencia, porMes, faturado),
+      };
     } catch (err) {
       if (!(err instanceof ErroLeitura)) throw err;
       console.error('[faturamento/glosas-recursos-dashboard] Supabase:', err.message);

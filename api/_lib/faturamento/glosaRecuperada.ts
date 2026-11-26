@@ -24,9 +24,12 @@
 import {
   valorPerdaDefinitiva,
   STATUS_GLOSA,
+  somarMeses,
   statusDashboard,
+  umaCasa,
   valorRecebidoGlosa,
   type RequisicaoClassificavel,
+  type RequisicaoDashboard,
 } from './recursoGlosa.js';
 import type { ClasseGlosaFunil } from '../../../src/modules/faturamento/utils/funilGlosa.js';
 
@@ -67,4 +70,88 @@ export function classificarParaFunil(
     return valor > 0 ? { classe: 'recuperada', valor } : null;
   }
   return null;
+}
+
+/** Card de valor do Dashboard de glosa. */
+export interface CardValorGlosa {
+  valor: number;
+  /** Requisições na classe do card. */
+  quantidade: number;
+  /**
+   * Uma casa decimal: o glosado sobre o faturado; acatado e recuperado sobre o glosado.
+   * null sem base (faturado ou glosado zero) e no saldo pendente, que não tem percentual.
+   */
+  percentual: number | null;
+  /** % do valor sobre o mês anterior, uma casa; null sem valor nele. */
+  variacao: number | null;
+}
+
+export type CardsValorGlosa = Record<'glosado' | 'acatado' | 'recuperado' | 'saldoPendente', CardValorGlosa>;
+
+/** O que a classificação do funil precisa de uma requisição da foto. */
+export type RequisicaoFunil = Pick<RequisicaoDashboard, 'foto' | 'edicoes' | 'glosaFixada'>;
+
+interface Soma {
+  centavos: number;
+  quantidade: number;
+}
+
+/** Soma em centavos de cada card, pela classe do funil de cada requisição. */
+function somarCardsValor(requisicoes: RequisicaoFunil[]): Record<keyof CardsValorGlosa, Soma> {
+  const porClasse: Record<ClasseGlosaFunil, Soma> = {
+    recuperada: { centavos: 0, quantidade: 0 },
+    acatada: { centavos: 0, quantidade: 0 },
+    'em-disputa': { centavos: 0, quantidade: 0 },
+  };
+  for (const r of requisicoes) {
+    const funil = classificarParaFunil(r, r.glosaFixada);
+    if (!funil) continue;
+    porClasse[funil.classe].centavos += Math.round(funil.valor * 100);
+    porClasse[funil.classe].quantidade += 1;
+  }
+  const classes = Object.values(porClasse);
+  return {
+    glosado: {
+      centavos: classes.reduce((t, c) => t + c.centavos, 0),
+      quantidade: classes.reduce((t, c) => t + c.quantidade, 0),
+    },
+    acatado: porClasse.acatada,
+    recuperado: porClasse.recuperada,
+    saldoPendente: porClasse['em-disputa'],
+  };
+}
+
+/**
+ * Cards de valor do Dashboard de glosa
+ * (.scratch/glosas-recursos-calendario-pendencias/issues/05-cards-de-valor-dashboard.md):
+ * a classificação do funil (`classificarParaFunil`), a mesma dos cards de glosa do Contas a
+ * Receber, das requisições do mês do lote original (`porMes`, por YYYY-MM).
+ * Glosado = recuperada + acatada + em disputa; Saldo pendente = em disputa.
+ * `faturado` é o do mês `competencia`, base do "% do faturado".
+ */
+export function cardsValorGlosa(
+  competencia: string,
+  porMes: Record<string, RequisicaoFunil[]>,
+  faturado: number,
+): CardsValorGlosa {
+  const atual = somarCardsValor(porMes[competencia] ?? []);
+  const anterior = somarCardsValor(porMes[somarMeses(competencia, -1)] ?? []);
+  // Base do percentual em centavos; o saldo pendente não tem percentual.
+  const base: Record<keyof CardsValorGlosa, number | null> = {
+    glosado: Math.round(faturado * 100),
+    acatado: atual.glosado.centavos,
+    recuperado: atual.glosado.centavos,
+    saldoPendente: null,
+  };
+  const card = (chave: keyof CardsValorGlosa): CardValorGlosa => {
+    const { centavos, quantidade } = atual[chave];
+    const antes = anterior[chave].centavos;
+    return {
+      valor: centavos / 100,
+      quantidade,
+      percentual: !base[chave] ? null : umaCasa((centavos / base[chave]) * 100),
+      variacao: antes === 0 ? null : umaCasa(((centavos - antes) / antes) * 100),
+    };
+  };
+  return { glosado: card('glosado'), acatado: card('acatado'), recuperado: card('recuperado'), saldoPendente: card('saldoPendente') };
 }
