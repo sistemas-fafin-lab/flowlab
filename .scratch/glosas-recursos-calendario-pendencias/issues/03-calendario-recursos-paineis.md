@@ -6,14 +6,14 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Função pura de itens do calendário: agrupamento lote × prazo, data de exibição (fim de semana → sexta anterior), selos Hoje / Amanhã / Atrasado / Futuro e lista sem prazo. Testes do spec, incluindo prazo no sábado, no domingo e virada de mês.
 - [x] Endpoint do calendário por mês e fonte pagadora, a partir da foto e das regras de prazo; uma regra alterada reflete na próxima leitura.
 - [x] Cada item mostra convênio, nº do lote, protocolo, quantidade de requisições, valor não recorrido, principais motivos e o selo de fim de semana quando houver.
 - [x] Clicar no item abre as requisições dele, com o detalhe que já existe em "Recursos fora de lote".
 - [x] A lista "Sem prazo cadastrado" tem link para a tela de regras.
-- [ ] O filtro de convênio do cabeçalho vale; temas claro e escuro; sem rolagem horizontal em 390 px.
+- [x] O filtro de convênio do cabeçalho vale; temas claro e escuro; sem rolagem horizontal em 390 px.
 
 ## Comments
 
@@ -24,5 +24,5 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 - **Decisão: sem data de recebimento.** Além de "sem regra" e "regra sem prazo", a requisição sem data de recebimento também vai para "Sem prazo cadastrado", com o selo "Sem data de recebimento", para nada sumir sem aviso.
 - **Decisão: Hoje no fim de semana.** O selo Hoje vale quando a data de exibição é ≤ hoje e o prazo real ainda não passou. Assim, quem abre a tela num sábado vê em Hoje o prazo do próprio sábado, que foi exibido na sexta. Pela letra do spec ("data de exibição = hoje"), esse item seria "futuro".
 - **Diferença com "Recursos fora de lote":** o calendário mantém a requisição que está num lote de recurso **não enviado**, como manda o spec. A sub-aba "Recursos fora de lote" só lista as requisições sem nenhum lote, então essa requisição aparece no calendário e não aparece lá.
-- **Falta conferir (ready-for-human):** aplicar a migration e olhar 390 px e temas claro e escuro não foram conferidos no app, porque o endpoint depende da migration aplicada. O layout é de uma coluna em tela estreita, com `min-w-0`, `break-words` e classes `dark:`.
+- **Conferido no app (26/11/2026):** migration `20261126160000` aplicada em produção (pelo `supabase db push`) e no banco de teste (psql, registrada no histórico). Com dados reais no app local: os painéis, o selo "vence sáb/dom", os 338 lotes em Atrasados, a lista sem prazo, as requisições ao clicar e o card de detalhe funcionam. Sem rolagem horizontal em 390 px, nos temas claro e escuro. A pílula de contagem deixou de espremer o título do painel.
 

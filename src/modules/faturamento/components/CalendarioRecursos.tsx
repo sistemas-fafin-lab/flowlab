@@ -133,7 +133,7 @@ function totalDe(itens: LoteCalendarioRecursos[]): number {
 
 const ContagemPainel: React.FC<{ itens: LoteCalendarioRecursos[]; cor: string }> = ({ itens, cor }) =>
   itens.length > 0 ? (
-    <span className={`shrink-0 px-2.5 py-1 text-xs font-medium rounded-full ${cor}`}>
+    <span className={`mt-2 inline-block px-2.5 py-1 text-xs font-medium rounded-full ${cor}`}>
       {plural(itens.length, 'lote', 'lotes')} · {formatCurrency(totalDe(itens))}
     </span>
   ) : null;
@@ -146,13 +146,9 @@ const PainelDiaRecursos: React.FC<{
   onAbrir: (item: ItemCalendarioRecursos) => void;
 }> = ({ titulo, data, itens, selecionado, onAbrir }) => (
   <section className={`${CARD} p-5 min-w-0`} aria-label={titulo}>
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{titulo}</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{NOME_DIA.format(new Date(`${data}T00:00:00Z`))}</p>
-      </div>
-      <ContagemPainel itens={itens} cor="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" />
-    </div>
+    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{titulo}</h2>
+    <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{NOME_DIA.format(new Date(`${data}T00:00:00Z`))}</p>
+    <ContagemPainel itens={itens} cor="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" />
     {itens.length === 0 ? (
       <p className="mt-4 text-sm text-gray-400 dark:text-gray-500">Nenhum prazo de recurso.</p>
     ) : (
@@ -167,16 +163,12 @@ const PainelAtrasadosRecursos: React.FC<{
   onAbrir: (item: ItemCalendarioRecursos) => void;
 }> = ({ itens, selecionado, onAbrir }) => (
   <section className={`${CARD} p-5 min-w-0 md:col-span-2 xl:col-span-1`} aria-label="Atrasados">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-yellow-500" />
-          Atrasados
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Prazo vencido e ainda sem recurso enviado</p>
-      </div>
-      <ContagemPainel itens={itens} cor="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" />
-    </div>
+    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+      <AlertTriangle className="h-5 w-5 text-yellow-500" />
+      Atrasados
+    </h2>
+    <p className="text-sm text-gray-500 dark:text-gray-400">Prazo vencido e ainda sem recurso enviado</p>
+    <ContagemPainel itens={itens} cor="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" />
     {itens.length === 0 ? (
       <p className="mt-4 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
         <CheckCircle2 className="h-4 w-4" />
