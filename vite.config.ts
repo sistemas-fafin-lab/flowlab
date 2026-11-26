@@ -638,6 +638,7 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
     'imagens-legado', 'imagem-legado-arquivo',
     'glosas-recursos-sincronizar', 'glosas-recursos-lotes', 'glosas-recursos-resumo', 'glosas-recursos-detalhe',
     'glosas-recursos-editar', 'glosas-recursos-fora-de-lote', 'glosas-recursos-recentes', 'glosas-recursos-dashboard',
+    'glosas-recursos-calendario',
     'indicadores', 'pontuacao', 'calendario-envios',
     'comparativos-funil-glosa', 'comparativos-volume-envio', 'comparativos-glosa-por-mes', 'comparativos-ranking-glosa', 'comparativos-sla',
     'comparativos-conversao',
