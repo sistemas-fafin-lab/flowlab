@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Eye, FileText, Search } from 'lucide-react';
 import { useRecursosForaDeLote } from '../hooks/useGlosasRecursos';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
-import type { RecorteGlosas, RecursoForaDeLote } from '../types';
+import Select from '../../../components/Select';
+import type { FiltroPendenciaGlosa, RecorteGlosas, RecursoForaDeLote } from '../types';
 import { formatCurrency, formatData } from '../utils/formato';
-import { rotuloStatusAplis, SELOS_ATRASO } from '../utils/recursoGlosaVisual';
+import { ROTULOS_PENDENCIA, rotuloStatusAplis, SELOS_ATRASO } from '../utils/recursoGlosaVisual';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
+import FiltroPendenciaGlosaAviso from './FiltroPendenciaGlosaAviso';
 import ListaResumida from './ListaResumida';
 import PaginacaoGlosas from './PaginacaoGlosas';
 
@@ -14,7 +16,9 @@ import PaginacaoGlosas from './PaginacaoGlosas';
 // (status 6) e em 1º/2º recurso sem lote (7, 16), estas para conferir a
 // limpeza dos lotes de 2026. O prazo para recorrer e o selo de atraso vêm do
 // servidor (regra Glosa – Recurso do convênio, contada do recebimento). O olho
-// abre o card "Detalhes do recurso" direto na requisição.
+// abre o card "Detalhes do recurso" direto na requisição. O filtro "Prazo
+// vencido" (issue 06) é o do card das Pendências de glosa: glosadas sem recurso
+// com o prazo vencido, de todos os meses de faturamento.
 
 const TAMANHO = 50;
 
@@ -25,10 +29,20 @@ const TIPOS = {
   semLote: { label: 'Em recurso sem lote', cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
 };
 
+const PENDENCIA_OPCOES = [
+  { value: '', label: 'Todas as requisições' },
+  { value: 'vencidos', label: ROTULOS_PENDENCIA.vencidos },
+];
+
+const CAMPO = 'px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
+
 const CHIP = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap';
 
 interface Props {
   recorte: RecorteGlosas;
+  /** Filtro de pendência (card "Glosas sem recurso com prazo vencido"); null: a lista do período. */
+  pendencia: FiltroPendenciaGlosa | null;
+  onPendencia: (filtro: FiltroPendenciaGlosa | null) => void;
   /** Muda a cada sincronização ou edição concluída: recarrega a lista. */
   versao: number;
   /** canManageBilling: o card mostra o lápis. */
@@ -37,7 +51,7 @@ interface Props {
   onEditado: () => void;
 }
 
-const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEditado }) => {
+const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, pendencia, onPendencia, versao, podeEditar, onEditado }) => {
   const [busca, setBusca] = useState('');
   const [buscaDebounced, setBuscaDebounced] = useState('');
   const [pagina, setPagina] = useState(1);
@@ -49,13 +63,21 @@ const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, versao, podeEditar,
     return () => clearTimeout(t);
   }, [busca]);
 
+  const tipoPendencia = pendencia?.tipo;
+  const mesPendencia = pendencia?.mes;
+  // Filtro de pendência (de um card ou da própria lista): limpa os filtros locais, para a lista bater com o card.
+  useEffect(() => {
+    if (tipoPendencia) {
+      setBusca('');
+    }
+  }, [tipoPendencia, mesPendencia]);
   useEffect(() => {
     setPagina(1);
-  }, [buscaDebounced, recorte.competencia, recorte.fontePagadoraId]);
+  }, [buscaDebounced, recorte.competencia, recorte.fontePagadoraId, tipoPendencia, mesPendencia]);
 
   useEffect(() => {
     setIdAberto(null);
-  }, [recorte.competencia, recorte.fontePagadoraId]);
+  }, [recorte.competencia, recorte.fontePagadoraId, tipoPendencia, mesPendencia]);
 
   // Em tela estreita o card fica abaixo da lista: rola até ele.
   useEffect(() => {
@@ -64,6 +86,7 @@ const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, versao, podeEditar,
 
   const { requisicoes, meta, loading, error, refetch } = useRecursosForaDeLote({
     ...recorte,
+    pendencia,
     busca: buscaDebounced || undefined,
     pagina,
     tamanho: TAMANHO,
@@ -95,16 +118,28 @@ const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, versao, podeEditar,
         </div>
       )}
 
-      <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por guia, paciente, convênio ou procedimento..."
-          className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por guia, paciente, convênio ou procedimento..."
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+          />
+        </div>
+        <Select
+          value={pendencia?.tipo ?? ''}
+          onChange={(v) => onPendencia(v ? { tipo: 'vencidos', mes: null } : null)}
+          options={PENDENCIA_OPCOES}
+          controlClass={CAMPO}
+          wrapperClass="w-60"
+          ariaLabel="Pendência"
         />
       </div>
+
+      {pendencia && <FiltroPendenciaGlosaAviso filtro={pendencia} onFiltro={onPendencia} />}
 
       <div className="flex flex-col xl:flex-row xl:items-start gap-4">
         <div className="flex-1 min-w-0 w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -120,7 +155,7 @@ const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, versao, podeEditar,
           ) : requisicoes.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">Nenhuma requisição fora de lote neste recorte</p>
+              <p className="text-gray-500 dark:text-gray-400">{pendencia ? 'Nenhuma glosa sem recurso com prazo vencido' : 'Nenhuma requisição fora de lote neste recorte'}</p>
             </div>
           ) : (
             <>

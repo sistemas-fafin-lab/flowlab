@@ -7,6 +7,7 @@ import {
   eventoEdicaoManual,
   eventosDoLote,
   fixarGlosa,
+  pendenciasDeGlosa,
   prazoParaRecorrer,
   prazosDasRequisicoes,
   prazosDoLote,
@@ -20,12 +21,14 @@ import {
 import type {
   EdicoesRequisicao,
   LoteParaPrazo,
+  LoteRecursoParaPendencia,
   RegraPrazo,
   RegrasPrazoLote,
   RequisicaoCalendario,
   RequisicaoDashboard,
   RequisicaoFoto,
   RequisicaoGlosaAplis,
+  RequisicaoPendenciaPrazo,
   RequisicaoTitulo,
 } from './recursoGlosa.js';
 
@@ -1140,5 +1143,164 @@ describe('calendarioDeRecursos', () => {
       { motivo: 'A', quantidade: 1 },
     ]);
     expect(cal.mes[0].qtdOutrosMotivos).toBe(2);
+  });
+});
+
+describe('pendenciasDeGlosa', () => {
+  const HOJE = '2026-11-20';
+  const AMIL = 10;
+  // Recebida em 01/10 + 30 dias = 31/10: vencido em outubro.
+  const regraRecurso = new Map<number, RegraPrazo>([[AMIL, { tipo: 'dias_corridos', n: 30 }]]);
+  const regras: RegrasPrazoLote = {
+    glosaAnalise: { tipo: 'dias_corridos', n: 30 },
+    glosaPagamento: { tipo: 'dias_corridos', n: 10 },
+  };
+
+  function semRecurso(overrides: Partial<RequisicaoPendenciaPrazo> & { id?: number } = {}): RequisicaoPendenciaPrazo & { id: number } {
+    return {
+      id: 1,
+      fontePagadora: { id: AMIL },
+      status: 6,
+      dataRecebimento: '2026-10-01',
+      glosaFixada: 100,
+      emLoteRecurso: false,
+      ...overrides,
+    };
+  }
+
+  const emAnalise: RequisicaoFoto = {
+    status: 7,
+    liquido: 1000,
+    recebido: 700,
+    recebidoFixacao: 700,
+    valorRecursado: 300,
+    emLoteRecurso: true,
+    loteEnviado: true,
+  };
+
+  // Enviado em 01/09: retorno previsto 01/10, pagamento previsto 11/10.
+  function lote(overrides: Partial<LoteRecursoParaPendencia> & { id?: number } = {}): LoteRecursoParaPendencia & { id: number } {
+    return {
+      id: 1,
+      dataEnvio: '2026-09-01',
+      dataRetornoReal: null,
+      regras,
+      requisicoes: [{ foto: emAnalise }],
+      ...overrides,
+    };
+  }
+
+  const vazio = { requisicoes: [], regraRecursoPorFonte: regraRecurso, lotes: [] };
+
+  describe('glosas sem recurso com prazo vencido', () => {
+    const requisicoes = [
+      semRecurso({ id: 1, glosaFixada: 100.1 }),
+      // + 30 = 19/11, vencido em novembro
+      semRecurso({ id: 2, dataRecebimento: '2026-10-20', glosaFixada: 50.2 }),
+      // + 30 = 20/11 = hoje: ainda não venceu
+      semRecurso({ id: 3, dataRecebimento: '2026-10-21' }),
+    ];
+
+    it('todo o período: tudo o que está vencido, valor pela glosa fixada', () => {
+      const { prazoVencido } = pendenciasDeGlosa({ ...vazio, requisicoes }, null, HOJE);
+      expect(prazoVencido).toMatchObject({ valor: 150.3, quantidade: 2 });
+      expect(prazoVencido.requisicoes.map((r) => [r.requisicao.id, r.prazo])).toEqual([[1, '2026-10-31'], [2, '2026-11-19']]);
+    });
+
+    it('mês: só o que venceu dentro dele', () => {
+      expect(pendenciasDeGlosa({ ...vazio, requisicoes }, '2026-10', HOJE).prazoVencido).toMatchObject({ valor: 100.1, quantidade: 1 });
+      expect(pendenciasDeGlosa({ ...vazio, requisicoes }, '2026-11', HOJE).prazoVencido).toMatchObject({ valor: 50.2, quantidade: 1 });
+      expect(pendenciasDeGlosa({ ...vazio, requisicoes }, '2026-12', HOJE).prazoVencido).toMatchObject({ valor: 0, quantidade: 0 });
+    });
+
+    it('não conta: em lote de recurso, já recorrida, sem regra, regra sem prazo ou sem data de recebimento', () => {
+      const fora = [
+        semRecurso({ id: 1, emLoteRecurso: true }),
+        semRecurso({ id: 2, status: 7 }),
+        semRecurso({ id: 3, fontePagadora: { id: 99 } }),
+        semRecurso({ id: 4, fontePagadora: { id: null } }),
+        semRecurso({ id: 5, dataRecebimento: null }),
+      ];
+      const semPrazo = new Map<number, RegraPrazo>([[AMIL, { tipo: 'sem_prazo', n: null }]]);
+      expect(pendenciasDeGlosa({ ...vazio, requisicoes: fora }, null, HOJE).prazoVencido.quantidade).toBe(0);
+      expect(pendenciasDeGlosa({ ...vazio, requisicoes: [semRecurso()], regraRecursoPorFonte: semPrazo }, null, HOJE).prazoVencido.quantidade).toBe(0);
+    });
+
+    it('glosa fixada em branco conta na quantidade com valor 0', () => {
+      expect(pendenciasDeGlosa({ ...vazio, requisicoes: [semRecurso({ glosaFixada: null })] }, null, HOJE).prazoVencido)
+        .toMatchObject({ valor: 0, quantidade: 1 });
+    });
+  });
+
+  describe('recursos com retorno atrasado', () => {
+    it('todo o período: lotes enviados sem retorno, com o retorno previsto já passado; valor pelo recursado', () => {
+      const lotes = [
+        lote({ id: 1, requisicoes: [{ foto: emAnalise }, { foto: emAnalise, edicoes: { valorRecursado: 120.5 } }] }),
+        // enviado em 15/10: retorno previsto 14/11
+        lote({ id: 2, dataEnvio: '2026-10-15' }),
+        // enviado em 21/10: retorno previsto 20/11 = hoje, ainda não atrasou
+        lote({ id: 3, dataEnvio: '2026-10-21' }),
+      ];
+      const { retornoAtrasado } = pendenciasDeGlosa({ ...vazio, lotes }, null, HOJE);
+      expect(retornoAtrasado).toMatchObject({ valor: 720.5, quantidade: 2 });
+      expect(retornoAtrasado.lotes.map((l) => [l.lote.id, l.dataRetornoPrevista])).toEqual([[1, '2026-10-01'], [2, '2026-11-14']]);
+    });
+
+    it('mês: pelo mês do retorno previsto', () => {
+      const lotes = [lote({ id: 1 }), lote({ id: 2, dataEnvio: '2026-10-15' })];
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, '2026-10', HOJE).retornoAtrasado.lotes.map((l) => l.lote.id)).toEqual([1]);
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, '2026-11', HOJE).retornoAtrasado.lotes.map((l) => l.lote.id)).toEqual([2]);
+    });
+
+    it('não conta: com data real de retorno, sem data de envio, sem regra de Análise ou com todas as requisições respondidas', () => {
+      const indeferida: RequisicaoFoto = { ...emAnalise, status: 15 };
+      const lotes = [
+        lote({ id: 1, dataRetornoReal: '2026-10-05' }),
+        lote({ id: 2, dataEnvio: null, requisicoes: [{ foto: { ...emAnalise, loteEnviado: false } }] }),
+        lote({ id: 3, regras: null }),
+        lote({ id: 4, requisicoes: [{ foto: indeferida }] }),
+      ];
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, null, HOJE).retornoAtrasado.quantidade).toBe(0);
+    });
+  });
+
+  describe('recursos com pagamento atrasado', () => {
+    it('todo o período: requisições sem resultado final com o pagamento previsto já passado; valor em aberto', () => {
+      const parcial: RequisicaoFoto = { ...emAnalise, recebido: 800 };
+      const lotes = [
+        // pagamento previsto 11/10
+        lote({ id: 1, requisicoes: [{ foto: emAnalise }, { foto: parcial }] }),
+        // retorno real em 05/11: pagamento previsto 15/11
+        lote({ id: 2, dataEnvio: '2026-10-15', dataRetornoReal: '2026-11-05' }),
+        // enviado em 15/10: pagamento previsto 24/11, ainda no prazo
+        lote({ id: 3, dataEnvio: '2026-10-15' }),
+      ];
+      const { pagamentoAtrasado } = pendenciasDeGlosa({ ...vazio, lotes }, null, HOJE);
+      expect(pagamentoAtrasado).toMatchObject({ valor: 800, quantidade: 3, qtdLotes: 2 });
+      expect(pagamentoAtrasado.lotes.map((l) => [l.lote.id, l.dataPagamentoPrevista, l.requisicoes.length]))
+        .toEqual([[1, '2026-10-11', 2], [2, '2026-11-15', 1]]);
+    });
+
+    it('mês: pelo mês do pagamento previsto', () => {
+      const lotes = [lote({ id: 1 }), lote({ id: 2, dataEnvio: '2026-10-15', dataRetornoReal: '2026-11-05' })];
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, '2026-10', HOJE).pagamentoAtrasado).toMatchObject({ quantidade: 1, valor: 300 });
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, '2026-11', HOJE).pagamentoAtrasado.lotes.map((l) => l.lote.id)).toEqual([2]);
+    });
+
+    it('não conta: deferido total, indeferido, acatada ou recurso sem data de envio', () => {
+      const lotes = [lote({
+        requisicoes: [
+          { foto: { ...emAnalise, recebido: 1000 } },
+          { foto: { ...emAnalise, status: 15 } },
+          { foto: { ...emAnalise, status: 18 } },
+        ],
+      }), lote({ id: 2, dataEnvio: null, requisicoes: [{ foto: { ...emAnalise, loteEnviado: false } }] })];
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, null, HOJE).pagamentoAtrasado).toMatchObject({ quantidade: 0, qtdLotes: 0, valor: 0 });
+    });
+
+    it('o recebido de glosa editado vale acima do apLIS', () => {
+      const lotes = [lote({ requisicoes: [{ foto: emAnalise, edicoes: { valorRecebidoGlosa: 100 } }] })];
+      expect(pendenciasDeGlosa({ ...vazio, lotes }, null, HOJE).pagamentoAtrasado.valor).toBe(200);
+    });
   });
 });

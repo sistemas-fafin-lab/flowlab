@@ -5,11 +5,13 @@ import type {
   DashboardGlosas,
   DetalheRequisicaoRecurso,
   EdicaoRecurso,
+  FiltroPendenciaGlosa,
   GlosaRecente,
   LoteRecursoFoto,
   LotesRecursoFiltros,
   ListaRequisicoesGlosasFiltros,
   LotesRecursoMeta,
+  PendenciasGlosa,
   RecorteGlosas,
   RecursoForaDeLote,
   RequisicaoRecursoFoto,
@@ -22,6 +24,13 @@ import { chamarLegadoApi, getTokenLegado } from './legado/api';
 // apLIS mora no Supabase e é gravada pela sincronização
 // (/api/faturamento/glosas-recursos-sincronizar). Sem o cache persistente das
 // listagens legado: depois do "Atualizar" a lista tem que refletir a foto nova.
+
+/** Filtro de pendência na query: a rota ignora a competência quando ele vem. */
+function definirPendencia(params: URLSearchParams, pendencia: FiltroPendenciaGlosa | null | undefined): void {
+  if (!pendencia) return;
+  params.set('pendencia', pendencia.tipo);
+  if (pendencia.mes) params.set('mesVencimento', pendencia.mes);
+}
 
 // Particular tem lista própria e Cortesia não é cobrável: não têm glosa de convênio.
 const ID_FONTE_PAGADORA_PARTICULAR = '1102';
@@ -164,6 +173,8 @@ export function useLotesRecurso(filtros: LotesRecursoFiltros): UseLotesRecursoRe
   const buscaAtual = useRef(0);
 
   const { competencia, fontePagadoraId, status, busca, pagina, tamanho } = filtros;
+  const tipoPendencia = filtros.pendencia?.tipo;
+  const mesPendencia = filtros.pendencia?.mes ?? null;
 
   const refetch = useCallback(async () => {
     const reqId = ++buscaAtual.current;
@@ -174,6 +185,7 @@ export function useLotesRecurso(filtros: LotesRecursoFiltros): UseLotesRecursoRe
       if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
       if (status) params.set('status', status);
       if (busca) params.set('busca', busca);
+      definirPendencia(params, tipoPendencia ? { tipo: tipoPendencia, mes: mesPendencia } : null);
       const body = await chamarLegadoApi<RespostaLotesRecurso>('glosas-recursos-lotes', params, MENSAGEM_ERRO_LOTES);
       if (reqId !== buscaAtual.current) return;
       setLotes(body.lotes ?? []);
@@ -186,7 +198,7 @@ export function useLotesRecurso(filtros: LotesRecursoFiltros): UseLotesRecursoRe
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [competencia, fontePagadoraId, status, busca, pagina, tamanho]);
+  }, [competencia, fontePagadoraId, status, busca, tipoPendencia, mesPendencia, pagina, tamanho]);
 
   useEffect(() => {
     void refetch();
@@ -233,6 +245,8 @@ function useListaRequisicoesGlosas<T>(
   lerRef.current = ler;
 
   const { competencia, fontePagadoraId, busca, pagina, tamanho } = filtros;
+  const tipoPendencia = filtros.pendencia?.tipo;
+  const mesPendencia = filtros.pendencia?.mes ?? null;
 
   const refetch = useCallback(async () => {
     const reqId = ++buscaAtual.current;
@@ -242,6 +256,7 @@ function useListaRequisicoesGlosas<T>(
       const params = new URLSearchParams({ competencia, pagina: String(pagina), tamanho: String(tamanho) });
       if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
       if (busca) params.set('busca', busca);
+      definirPendencia(params, tipoPendencia ? { tipo: tipoPendencia, mes: mesPendencia } : null);
       const body = await chamarLegadoApi<RespostaListaRequisicoes>(action, params, mensagemErro);
       if (reqId !== buscaAtual.current) return;
       setItens(lerRef.current(body) ?? []);
@@ -254,7 +269,7 @@ function useListaRequisicoesGlosas<T>(
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [action, mensagemErro, competencia, fontePagadoraId, busca, pagina, tamanho]);
+  }, [action, mensagemErro, competencia, fontePagadoraId, busca, tipoPendencia, mesPendencia, pagina, tamanho]);
 
   useEffect(() => {
     void refetch();
@@ -386,6 +401,50 @@ export function useCalendarioRecursos(mes: string, fontePagadoraId: number | nul
   }, [refetch]);
 
   return { calendario, loading, error, refetch };
+}
+
+interface RespostaPendenciasGlosa {
+  success?: boolean;
+  error?: string;
+  pendencias?: PendenciasGlosa;
+}
+
+const MENSAGEM_ERRO_PENDENCIAS = 'Não foi possível carregar as pendências de glosa.';
+
+/** Bloco "Pendências de glosa": `mes` em que o prazo venceu (null = todo o período) e convênio. */
+export function usePendenciasGlosa(mes: string | null, fontePagadoraId: number | null) {
+  const [pendencias, setPendencias] = useState<PendenciasGlosa | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const buscaAtual = useRef(0);
+
+  const refetch = useCallback(async () => {
+    const reqId = ++buscaAtual.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (mes) params.set('mes', mes);
+      if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
+      const body = await chamarLegadoApi<RespostaPendenciasGlosa>('glosas-recursos-pendencias', params, MENSAGEM_ERRO_PENDENCIAS);
+      if (reqId !== buscaAtual.current) return;
+      setPendencias(body.pendencias ?? null);
+    } catch (err) {
+      if (reqId !== buscaAtual.current) return;
+      setError(err instanceof Error ? err.message : MENSAGEM_ERRO_PENDENCIAS);
+      setPendencias(null);
+    } finally {
+      if (reqId === buscaAtual.current) setLoading(false);
+    }
+  }, [mes, fontePagadoraId]);
+
+  useEffect(() => {
+    void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { buscaAtual.current++; };
+  }, [refetch]);
+
+  return { pendencias, loading, error, refetch };
 }
 
 interface RespostaDashboardGlosas {

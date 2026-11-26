@@ -1,7 +1,7 @@
 // Rótulos e cores da tela Glosas e Recursos, comuns à lista de lotes de
 // recurso e ao card "Detalhes do recurso".
 
-import type { SeloAtrasoLote, StatusGlosaDashboard, StatusLoteRecurso } from '../types/index.js';
+import type { SeloAtrasoLote, StatusGlosaDashboard, StatusLoteRecurso, TipoPendenciaGlosa } from '../types/index.js';
 
 export const STATUS_LOTE_CORES: Record<StatusLoteRecurso, string> = {
   Criado: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
@@ -42,3 +42,10 @@ export function rotuloStatusAplis(codigo: number | null): string {
   if (codigo === null) return '—';
   return STATUS_APLIS_LABEL[codigo] ?? `Evento ${codigo}`;
 }
+
+/** Filtros de pendência das listas (cards das Pendências de glosa, issue 06). */
+export const ROTULOS_PENDENCIA: Record<TipoPendenciaGlosa, string> = {
+  vencidos: 'Prazo para recorrer vencido',
+  'retorno-atrasado': 'Retorno atrasado',
+  'pagamento-atrasado': 'Pagamento atrasado',
+};

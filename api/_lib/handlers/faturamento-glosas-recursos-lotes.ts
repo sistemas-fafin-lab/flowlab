@@ -15,7 +15,12 @@
  * com o cliente do usuário, para respeitar a RLS.
  *
  * Query params:
- *   competencia      YYYY-MM do lote de faturamento original, obrigatório
+ *   competencia      YYYY-MM do lote de faturamento original, obrigatório sem `pendencia`
+ *   pendencia        'retorno-atrasado' | 'pagamento-atrasado': os lotes dos
+ *                    cards das Pendências de glosa (issue 06), de todos os meses
+ *                    de faturamento (o período não filtra), da data prevista
+ *                    mais antiga à mais recente
+ *   mesVencimento    YYYY-MM em que a data prevista venceu (com `pendencia`); ausente = todo o período
  *   fontePagadoraId  filtra por convênio (fatinstituicao.IdInstituicao)
  *   status           rótulo do lote (Criado, Enviado, Finalizado, Cancelado)
  *   busca            lote, protocolo, convênio, guia, paciente
@@ -23,66 +28,29 @@
  *   tamanho          1..200, default 50
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { competenciaValida, edicoesDaFoto, prazosDoLote } from '../faturamento/recursoGlosa.js';
-import type {
-  RegrasPrazoLote,
-  RequisicaoClassificavel,
-  TipoRegraPrazo,
-} from '../faturamento/recursoGlosa.js';
+import {
+  COLUNAS_LOTE_RECURSO,
+  ErroLeituraPendencias,
+  escaparIlike,
+  fontesDoLote,
+  hojeEmSaoPaulo,
+  lerLotesEnviados,
+  lerRegrasDasFontes,
+  regrasDoLote,
+  requisicoesDosLotes,
+} from '../faturamento/dadosPendenciasGlosa.js';
+import type { FiltroPendencia, LinhaLoteRecurso, LoteRecursoPendencia } from '../faturamento/dadosPendenciasGlosa.js';
+import { competenciaValida, pendenciasDeGlosa, prazosDoLote } from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 const STATUS_LOTE = ['Criado', 'Enviado', 'Finalizado', 'Cancelado'];
+const PENDENCIAS_LOTE: FiltroPendencia[] = ['retorno-atrasado', 'pagamento-atrasado'];
 const MAX_TAMANHO = 200;
 const TAMANHO_PADRAO = 50;
 const MAX_BUSCA = 100;
-/** Linhas por página do PostgREST (o teto padrão é 1000). */
-const PAGINA_LEITURA = 1000;
-
-interface LinhaLista {
-  id_lote_recurso: number;
-  status_label: string;
-  protocolo: string | null;
-  protocolo_faturamento: string | null;
-  id_fonte_pagadora: number | null;
-  fonte_pagadora_nome: string | null;
-  data_criacao_aplis: string | null;
-  data_envio_aplis: string | null;
-  /** Editada (lápis) ou do apLIS. */
-  data_envio: string | null;
-  data_envio_editada: boolean;
-  data_retorno_real: string | null;
-  data_pagamento_real: string | null;
-  fontes_requisicoes: (number | null)[] | null;
-  qtd_requisicoes: number;
-  valor_glosado: number | string;
-  valor_recorrido: number | string;
-}
-
-/** Requisição de um lote da página, em qualquer mês: o selo olha o lote inteiro. */
-interface LinhaRequisicao {
-  id_lote_recurso: number;
-  status_aplis: number | null;
-  liquido: number | string;
-  recebido: number | string;
-  recebido_fixacao: number | string | null;
-  valor_recursado: number | string | null;
-  valor_recursado_editado: number | string | null;
-  valor_recebido_glosa_editado: number | string | null;
-}
-
-interface LinhaRegraFonte {
-  id_fonte_pagadora: number;
-  glosa_prazo_regras: {
-    glosa_analise_tipo: TipoRegraPrazo;
-    glosa_analise_n: number | null;
-    glosa_pagamento_tipo: TipoRegraPrazo;
-    glosa_pagamento_n: number | null;
-  } | null;
-}
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
@@ -96,48 +64,33 @@ function inteiroNaFaixa(bruto: string | undefined, min: number, max: number): nu
   return n;
 }
 
-function numeroOuNulo(valor: number | string | null): number | null {
-  return valor === null ? null : Number(valor);
+/** O lote como a tela o recebe, com retorno e pagamento previstos e o selo. */
+function loteDaResposta(lote: LoteRecursoPendencia, hoje: string) {
+  const l = lote.linha;
+  const prazos = prazosDoLote(lote, lote.regras, hoje);
+  return {
+    idLoteRecurso: l.id_lote_recurso,
+    statusLabel: l.status_label,
+    protocolo: l.protocolo,
+    protocoloFaturamento: l.protocolo_faturamento,
+    fontePagadora: { id: l.id_fonte_pagadora, nome: l.fonte_pagadora_nome },
+    dataCriacao: l.data_criacao_aplis,
+    dataEnvio: l.data_envio,
+    dataEnvioAplis: l.data_envio_aplis,
+    dataEnvioEditada: l.data_envio_editada,
+    dataRetornoReal: l.data_retorno_real,
+    dataPagamentoReal: l.data_pagamento_real,
+    qtdRequisicoes: l.qtd_requisicoes,
+    valorGlosado: Number(l.valor_glosado),
+    valorRecorrido: Number(l.valor_recorrido),
+    dataRetornoPrevista: prazos.dataRetornoPrevista,
+    dataPagamentoPrevista: prazos.dataPagamentoPrevista,
+    selo: prazos.selo,
+  };
 }
 
-/** 'YYYY-MM-DD' de hoje no fuso do laboratório. */
-function hojeEmSaoPaulo(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-}
-
-/**
- * Fontes que podem dar a regra do lote: a do lote e, depois, as das
- * requisições (os dois cadastros do Bradesco podem divergir entre lote e
- * requisição, e só um deles estar ligado à regra).
- */
-function fontesDoLote(l: LinhaLista): number[] {
-  return [l.id_fonte_pagadora, ...(l.fontes_requisicoes ?? [])].filter((f): f is number => f !== null);
-}
-
-/** Requisições dos lotes, em qualquer mês, paginando o teto do PostgREST. */
-async function requisicoesDosLotes(
-  supabase: SupabaseClient,
-  idsLotes: number[],
-): Promise<{ linhas: LinhaRequisicao[]; erro: string | null }> {
-  const linhas: LinhaRequisicao[] = [];
-  if (idsLotes.length === 0) return { linhas, erro: null };
-  for (let de = 0; ; de += PAGINA_LEITURA) {
-    const { data, error } = await supabase
-      .from('glosa_recurso_requisicoes')
-      .select('id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
-      .in('id_lote_recurso', idsLotes)
-      .order('id_requisicao')
-      .range(de, de + PAGINA_LEITURA - 1);
-    if (error) return { linhas, erro: error.message };
-    const pagina = (data ?? []) as LinhaRequisicao[];
-    linhas.push(...pagina);
-    if (pagina.length < PAGINA_LEITURA) return { linhas, erro: null };
-  }
-}
-
-/** `%` e `_` digitados são texto, não curinga do ILIKE. */
-function escaparIlike(termo: string): string {
-  return termo.replace(/[\\%_]/g, (c) => `\\${c}`);
+function meta(pagina: number, tamanho: number, registros: number) {
+  return { pagina, tamanho, qtdPaginas: Math.ceil(registros / tamanho), registros };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -162,9 +115,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const pagina = inteiroNaFaixa(primeiro(q.pagina), 1, Number.MAX_SAFE_INTEGER);
     const tamanho = inteiroNaFaixa(primeiro(q.tamanho), 1, MAX_TAMANHO);
     const busca = primeiro(q.busca)?.trim().slice(0, MAX_BUSCA) || undefined;
+    const brutoPendencia = primeiro(q.pendencia)?.trim() || undefined;
+    const pendencia = PENDENCIAS_LOTE.find((p) => p === brutoPendencia);
+    const mesVencimento = primeiro(q.mesVencimento)?.trim() || null;
 
     const invalidos = [
-      !competenciaValida(competencia) ? 'competencia (YYYY-MM)' : null,
+      brutoPendencia === undefined && !competenciaValida(competencia) ? 'competencia (YYYY-MM)' : null,
+      brutoPendencia !== undefined && pendencia === undefined ? 'pendencia' : null,
+      mesVencimento !== null && !competenciaValida(mesVencimento) ? 'mesVencimento (YYYY-MM)' : null,
       status !== undefined && !STATUS_LOTE.includes(status) ? 'status' : null,
       fontePagadoraId === null ? 'fontePagadoraId' : null,
       pagina === null ? 'pagina' : null,
@@ -177,43 +135,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const paginaAtual = pagina ?? 1;
     const tamanhoPagina = tamanho ?? TAMANHO_PADRAO;
-    const supabase = getSupabaseUserClient(token as string);
-
-    let consulta = supabase
-      .from('glosa_recurso_lotes_lista')
-      .select(
-        'id_lote_recurso, status_label, protocolo, protocolo_faturamento, id_fonte_pagadora, fonte_pagadora_nome, data_criacao_aplis, data_envio_aplis, data_envio, data_envio_editada, data_retorno_real, data_pagamento_real, fontes_requisicoes, qtd_requisicoes, valor_glosado, valor_recorrido',
-        { count: 'exact' },
-      )
-      .eq('competencia', competencia);
-    // Fonte da requisição, não do lote: é o mesmo recorte da sincronização.
-    if (fontePagadoraId !== undefined) consulta = consulta.contains('fontes_requisicoes', [fontePagadoraId]);
-    if (status !== undefined) consulta = consulta.eq('status_label', status);
-    if (busca !== undefined) consulta = consulta.ilike('busca', `%${escaparIlike(busca)}%`);
-
     const de = (paginaAtual - 1) * tamanhoPagina;
-    const { data, error, count } = await consulta
-      .order('data_criacao_aplis', { ascending: false, nullsFirst: false })
-      .order('id_lote_recurso', { ascending: false })
-      .range(de, de + tamanhoPagina - 1);
+    const supabase = getSupabaseUserClient(token as string);
+    const hoje = hojeEmSaoPaulo();
 
-    const linhas = (data ?? []) as LinhaLista[];
-    const idsLotes = linhas.map((l) => l.id_lote_recurso);
-    const fontes = [...new Set(linhas.flatMap(fontesDoLote))];
+    let lotes: LoteRecursoPendencia[];
+    let registros: number;
+    try {
+      if (pendencia !== undefined) {
+        const enviados = await lerLotesEnviados(supabase, { fontePagadoraId, status, busca });
+        const pendencias = pendenciasDeGlosa({ requisicoes: [], regraRecursoPorFonte: new Map(), lotes: enviados }, mesVencimento, hoje);
+        const doCard = pendencia === 'retorno-atrasado' ? pendencias.retornoAtrasado.lotes : pendencias.pagamentoAtrasado.lotes;
+        lotes = doCard.slice(de, de + tamanhoPagina).map((p) => p.lote);
+        registros = doCard.length;
+      } else {
+        let consulta = supabase
+          .from('glosa_recurso_lotes_lista')
+          .select(COLUNAS_LOTE_RECURSO, { count: 'exact' })
+          .eq('competencia', competencia);
+        // Fonte da requisição, não do lote: é o mesmo recorte da sincronização.
+        if (fontePagadoraId !== undefined) consulta = consulta.contains('fontes_requisicoes', [fontePagadoraId]);
+        if (status !== undefined) consulta = consulta.eq('status_label', status);
+        if (busca !== undefined) consulta = consulta.ilike('busca', `%${escaparIlike(busca)}%`);
+        const { data, error, count } = await consulta
+          .order('data_criacao_aplis', { ascending: false, nullsFirst: false })
+          .order('id_lote_recurso', { ascending: false })
+          .range(de, de + tamanhoPagina - 1);
+        if (error) throw new ErroLeituraPendencias(error.message);
 
-    const [{ linhas: requisicoes, erro: erroReq }, { data: regrasFontes, error: erroRegras }] = await Promise.all([
-      requisicoesDosLotes(supabase, idsLotes),
-      fontes.length === 0
-        ? Promise.resolve({ data: [], error: null })
-        : supabase
-          .from('glosa_prazo_regra_fontes')
-          .select('id_fonte_pagadora, glosa_prazo_regras(glosa_analise_tipo, glosa_analise_n, glosa_pagamento_tipo, glosa_pagamento_n)')
-          .in('id_fonte_pagadora', fontes),
-    ]);
-
-    const erroLeitura = (error ?? erroRegras)?.message ?? erroReq;
-    if (erroLeitura) {
-      console.error('[faturamento/glosas-recursos-lotes] Supabase:', erroLeitura);
+        const linhas = (data ?? []) as unknown as LinhaLoteRecurso[];
+        const ids = linhas.map((l) => l.id_lote_recurso);
+        const enviados = new Set(linhas.filter((l) => l.data_envio).map((l) => l.id_lote_recurso));
+        const [porLote, regras] = await Promise.all([
+          requisicoesDosLotes(supabase, ids, enviados),
+          lerRegrasDasFontes(supabase, [...new Set(linhas.flatMap(fontesDoLote))]),
+        ]);
+        lotes = linhas.map((linha) => ({
+          linha,
+          dataEnvio: linha.data_envio,
+          dataRetornoReal: linha.data_retorno_real,
+          regras: regrasDoLote(linha, regras.lote),
+          requisicoes: porLote.get(linha.id_lote_recurso) ?? [],
+        }));
+        registros = count ?? 0;
+      }
+    } catch (err) {
+      if (!(err instanceof ErroLeituraPendencias)) throw err;
+      console.error('[faturamento/glosas-recursos-lotes] Supabase:', err.message);
       res.status(502).json({
         success: false,
         error: 'Não foi possível ler os lotes de recurso agora — tente novamente em alguns minutos.',
@@ -221,82 +189,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-
-    const regraPorFonte = new Map<number, RegrasPrazoLote>();
-    for (const f of (regrasFontes ?? []) as unknown as LinhaRegraFonte[]) {
-      const r = f.glosa_prazo_regras;
-      if (!r) continue;
-      regraPorFonte.set(f.id_fonte_pagadora, {
-        glosaAnalise: { tipo: r.glosa_analise_tipo, n: r.glosa_analise_n },
-        glosaPagamento: { tipo: r.glosa_pagamento_tipo, n: r.glosa_pagamento_n },
-      });
-    }
-
-    const requisicoesPorLote = new Map<number, RequisicaoClassificavel[]>();
-    const enviados = new Set(linhas.filter((l) => l.data_envio).map((l) => l.id_lote_recurso));
-    for (const r of requisicoes) {
-      const lista = requisicoesPorLote.get(r.id_lote_recurso) ?? [];
-      lista.push({
-        foto: {
-          status: r.status_aplis,
-          liquido: Number(r.liquido),
-          recebido: Number(r.recebido),
-          recebidoFixacao: numeroOuNulo(r.recebido_fixacao),
-          valorRecursado: numeroOuNulo(r.valor_recursado),
-          emLoteRecurso: true,
-          loteEnviado: enviados.has(r.id_lote_recurso),
-        },
-        edicoes: edicoesDaFoto({
-          valorRecursado: numeroOuNulo(r.valor_recursado_editado),
-          valorRecebidoGlosa: numeroOuNulo(r.valor_recebido_glosa_editado),
-        }),
-      });
-      requisicoesPorLote.set(r.id_lote_recurso, lista);
-    }
-
-    const hoje = hojeEmSaoPaulo();
-
-    const registros = count ?? 0;
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       success: true,
-      meta: {
-        pagina: paginaAtual,
-        tamanho: tamanhoPagina,
-        qtdPaginas: Math.ceil(registros / tamanhoPagina),
-        registros,
-      },
-      lotes: linhas.map((l) => {
-        const fonteComRegra = fontesDoLote(l).find((f) => regraPorFonte.has(f));
-        const prazos = prazosDoLote(
-          {
-            dataEnvio: l.data_envio,
-            dataRetornoReal: l.data_retorno_real,
-            requisicoes: requisicoesPorLote.get(l.id_lote_recurso) ?? [],
-          },
-          fonteComRegra === undefined ? null : regraPorFonte.get(fonteComRegra) ?? null,
-          hoje,
-        );
-        return {
-        idLoteRecurso: l.id_lote_recurso,
-        statusLabel: l.status_label,
-        protocolo: l.protocolo,
-        protocoloFaturamento: l.protocolo_faturamento,
-        fontePagadora: { id: l.id_fonte_pagadora, nome: l.fonte_pagadora_nome },
-        dataCriacao: l.data_criacao_aplis,
-        dataEnvio: l.data_envio,
-        dataEnvioAplis: l.data_envio_aplis,
-        dataEnvioEditada: l.data_envio_editada,
-        dataRetornoReal: l.data_retorno_real,
-        dataPagamentoReal: l.data_pagamento_real,
-        qtdRequisicoes: l.qtd_requisicoes,
-        valorGlosado: Number(l.valor_glosado),
-        valorRecorrido: Number(l.valor_recorrido),
-          dataRetornoPrevista: prazos.dataRetornoPrevista,
-          dataPagamentoPrevista: prazos.dataPagamentoPrevista,
-          selo: prazos.selo,
-        };
-      }),
+      meta: meta(paginaAtual, tamanhoPagina, registros),
+      lotes: lotes.map((l) => loteDaResposta(l, hoje)),
     });
   } catch (err) {
     console.error('[faturamento/glosas-recursos-lotes] erro:', describeError(err));

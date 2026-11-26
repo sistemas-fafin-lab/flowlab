@@ -811,6 +811,104 @@ export function prazoParaRecorrer(
   return { prazo, selo: seloDoPrazo(prazo, hoje) };
 }
 
+/** Requisição da foto como as Pendências de glosa a leem para o prazo para recorrer. */
+export interface RequisicaoPendenciaPrazo {
+  fontePagadora: { id: number | null };
+  status: number | null;
+  /** Último `DtaRecebido` dos procedimentos: base do prazo para recorrer. */
+  dataRecebimento: string | null;
+  glosaFixada: number | null;
+  /** Está em algum lote de recurso, enviado ou não (fora da sub-aba "Recursos fora de lote"). */
+  emLoteRecurso: boolean;
+}
+
+/** Lote de recurso com as regras do convênio já escolhidas (null: sem regra ligada). */
+export interface LoteRecursoParaPendencia<R extends RequisicaoClassificavel = RequisicaoClassificavel> extends LoteParaPrazo<R> {
+  regras: RegrasPrazoLote | null;
+}
+
+export interface EntradaPendencias<P extends RequisicaoPendenciaPrazo, L extends LoteRecursoParaPendencia> {
+  /** Requisições da foto; só as glosadas sem recurso fora de lote de recurso contam. */
+  requisicoes: P[];
+  /** A regra GLOSA – RECURSO de cada convênio com vínculo. */
+  regraRecursoPorFonte: Map<number, RegraPrazo>;
+  lotes: L[];
+}
+
+export interface PendenciasDeGlosa<P extends RequisicaoPendenciaPrazo, L extends LoteRecursoParaPendencia> {
+  /** Valor: Σ glosa fixada; quantidade: requisições. Do prazo mais antigo ao mais recente. */
+  prazoVencido: { valor: number; quantidade: number; requisicoes: { requisicao: P; prazo: string }[] };
+  /** Valor: Σ recursado do lote; quantidade: lotes. */
+  retornoAtrasado: { valor: number; quantidade: number; lotes: { lote: L; dataRetornoPrevista: string }[] };
+  /** Valor: Σ recursado − recebido de glosa; quantidade: requisições, em `qtdLotes` lotes. */
+  pagamentoAtrasado: {
+    valor: number;
+    quantidade: number;
+    qtdLotes: number;
+    lotes: { lote: L; dataPagamentoPrevista: string; requisicoes: PrazosRequisicao<L['requisicoes'][number]>[] }[];
+  };
+}
+
+/** O prazo venceu (antes de hoje) e, com mês, dentro dele. */
+function vencidoNoRecorte(prazo: string | null, mes: string | null, hoje: string): prazo is string {
+  return prazo !== null && prazo < hoje && (mes === null || prazo.startsWith(mes));
+}
+
+/**
+ * Pendências de glosa (spec "Pendências de glosa"): glosas sem recurso com
+ * prazo para recorrer vencido, lotes de recurso com retorno atrasado (o selo
+ * "Atrasado" da lista de lotes) e requisições com pagamento atrasado (sem
+ * resultado final). Recurso sem data de envio não entra nos atrasos. `mes`
+ * 'YYYY-MM' conta o que venceu nele até hoje; null, tudo o que está vencido.
+ */
+export function pendenciasDeGlosa<P extends RequisicaoPendenciaPrazo, L extends LoteRecursoParaPendencia>(
+  entrada: EntradaPendencias<P, L>,
+  mes: string | null,
+  hoje: string,
+): PendenciasDeGlosa<P, L> {
+  const vencidas: PendenciasDeGlosa<P, L>['prazoVencido']['requisicoes'] = [];
+  for (const r of entrada.requisicoes) {
+    if (r.status !== STATUS_GLOSA.glosadoSemRecurso || r.emLoteRecurso) continue;
+    const regra = r.fontePagadora.id === null ? null : entrada.regraRecursoPorFonte.get(r.fontePagadora.id) ?? null;
+    const { prazo } = prazoParaRecorrer(r.dataRecebimento, regra, hoje);
+    if (vencidoNoRecorte(prazo, mes, hoje)) vencidas.push({ requisicao: r, prazo });
+  }
+  vencidas.sort((a, b) => a.prazo.localeCompare(b.prazo));
+
+  const retorno: PendenciasDeGlosa<P, L>['retornoAtrasado']['lotes'] = [];
+  const pagamento: PendenciasDeGlosa<P, L>['pagamentoAtrasado']['lotes'] = [];
+  let valorRetorno = 0;
+  for (const lote of entrada.lotes) {
+    if (lote.dataEnvio === null) continue;
+    const { dataRetornoPrevista, dataPagamentoPrevista, selo } = prazosDoLote(lote, lote.regras, hoje);
+    if (selo === 'atrasado' && vencidoNoRecorte(dataRetornoPrevista, mes, hoje)) {
+      retorno.push({ lote, dataRetornoPrevista });
+      for (const r of lote.requisicoes) valorRetorno = centavos(valorRetorno + recursadoEfetivo(r.foto, r.edicoes ?? {}));
+    }
+    if (!vencidoNoRecorte(dataPagamentoPrevista, mes, hoje)) continue;
+    const abertas = prazosDasRequisicoes(lote, lote.regras).filter((p) => !p.resultadoFinal);
+    if (abertas.length > 0) pagamento.push({ lote, dataPagamentoPrevista, requisicoes: abertas });
+  }
+  retorno.sort((a, b) => a.dataRetornoPrevista.localeCompare(b.dataRetornoPrevista));
+  pagamento.sort((a, b) => a.dataPagamentoPrevista.localeCompare(b.dataPagamentoPrevista));
+
+  const requisicoesPagamento = pagamento.flatMap((l) => l.requisicoes);
+  return {
+    prazoVencido: {
+      valor: vencidas.reduce((soma, v) => centavos(soma + (v.requisicao.glosaFixada ?? 0)), 0),
+      quantidade: vencidas.length,
+      requisicoes: vencidas,
+    },
+    retornoAtrasado: { valor: valorRetorno, quantidade: retorno.length, lotes: retorno },
+    pagamentoAtrasado: {
+      valor: requisicoesPagamento.reduce((soma, p) => centavos(soma + p.valorEmAberto), 0),
+      quantidade: requisicoesPagamento.length,
+      qtdLotes: pagamento.length,
+      lotes: pagamento,
+    },
+  };
+}
+
 /** Requisição da foto como o Calendário de recursos a lê. */
 export interface RequisicaoCalendario {
   /** Lote de faturamento original (`requisicao.Lote`). */

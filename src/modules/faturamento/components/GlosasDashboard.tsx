@@ -27,15 +27,16 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../../hooks/useTheme';
 import { useDashboardGlosas } from '../hooks/useGlosasRecursos';
-import type { CardValorGlosa, ItemRankingGlosa, RecorteGlosas, StatusGlosaDashboard } from '../types';
+import type { CardValorGlosa, FiltroPendenciaGlosa, ItemRankingGlosa, RecorteGlosas, StatusGlosaDashboard } from '../types';
 import { formatCompetencia, formatCurrency, formatPercentual, plural } from '../utils/formato';
 import { STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosaVisual';
 import { Kpi, VIDRO } from './KpiVidro';
+import PendenciasGlosaBloco from './PendenciasGlosaBloco';
 
 // Glosas e Recursos → aba Dashboard: cards de valor (Valor glosado, Valor
 // acatado, Glosa recuperada e Glosa em disputa, no visual dos cards de glosa do
 // Contas a Receber, com a variação sobre o mês de faturamento anterior),
-// evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
+// Pendências de glosa (PendenciasGlosaBloco), evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
 // (api/_lib/faturamento/recursoGlosa.ts → resumirDashboard).
 //
 // Gráficos no padrão do Dashboard de Contas a Receber (recharts, eixos e
@@ -133,9 +134,11 @@ interface Props {
   recorte: RecorteGlosas;
   /** Muda a cada sincronização ou edição concluída: recarrega o dashboard. */
   versao: number;
+  /** Um card das Pendências de glosa foi clicado: abre a lista filtrada. */
+  onAbrirPendencia: (filtro: FiltroPendenciaGlosa) => void;
 }
 
-const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
+const GlosasDashboard: React.FC<Props> = ({ recorte, versao, onAbrirPendencia }) => {
   const { isDark } = useTheme();
   const { dashboard, loading, error, refetch } = useDashboardGlosas(recorte);
   const [ordem, setOrdem] = useState<OrdemProcedimentos>('valor');
@@ -271,6 +274,8 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
           atraso={3}
         />
       </div>
+
+      <PendenciasGlosaBloco fontePagadoraId={recorte.fontePagadoraId} versao={versao} onAbrir={onAbrirPendencia} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Painel

@@ -3,11 +3,12 @@ import { AlertCircle, Eye, FileText, Search } from 'lucide-react';
 import { useLotesRecurso } from '../hooks/useGlosasRecursos';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
-import type { LoteRecursoFoto, RecorteGlosas, StatusLoteRecurso } from '../types';
+import type { FiltroPendenciaGlosa, LoteRecursoFoto, RecorteGlosas, StatusLoteRecurso, TipoPendenciaGlosa } from '../types';
 import { formatCurrency, formatData } from '../utils/formato';
-import { SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
+import { ROTULOS_PENDENCIA, SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
 import { MarcaEditado } from './CampoEditavelRecurso';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
+import FiltroPendenciaGlosaAviso from './FiltroPendenciaGlosaAviso';
 import PaginacaoGlosas from './PaginacaoGlosas';
 
 // Acompanhamento dos recursos → "Lotes de recurso": os lotes de recurso da foto
@@ -15,13 +16,21 @@ import PaginacaoGlosas from './PaginacaoGlosas';
 // convênio), com retorno e pagamento previstos e o selo de atraso calculados
 // no servidor pelas regras de prazo do convênio. O olho abre o card
 // "Detalhes do recurso" ao lado da lista. Retorno e pagamento mostram a data
-// real (registrada pelo lápis) quando há, diferenciada da prevista.
+// real (registrada pelo lápis) quando há, diferenciada da prevista. Os filtros
+// "Retorno atrasado" e "Pagamento atrasado" (issue 06) são os dos cards das
+// Pendências de glosa, de todos os meses de faturamento.
 
 const TAMANHO = 50;
 
 const STATUS_OPCOES = [
   { value: '', label: 'Todos os status' },
   ...(Object.keys(STATUS_LOTE_CORES) as StatusLoteRecurso[]).map((s) => ({ value: s, label: s })),
+];
+
+const PENDENCIA_OPCOES: { value: TipoPendenciaGlosa | ''; label: string }[] = [
+  { value: '', label: 'Todos os lotes' },
+  { value: 'retorno-atrasado', label: ROTULOS_PENDENCIA['retorno-atrasado'] },
+  { value: 'pagamento-atrasado', label: ROTULOS_PENDENCIA['pagamento-atrasado'] },
 ];
 
 const CAMPO = 'px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
@@ -47,6 +56,9 @@ const DataRealOuPrevista: React.FC<{ real: string | null; prevista: string | nul
 
 interface Props {
   recorte: RecorteGlosas;
+  /** Filtro de pendência (cards de retorno e de pagamento atrasado); null: a lista do período. */
+  pendencia: FiltroPendenciaGlosa | null;
+  onPendencia: (filtro: FiltroPendenciaGlosa | null) => void;
   /** Muda a cada sincronização ou edição concluída: recarrega a lista. */
   versao: number;
   /** canManageBilling: o card mostra o lápis. */
@@ -55,7 +67,7 @@ interface Props {
   onEditado: () => void;
 }
 
-const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEditado }) => {
+const LotesRecursoLista: React.FC<Props> = ({ recorte, pendencia, onPendencia, versao, podeEditar, onEditado }) => {
   const [busca, setBusca] = useState('');
   const [buscaDebounced, setBuscaDebounced] = useState('');
   const [status, setStatus] = useState<StatusLoteRecurso | ''>('');
@@ -68,14 +80,23 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
     return () => clearTimeout(t);
   }, [busca]);
 
+  const tipoPendencia = pendencia?.tipo;
+  const mesPendencia = pendencia?.mes;
+  // Filtro de pendência (de um card ou da própria lista): limpa os filtros locais, para a lista bater com o card.
+  useEffect(() => {
+    if (tipoPendencia) {
+      setStatus('');
+      setBusca('');
+    }
+  }, [tipoPendencia, mesPendencia]);
   useEffect(() => {
     setPagina(1);
-  }, [buscaDebounced, status, recorte.competencia, recorte.fontePagadoraId]);
+  }, [buscaDebounced, status, recorte.competencia, recorte.fontePagadoraId, tipoPendencia, mesPendencia]);
 
   // Outro recorte: o lote aberto pode nem estar mais na lista.
   useEffect(() => {
     setLoteAberto(null);
-  }, [recorte.competencia, recorte.fontePagadoraId]);
+  }, [recorte.competencia, recorte.fontePagadoraId, tipoPendencia, mesPendencia]);
 
   // Em tela estreita o card fica abaixo da lista: rola até ele.
   const idLoteAberto = loteAberto?.idLoteRecurso ?? null;
@@ -85,6 +106,7 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
 
   const { lotes, meta, loading, error, refetch } = useLotesRecurso({
     ...recorte,
+    pendencia,
     status: status || undefined,
     busca: buscaDebounced || undefined,
     pagina,
@@ -139,7 +161,17 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
           wrapperClass="w-48"
           ariaLabel="Status do lote"
         />
+        <Select
+          value={pendencia?.tipo ?? ''}
+          onChange={(v) => onPendencia(v ? { tipo: v as TipoPendenciaGlosa, mes: pendencia?.mes ?? null } : null)}
+          options={PENDENCIA_OPCOES}
+          controlClass={CAMPO}
+          wrapperClass="w-52"
+          ariaLabel="Pendência"
+        />
       </div>
+
+      {pendencia && <FiltroPendenciaGlosaAviso filtro={pendencia} onFiltro={onPendencia} />}
 
       <div className="flex flex-col xl:flex-row xl:items-start gap-4">
         <div className="flex-1 min-w-0 w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -155,7 +187,7 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
           ) : lotes.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">Nenhum lote de recurso neste recorte</p>
+              <p className="text-gray-500 dark:text-gray-400">{pendencia ? `Nenhum lote com ${ROTULOS_PENDENCIA[pendencia.tipo].toLowerCase()}` : 'Nenhum lote de recurso neste recorte'}</p>
             </div>
           ) : (
             <>

@@ -13,7 +13,7 @@ import Select from '../../../components/Select';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { sincronizarGlosasRecursos, useConveniosGlosas, useUltimaSincronizacaoGlosas } from '../hooks/useGlosasRecursos';
-import type { RecorteGlosas } from '../types';
+import type { FiltroPendenciaGlosa, RecorteGlosas } from '../types';
 import { formatData, formatDataHora, hojeIso } from '../utils/formato';
 import CalendarioRecursos from './CalendarioRecursos';
 import GlosasDashboard from './GlosasDashboard';
@@ -61,6 +61,19 @@ const GlosasRecursos: React.FC = () => {
   }));
   const [aba, setAba] = useState<Aba>('dashboard');
   const [subAba, setSubAba] = useState<SubAbaAcompanhamento>('lotes');
+  // Filtro de pendência de cada lista, posto por um card das Pendências de glosa ou pela própria lista.
+  const [pendenciaForaDeLote, setPendenciaForaDeLote] = useState<FiltroPendenciaGlosa | null>(null);
+  const [pendenciaLotes, setPendenciaLotes] = useState<FiltroPendenciaGlosa | null>(null);
+  const abrirPendencia = useCallback((filtro: FiltroPendenciaGlosa) => {
+    setAba('acompanhamento');
+    if (filtro.tipo === 'vencidos') {
+      setSubAba('fora-de-lote');
+      setPendenciaForaDeLote(filtro);
+    } else {
+      setSubAba('lotes');
+      setPendenciaLotes(filtro);
+    }
+  }, []);
 
   const [sincronizando, setSincronizando] = useState(false);
   const [erroSync, setErroSync] = useState<string | null>(null);
@@ -189,7 +202,7 @@ const GlosasRecursos: React.FC = () => {
         ))}
       </div>
 
-      {aba === 'dashboard' && <GlosasDashboard recorte={recorte} versao={versao} />}
+      {aba === 'dashboard' && <GlosasDashboard recorte={recorte} versao={versao} onAbrirPendencia={abrirPendencia} />}
       {aba === 'recentes' && (
         <GlosasRecentesLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
       )}
@@ -214,10 +227,24 @@ const GlosasRecursos: React.FC = () => {
           </div>
 
           {subAba === 'lotes' && (
-            <LotesRecursoLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
+            <LotesRecursoLista
+              recorte={recorte}
+              pendencia={pendenciaLotes}
+              onPendencia={setPendenciaLotes}
+              versao={versao}
+              podeEditar={podeEditar}
+              onEditado={aposEdicao}
+            />
           )}
           {subAba === 'fora-de-lote' && (
-            <RecursosForaDeLoteLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
+            <RecursosForaDeLoteLista
+              recorte={recorte}
+              pendencia={pendenciaForaDeLote}
+              onPendencia={setPendenciaForaDeLote}
+              versao={versao}
+              podeEditar={podeEditar}
+              onEditado={aposEdicao}
+            />
           )}
           {subAba === 'regras' && <RegrasPrazoConvenios versao={versao} podeEditar={podeEditar} />}
         </div>

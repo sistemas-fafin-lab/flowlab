@@ -1179,6 +1179,8 @@ export interface CalendarioRecursos {
 /** Filtros das listas de requisições (Recursos fora de lote, Glosas recentes). */
 export interface ListaRequisicoesGlosasFiltros extends RecorteGlosas {
   busca?: string;
+  /** Só Recursos fora de lote. */
+  pendencia?: FiltroPendenciaGlosa | null;
   pagina: number;
   tamanho: number;
 }
@@ -1330,9 +1332,31 @@ export interface RecorteGlosas {
   fontePagadoraId: number | null;
 }
 
+/** Filtro de pendência das listas, aberto por um card das Pendências de glosa. */
+export type TipoPendenciaGlosa = 'vencidos' | 'retorno-atrasado' | 'pagamento-atrasado';
+
+/**
+ * Com filtro de pendência, a lista cobre todos os meses de faturamento (o
+ * período do cabeçalho não filtra), como o card.
+ */
+export interface FiltroPendenciaGlosa {
+  tipo: TipoPendenciaGlosa;
+  /** YYYY-MM em que o prazo venceu; null = todo o período. */
+  mes: string | null;
+}
+
+/** Bloco "Pendências de glosa" do Dashboard (GET glosas-recursos-pendencias). */
+export interface PendenciasGlosa {
+  prazoVencido: { valor: number; quantidade: number };
+  retornoAtrasado: { valor: number; quantidade: number };
+  /** `quantidade` em requisições, em `qtdLotes` lotes. */
+  pagamentoAtrasado: { valor: number; quantidade: number; qtdLotes: number };
+}
+
 export interface LotesRecursoFiltros extends RecorteGlosas {
   status?: StatusLoteRecurso;
   busca?: string;
+  pendencia?: FiltroPendenciaGlosa | null;
   pagina: number;
   tamanho: number;
 }
