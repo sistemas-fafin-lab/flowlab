@@ -7,6 +7,7 @@ import {
   eventosDoLote,
   fixarGlosa,
   prazoParaRecorrer,
+  prazosDasRequisicoes,
   prazosDoLote,
   resumirAcompanhamento,
   resumirDashboard,
@@ -16,6 +17,7 @@ import {
   valorRecebidoGlosa,
 } from './recursoGlosa.js';
 import type {
+  EdicoesRequisicao,
   LoteParaPrazo,
   RegrasPrazoLote,
   RequisicaoDashboard,
@@ -573,6 +575,114 @@ describe('prazosDoLote', () => {
     const emAnalise = lote().requisicoes[0];
     const requisicoes = [{ foto: { ...emAnalise.foto, status: 15 } }, emAnalise];
     expect(prazosDoLote(lote({ requisicoes }), regras, '2026-12-01').selo).toBe('atrasado');
+  });
+});
+
+describe('prazosDasRequisicoes', () => {
+  // Recurso de 300 enviado em 01/10, sem resposta da operadora.
+  const emAnalise: RequisicaoFoto = {
+    status: 7,
+    liquido: 1000,
+    recebido: 700,
+    recebidoFixacao: 700,
+    valorRecursado: 300,
+    emLoteRecurso: true,
+    loteEnviado: true,
+  };
+
+  function lote(overrides: Partial<LoteParaPrazo> = {}): LoteParaPrazo {
+    return { dataEnvio: '2026-10-01', dataRetornoReal: null, requisicoes: [{ foto: emAnalise }], ...overrides };
+  }
+
+  const regras: RegrasPrazoLote = {
+    glosaAnalise: { tipo: 'dias_corridos', n: 30 },
+    glosaPagamento: { tipo: 'dias_corridos', n: 10 },
+  };
+
+  it('em análise num lote enviado: datas previstas, sem resultado final e o recursado em aberto', () => {
+    expect(prazosDasRequisicoes(lote(), regras)).toEqual([{
+      requisicao: { foto: emAnalise },
+      dataRetornoPrevista: '2026-10-31',
+      dataPagamentoPrevista: '2026-11-10',
+      classe: 'em-analise',
+      resultadoFinal: false,
+      valorEmAberto: 300,
+      motivoSemData: null,
+    }]);
+  });
+
+  it('lote não enviado: sem datas previstas, pelo motivo de não ter sido enviado', () => {
+    const naoEnviada = { foto: { ...emAnalise, loteEnviado: false } };
+    const [prazos] = prazosDasRequisicoes(lote({ dataEnvio: null, requisicoes: [naoEnviada] }), regras);
+    expect(prazos).toMatchObject({
+      dataRetornoPrevista: null,
+      dataPagamentoPrevista: null,
+      resultadoFinal: false,
+      valorEmAberto: 300,
+      motivoSemData: 'lote-nao-enviado',
+    });
+  });
+
+  it('convênio sem regra ligada: sem datas, por falta da regra de Análise', () => {
+    const [prazos] = prazosDasRequisicoes(lote(), null);
+    expect(prazos).toMatchObject({ dataRetornoPrevista: null, dataPagamentoPrevista: null, motivoSemData: 'sem-regra-analise' });
+  });
+
+  it('regra de Análise sem prazo: sem datas, por falta da regra de Análise', () => {
+    const semAnalise = { ...regras, glosaAnalise: { tipo: 'sem_prazo' as const, n: null } };
+    const [prazos] = prazosDasRequisicoes(lote(), semAnalise);
+    expect(prazos).toMatchObject({ dataRetornoPrevista: null, dataPagamentoPrevista: null, motivoSemData: 'sem-regra-analise' });
+  });
+
+  it('regra de Pagamento sem prazo: o retorno previsto continua, sem data de pagamento', () => {
+    const semPagamento = { ...regras, glosaPagamento: { tipo: 'sem_prazo' as const, n: null } };
+    const [prazos] = prazosDasRequisicoes(lote(), semPagamento);
+    expect(prazos).toMatchObject({
+      dataRetornoPrevista: '2026-10-31',
+      dataPagamentoPrevista: null,
+      motivoSemData: 'sem-regra-pagamento',
+    });
+  });
+
+  it('data real de retorno substitui a prevista como base do pagamento, mesmo sem regra de Análise', () => {
+    const [comRegras] = prazosDasRequisicoes(lote({ dataRetornoReal: '2026-11-20' }), regras);
+    expect(comRegras).toMatchObject({ dataRetornoPrevista: '2026-10-31', dataPagamentoPrevista: '2026-11-30', motivoSemData: null });
+
+    const semAnalise = { ...regras, glosaAnalise: { tipo: 'sem_prazo' as const, n: null } };
+    const [semRegraAnalise] = prazosDasRequisicoes(lote({ dataRetornoReal: '2026-11-20' }), semAnalise);
+    expect(semRegraAnalise).toMatchObject({ dataRetornoPrevista: null, dataPagamentoPrevista: '2026-11-30', motivoSemData: null });
+  });
+
+  function situacao(foto: RequisicaoFoto, edicoes?: EdicoesRequisicao) {
+    const [prazos] = prazosDasRequisicoes(lote({ requisicoes: [{ foto, edicoes }] }), regras);
+    return { resultadoFinal: prazos.resultadoFinal, valorEmAberto: prazos.valorEmAberto };
+  }
+
+  it('deferido total: resultado final, nada em aberto', () => {
+    expect(situacao({ ...emAnalise, recebido: 1000 })).toEqual({ resultadoFinal: true, valorEmAberto: 0 });
+  });
+
+  it('deferido total sem base fixada (status 34): resultado final, nada em aberto', () => {
+    expect(situacao({ ...emAnalise, status: 34, recebido: 1000, recebidoFixacao: null }))
+      .toEqual({ resultadoFinal: true, valorEmAberto: 0 });
+  });
+
+  it('indeferido (status 15): resultado final, com o recursado ainda não recebido', () => {
+    expect(situacao({ ...emAnalise, status: 15 })).toEqual({ resultadoFinal: true, valorEmAberto: 300 });
+  });
+
+  it.each([18, 8])('acatada (status %i): resultado final', (status) => {
+    expect(situacao({ ...emAnalise, status }).resultadoFinal).toBe(true);
+  });
+
+  it('deferido parcial: não é resultado final, com a diferença em aberto', () => {
+    expect(situacao({ ...emAnalise, recebido: 800 })).toEqual({ resultadoFinal: false, valorEmAberto: 200 });
+  });
+
+  it('edições do lápis valem acima do apLIS no valor em aberto e no resultado', () => {
+    expect(situacao(emAnalise, { valorRecursado: 500 })).toEqual({ resultadoFinal: false, valorEmAberto: 500 });
+    expect(situacao(emAnalise, { valorRecebidoGlosa: 120 })).toEqual({ resultadoFinal: false, valorEmAberto: 180 });
+    expect(situacao(emAnalise, { valorRecebidoGlosa: 300 })).toEqual({ resultadoFinal: true, valorEmAberto: 0 });
   });
 });
 

@@ -686,30 +686,27 @@ export interface RegrasPrazoLote {
   glosaPagamento: RegraPrazo;
 }
 
-export interface LoteParaPrazo {
+export interface LoteParaPrazo<R extends RequisicaoClassificavel = RequisicaoClassificavel> {
   /** Envio editado (ticket 07) ou do apLIS; null: lote não enviado. */
   dataEnvio: string | null;
   /** Retorno real da operadora, registrado pelo lápis (ticket 07). */
   dataRetornoReal: string | null;
-  requisicoes: RequisicaoClassificavel[];
+  requisicoes: R[];
 }
 
 /** 'sem-regra' é o "—": o convênio não tem regra de análise. */
 export type SeloAtraso = 'no-prazo' | 'vence-hoje' | 'atrasado' | 'sem-regra';
 
-export interface PrazosLote {
+/** Retorno e pagamento previstos de um lote de recurso. */
+export interface DatasPrevistas {
   dataRetornoPrevista: string | null;
+  /** Contada da data real de retorno, quando existe; senão da prevista. */
   dataPagamentoPrevista: string | null;
-  /** null: o selo não conta (lote não enviado, com retorno real ou classificação final). */
-  selo: SeloAtraso | null;
 }
 
-/** A operadora já deu resultado a todas as requisições do lote (nenhuma em análise). */
-function loteComClassificacaoFinal(requisicoes: RequisicaoClassificavel[]): boolean {
-  return requisicoes.length > 0 && requisicoes.every((r) => {
-    const c = classificarRequisicao(r.foto, r.edicoes);
-    return c !== null && c.classe !== 'em-analise';
-  });
+export interface PrazosLote extends DatasPrevistas {
+  /** null: o selo não conta (lote não enviado, com retorno real ou toda requisição já respondida). */
+  selo: SeloAtraso | null;
 }
 
 /** Selo de uma data limite; null (sem prazo) é o "—". */
@@ -720,21 +717,92 @@ function seloDoPrazo(prazo: string | null, hoje: string): SeloAtraso {
   return 'atrasado';
 }
 
+export type MotivoSemData = 'lote-nao-enviado' | 'sem-regra-analise' | 'sem-regra-pagamento';
+
+/** Prazos e situação de uma requisição de lote de recurso. */
+export interface PrazosRequisicao<R extends RequisicaoClassificavel = RequisicaoClassificavel> extends DatasPrevistas {
+  requisicao: R;
+  /** A de classificarRequisicao; null: lote não enviado ou ainda sem resultado. */
+  classe: ClasseRecurso | null;
+  /** Deferido total, indeferido ou acatada: a operadora não deve mais nada. */
+  resultadoFinal: boolean;
+  /** Recursado − recebido de glosa (os dois com as edições do lápis); nunca negativo, 0 no deferido total. */
+  valorEmAberto: number;
+  /** Por que não há data de pagamento prevista; null quando há. */
+  motivoSemData: MotivoSemData | null;
+}
+
+/** A operadora já respondeu de vez; o deferido parcial ainda tem o que pagar. */
+const CLASSES_RESULTADO_FINAL: ClasseRecurso[] = ['deferido', 'indeferido', 'acatada'];
+
+/**
+ * Retorno previsto (envio + Análise) e pagamento previsto (retorno real ou
+ * previsto + Pagamento) do lote, com o motivo de faltar a data de pagamento.
+ */
+function datasPrevistasDoLote(
+  lote: Pick<LoteParaPrazo, 'dataEnvio' | 'dataRetornoReal'>,
+  regras: RegrasPrazoLote | null,
+): DatasPrevistas & { motivoSemData: MotivoSemData | null } {
+  if (lote.dataEnvio === null) {
+    return { dataRetornoPrevista: null, dataPagamentoPrevista: null, motivoSemData: 'lote-nao-enviado' };
+  }
+  const dataRetornoPrevista = regras ? aplicarRegraPrazo(regras.glosaAnalise, lote.dataEnvio) : null;
+  const basePagamento = lote.dataRetornoReal ?? dataRetornoPrevista;
+  // Sem regra ligada, faltam as duas; o motivo aponta a primeira da conta.
+  if (regras === null || basePagamento === null) {
+    return { dataRetornoPrevista, dataPagamentoPrevista: null, motivoSemData: 'sem-regra-analise' };
+  }
+  const dataPagamentoPrevista = aplicarRegraPrazo(regras.glosaPagamento, basePagamento);
+  return {
+    dataRetornoPrevista,
+    dataPagamentoPrevista,
+    motivoSemData: dataPagamentoPrevista === null ? 'sem-regra-pagamento' : null,
+  };
+}
+
+/**
+ * Datas previstas e situação de cada requisição de um lote de recurso
+ * (spec "Calendário de recursos", base das Pendências de glosa e do Aging).
+ * `regras` null: convênio sem regra ligada.
+ */
+export function prazosDasRequisicoes<R extends RequisicaoClassificavel>(
+  lote: LoteParaPrazo<R>,
+  regras: RegrasPrazoLote | null,
+): PrazosRequisicao<R>[] {
+  const { dataRetornoPrevista, dataPagamentoPrevista, motivoSemData } = datasPrevistasDoLote(lote, regras);
+
+  return lote.requisicoes.map((requisicao) => {
+    const classe = classificarRequisicao(requisicao.foto, requisicao.edicoes)?.classe ?? null;
+    const recursado = recursadoEfetivo(requisicao.foto, requisicao.edicoes ?? {});
+    const recebidoGlosa = valorRecebidoGlosa(requisicao.foto, requisicao.edicoes) ?? 0;
+    return {
+      requisicao,
+      dataRetornoPrevista,
+      dataPagamentoPrevista,
+      classe,
+      resultadoFinal: classe !== null && CLASSES_RESULTADO_FINAL.includes(classe),
+      // Deferido total sem base fixada não tem ΔRec, mas a operadora pagou.
+      valorEmAberto: classe === 'deferido' ? 0 : Math.max(0, centavos(recursado - recebidoGlosa)),
+      motivoSemData,
+    };
+  });
+}
+
 /**
  * Datas previstas e selo de atraso de um lote de recurso (spec, "Prazos").
  * `regras` null: convênio sem regra ligada. `hoje` é 'YYYY-MM-DD'.
  */
 export function prazosDoLote(lote: LoteParaPrazo, regras: RegrasPrazoLote | null, hoje: string): PrazosLote {
-  if (lote.dataEnvio === null) return { dataRetornoPrevista: null, dataPagamentoPrevista: null, selo: null };
-  const retornoPrevisto = regras ? aplicarRegraPrazo(regras.glosaAnalise, lote.dataEnvio) : null;
-  const basePagamento = lote.dataRetornoReal ?? retornoPrevisto;
-  const pagamentoPrevisto = regras && basePagamento ? aplicarRegraPrazo(regras.glosaPagamento, basePagamento) : null;
+  const { dataRetornoPrevista, dataPagamentoPrevista } = datasPrevistasDoLote(lote, regras);
+  if (lote.dataEnvio === null) return { dataRetornoPrevista, dataPagamentoPrevista, selo: null };
 
-  let selo: SeloAtraso | null;
-  if (lote.dataRetornoReal !== null || loteComClassificacaoFinal(lote.requisicoes)) selo = null;
-  else selo = seloDoPrazo(retornoPrevisto, hoje);
+  // O selo para quando a operadora já respondeu a todas (nenhuma em análise, deferido parcial incluso).
+  const requisicoes = prazosDasRequisicoes(lote, regras);
+  const todasRespondidas = requisicoes.length > 0
+    && requisicoes.every((r) => r.classe !== null && r.classe !== 'em-analise');
 
-  return { dataRetornoPrevista: retornoPrevisto, dataPagamentoPrevista: pagamentoPrevisto, selo };
+  const selo = lote.dataRetornoReal !== null || todasRespondidas ? null : seloDoPrazo(dataRetornoPrevista, hoje);
+  return { dataRetornoPrevista, dataPagamentoPrevista, selo };
 }
 
 export interface PrazoParaRecorrer {

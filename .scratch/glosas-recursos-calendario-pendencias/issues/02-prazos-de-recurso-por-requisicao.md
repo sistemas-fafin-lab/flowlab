@@ -8,6 +8,11 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 
 **Status:** ready-for-agent
 
-- [ ] Para cada requisição, a função devolve: datas previstas (com a data real de retorno, quando existe, como base do pagamento), se tem resultado final, valor em aberto (recursado − recebido de glosa) e motivo de não ter data (lote não enviado, convênio sem regra de Análise ou de Pagamento).
-- [ ] Testes: lote não enviado; retorno real substitui o previsto; regra sem prazo; cada classe de resultado final; edições do lápis valem acima do apLIS.
-- [ ] A lista de Lotes de recurso mostra as mesmas datas e selos de antes.
+- [x] Para cada requisição, a função devolve: datas previstas (com a data real de retorno, quando existe, como base do pagamento), se tem resultado final, valor em aberto (recursado − recebido de glosa) e motivo de não ter data (lote não enviado, convênio sem regra de Análise ou de Pagamento).
+- [x] Testes: lote não enviado; retorno real substitui o previsto; regra sem prazo; cada classe de resultado final; edições do lápis valem acima do apLIS.
+- [x] A lista de Lotes de recurso mostra as mesmas datas e selos de antes.
+
+## Comments
+
+- Implementada como `prazosDasRequisicoes` em `api/_lib/faturamento/recursoGlosa.ts`. A `prazosDoLote` (lista de Lotes de recurso) tira dela a regra do selo e divide o mesmo cálculo de datas; o handler não mudou.
+- Para o ticket do Aging (07): com data real de retorno e regra de Análise "sem prazo", a função dá data de pagamento (o retorno real é a base). O spec do Aging diz que "convênio sem regra de Análise" vai para "Fora das faixas". Confirmar qual vale.
