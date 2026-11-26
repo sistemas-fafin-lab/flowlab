@@ -17,6 +17,7 @@ const ROTULO: Record<string, { texto: string; tom: BadgeTone }> = {
 };
 const TIPO: Record<string, string> = {
   cobranca: 'Cobrança diária', cobranca_manual: 'Cobrança', teste: 'Teste', confirmacao: 'Resposta da EVA', recebida: 'Mensagem', lembrete: 'Lembrete', aviso: 'Aviso de gestor', relatorio: 'Relatório de gestão', alerta: 'Alerta de gestão',
+  checkin: 'Check-in do dia', checkin_resumo: 'Resumo do check-in',
 };
 const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 

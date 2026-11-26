@@ -3,8 +3,8 @@
 // esta rota a cada 10 min (minuto 0, 10, 20…), e o que depende de hora fica aqui, na Vercel: muda
 // com o deploy, sem gerar e copiar o pacote da VPS de novo.
 // Hoje: os alertas de gestão (D38, antes conferidos dentro do script da VPS), as mídias que
-// ficaram para trás (D43) e a triagem dos chamados novos da tela (D45). As próximas rotinas de
-// horário entram aqui.
+// ficaram para trás (D43), a triagem dos chamados novos da tela (D45) e o check-in diário (D46).
+// As próximas rotinas de horário entram aqui.
 // Responde 202 na hora e trabalha em segundo plano (waitUntil): a VPS não fica parada esperando,
 // porque é ela que envia as mensagens. Para conferir à mão, ?esperar=true devolve o resultado.
 // Segurança: Authorization: Bearer <CRON_SECRET>. Cada parte falha sozinha, sem derrubar as outras.
@@ -17,6 +17,7 @@ import { verificarAlertas } from '../ti-agente/gestao.js';
 import { retomarMidias } from '../ti-agente/midia.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
 import { triarChamadosNovos } from '../ti-agente/triagem.js';
+import { rodarCheckin } from '../ti-agente/checkin.js';
 
 const ROTA = 'ti/agente-relogio';
 
@@ -33,13 +34,16 @@ async function parte<T>(nome: string, fn: () => Promise<T>): Promise<T | { erro:
 export async function rodarRelogio(agora = new Date()) {
   const db = getSupabaseAdminClient();
   const ia = dependenciasIA(db);
-  const [alertas, midias, triagem] = await Promise.all([
-    parte('alertas', () => verificarAlertas(db, { agora, linkInicio: `${APP_BASE_URL}/it/inicio` })),
+  const linkInicio = `${APP_BASE_URL}/it/inicio`;
+  const [alertas, midias, triagem, checkin] = await Promise.all([
+    parte('alertas', () => verificarAlertas(db, { agora, linkInicio })),
     parte('midias', () => retomarMidias(db, ia, agora)),
     // D45: os chamados novos da tela viram sugestão de entrada no Kanban.
     parte('triagem', () => triarChamadosNovos(db, ia)),
+    // D46: a pergunta do check-in (9h) e o resumo para os gestores (10h).
+    parte('checkin', () => rodarCheckin(db, { agora, linkInicio })),
   ]);
-  return { em: agora.toISOString(), alertas, midias, triagem };
+  return { em: agora.toISOString(), alertas, midias, triagem, checkin };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

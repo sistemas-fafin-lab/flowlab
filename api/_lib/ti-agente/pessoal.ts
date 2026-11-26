@@ -45,7 +45,8 @@ export async function lerConversa(db: SupabaseClient, membroId: string, antesDe:
       .select('direcao, tipo, status, texto, created_at')
       .eq('membro_id', membroId)
       // O relatório e os alertas de gestão (D38) entram: o gestor responde "e a Ana?" em cima deles.
-      .in('tipo', ['recebida', 'confirmacao', 'cobranca', 'cobranca_manual', 'lembrete', 'aviso', 'relatorio', 'alerta'])
+      // O check-in (D46) também: a resposta dele vem logo depois da pergunta.
+      .in('tipo', ['recebida', 'confirmacao', 'cobranca', 'cobranca_manual', 'lembrete', 'aviso', 'relatorio', 'alerta', 'checkin', 'checkin_resumo'])
       .in('status', ['recebida', 'pendente', ...SAIU])
       .lt('created_at', antesDe)
       .gte('created_at', desde)

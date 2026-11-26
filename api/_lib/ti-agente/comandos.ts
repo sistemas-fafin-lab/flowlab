@@ -38,6 +38,7 @@ import { ORIGEM_SUGESTAO_LAB_BRAIN } from '../labBrainSugestao.js';
 import { anexei, codigosNoTexto, soCodigos } from '../../../src/modules/eva/domain/midia.js';
 import { anexarAguardando } from './anexos.js';
 import { conhecimentoPara } from './conhecimento.js';
+import { checkinEmAberto, responderCheckin } from './checkin.js';
 import {
   cancelarLembrete, criarLembrete, lerConversa, lerDiaDaPessoa, lerQuando, montarBlocoDia, montarConteudoConversa,
 } from './pessoal.js';
@@ -865,7 +866,7 @@ async function executarComando(db: SupabaseClient, cmd: Comando, usuario: Usuari
 // ── A mensagem recebida ──────────────────────────────────────────────────────
 
 type Acao =
-  | 'limite' | 'so_texto' | 'agradecimento' | 'confirmado' | 'cancelado' | 'expirado' | 'sem_permissao' | 'sem_ia' | 'erro' | 'anexo'
+  | 'limite' | 'so_texto' | 'agradecimento' | 'confirmado' | 'cancelado' | 'expirado' | 'sem_permissao' | 'sem_ia' | 'erro' | 'anexo' | 'checkin'
   | SaidaMensagem['intencao'];
 
 /** D43: a mensagem veio de um áudio ou de uma imagem já tratados (midia.ts). */
@@ -974,6 +975,14 @@ export async function processarRecebida(
     // "relatório" do gestor, sem IA (D38). Para os demais, a IA reconhece e o sistema explica.
     const relatorio = papeis.gestor ? lerPedidoDeRelatorio(texto) : null;
     if (relatorio) return fim('relatorio', await relatorioAgora(db, relatorio, LINK_INICIO, agora));
+
+    // D46: com a pergunta do check-in de hoje em aberto, a mensagem pode ser a resposta. Se não
+    // for (outro assunto), segue o fluxo normal abaixo.
+    const checkin = await checkinEmAberto(db, membro.id, hoje);
+    if (checkin) {
+      const rc = await responderCheckin(db, ia, { checkinId: checkin.id, mensagemId: msg.id as string, membro, texto, cards: await lerCardsAbertos(db) });
+      if (rc) return fim('checkin', rc.resposta);
+    }
 
     // 4. A IA diz a intenção, com a conversa recente e o dia da pessoa (D30). O gestor recebe
     // também o PAINEL DE GESTÃO, para as perguntas de gestão (D38).

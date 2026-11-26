@@ -36,6 +36,8 @@ vi.mock('./aviso.js', async (original) => ({
 }));
 // D43: a imagem que espera o código do card (anexos.ts tem os próprios testes, em midia.test).
 vi.mock('./anexos.js', () => ({ anexarAguardando: vi.fn(async () => null) }));
+// D46: o check-in (checkin.ts tem os próprios testes); por padrão, nenhuma pergunta em aberto.
+vi.mock('./checkin.js', () => ({ checkinEmAberto: vi.fn(async () => null), responderCheckin: vi.fn(async () => null) }));
 vi.mock('./gestao.js', () => ({
   relatorioAgora: vi.fn(async (_db: unknown, recorte: string) => `RELATÓRIO (${recorte})`),
   lerBlocoGestao: vi.fn(async () => 'PAINEL DE GESTÃO (teste)'),
@@ -43,6 +45,7 @@ vi.mock('./gestao.js', () => ({
 }));
 
 import { anexarAguardando } from './anexos.js';
+import { checkinEmAberto, responderCheckin } from './checkin.js';
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
 import { lerBlocoGestao, relatorioAgora } from './gestao.js';
 import { checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
@@ -303,6 +306,23 @@ describe('processarRecebida: equipe', () => {
     const r = await processarRecebida(banco.db as never, {} as Dependencias, 'msg1', AGORA, { prefixo: '📎 Anexei a imagem ao IT-045.', semComentarioEm: ['c1'] });
     expect(banco.inserts.map((i) => i.tabela)).not.toContain('it_task_comments');
     expect(r.resposta).toMatch(/^📎 Anexei a imagem ao IT-045\.\n\n/);
+  });
+
+  it('D46: com o check-in de hoje em aberto, a resposta vira o plano do dia, sem a IA principal', async () => {
+    vi.mocked(checkinEmAberto).mockResolvedValueOnce({ id: 'ck1' });
+    vi.mocked(responderCheckin).mockResolvedValueOnce({ resposta: 'Anotado, Bruno! ☀️ Hoje: IT-045.', planejados: ['IT-045'], bloqueios: [] });
+    const r = await mandar('hoje fico no IT-045');
+    expect(r).toMatchObject({ acao: 'checkin', resposta: 'Anotado, Bruno! ☀️ Hoje: IT-045.' });
+    expect(responderCheckin).toHaveBeenCalledWith(banco.db, expect.anything(), expect.objectContaining({ checkinId: 'ck1', texto: 'hoje fico no IT-045', membro: BRUNO }));
+    expect(gerarMock).not.toHaveBeenCalled();
+  });
+
+  it('D46: com o check-in em aberto, outro assunto segue o fluxo normal', async () => {
+    vi.mocked(checkinEmAberto).mockResolvedValueOnce({ id: 'ck1' });
+    ia({ intencao: 'conversa', resposta: 'Oi!' });
+    const r = await mandar('tem reunião hoje?');
+    expect(r).toMatchObject({ acao: 'conversa', resposta: 'Oi!' });
+    expect(gerarMock).toHaveBeenCalledTimes(1);
   });
 
   it('pedido de gestor vindo da equipe: recusa, sem comando', async () => {
