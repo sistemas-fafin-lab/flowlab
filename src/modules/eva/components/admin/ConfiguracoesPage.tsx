@@ -17,6 +17,7 @@ const FINALIDADE: Record<string, string> = {
   resposta_whatsapp: 'WhatsApp',
   analise_chamado: 'Chamados do LAB-BRAIN',
   transcricao_audio: 'Áudios do WhatsApp',
+  rascunho_resolucao: 'Rascunhos de resolução',
 };
 
 /** /it/eva/configuracoes — liga/desliga, pasta do Granola e a saúde das integrações (issue 07). */

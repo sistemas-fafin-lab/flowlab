@@ -8,7 +8,7 @@ import { chamarEva } from './agenteApi';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card' | 'promover_card';
 export type StatusSugestao = 'pendente' | 'aprovada' | 'rejeitada' | 'substituida';
-export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain';
+export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain' | 'triagem';
 
 export interface PropostaCard {
   titulo?: string;

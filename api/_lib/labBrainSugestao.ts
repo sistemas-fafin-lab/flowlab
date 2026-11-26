@@ -15,6 +15,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describeError } from './errors.js';
 import { avisarQuemTem, lerMembros } from './ti-agente/dados.js';
+import { lerChamadosRecentes, lerResolucoes } from './ti-agente/conhecimento.js';
 import { gerarEstruturado, type Dependencias } from './ti-agente/ia/gerarEstruturado.js';
 import {
   type AnaliseChamado,
@@ -26,10 +27,15 @@ import {
   validarAnalise,
 } from './labBrainAnalise.js';
 import { CHAVE_APROVAR } from '../../src/modules/eva/domain/papeis.js';
+import { blocoConhecimento, maisParecidos } from '../../src/modules/eva/domain/conhecimento.js';
 
 /** Valor de ti_agente_sugestoes.origem para as sugestões dos chamados do LAB-BRAIN. */
 export const ORIGEM_SUGESTAO_LAB_BRAIN = 'lab-brain';
+/** D45: a sugestão de um chamado aberto pela tela, criada pela triagem do relógio. */
+export const ORIGEM_SUGESTAO_TRIAGEM = 'triagem';
 export const TIPO_PROMOVER_CARD = 'promover_card';
+/** Pontos mínimos da busca por palavras para um chamado entrar como parecido (D45). */
+const MINIMO_PARECIDO = 2.5;
 
 const LOG = '[integracoes/lab-brain-chamado-criar/sugestao]';
 const JUSTIFICATIVA_SEM_ANALISE =
@@ -49,6 +55,8 @@ export interface ChamadoParaSugestao {
   descricao: string;
   prioridade: string;
   tipo: string;
+  /** D45: por onde chegou (padrão: LAB-BRAIN). */
+  origem?: 'lab-brain' | 'tela';
 }
 
 /** O que a EVA propõe para o chamado. Mesmo formato lido pela tela de Sugestões. */
@@ -63,6 +71,10 @@ export interface PropostaPromocao {
   sem_analise?: true;
   /** Versão das instruções que geraram a proposta; ausente na regra fixa. */
   versao_prompt?: string;
+  /** D45: o chamado recente que parece pedir a mesma coisa. */
+  repetido_de?: string;
+  /** D45: o chamado já resolvido com o mesmo problema, e o que resolveu. */
+  solucao_anterior?: { codigo: string; dica: string };
 }
 
 /** O que vai para ti_agente_sugestoes além do vínculo com o chamado. */
@@ -106,13 +118,28 @@ async function analisar(
   ia: Dependencias,
   chamado: ChamadoParaSugestao,
 ): Promise<SugestaoMontada | { erro: string }> {
-  const membros = await lerMembros(db);
+  // D45: os chamados recentes (repetido?) e as resoluções (já resolvido antes?). Sem eles, a
+  // análise segue como antes: uma falha de leitura não derruba a sugestão.
+  const [membros, recentes, resolucoes] = await Promise.all([
+    lerMembros(db),
+    lerChamadosRecentes(db, new Date()).catch(() => []),
+    lerResolucoes(db).catch(() => []),
+  ]);
+  const pedido = `${chamado.titulo}\n${chamado.descricao}`;
+  const parecidosRecentes = maisParecidos(pedido, recentes, { n: 5, minimo: MINIMO_PARECIDO, excetoId: chamado.id }).map((a) => a.doc);
+  const parecidosResolvidos = maisParecidos(pedido, resolucoes, { n: 3, minimo: MINIMO_PARECIDO, excetoId: chamado.id });
+
   const r = await gerarEstruturado(
     {
       finalidade: 'analise_chamado',
       instrucoes: INSTRUCOES_PROMOVER,
       contexto: montarContextoChamado(membros),
-      conteudo: montarConteudoChamado({ ...chamado, dataPedido: hojeEmBrasilia() }),
+      conteudo: montarConteudoChamado({
+        ...chamado,
+        dataPedido: hojeEmBrasilia(),
+        recentes: parecidosRecentes,
+        baseDeConhecimento: blocoConhecimento(parecidosResolvidos),
+      }),
       schema: SchemaAnaliseChamado,
       esforco: 'low',
     },
@@ -120,7 +147,7 @@ async function analisar(
   );
   if ('erros' in r) return { erro: r.erros.join(' · ') };
 
-  const v = validarAnalise(r.dados, membros);
+  const v = validarAnalise(r.dados, membros, { recentes: parecidosRecentes, base: parecidosResolvidos.map((a) => a.doc) });
   if (!v) return { erro: 'a análise veio sem justificativa' };
   return {
     proposta: {
@@ -130,6 +157,8 @@ async function analisar(
       prazo: v.prazo,
       justificativa: v.justificativa,
       versao_prompt: VERSAO_PROMPT_PROMOVER,
+      ...(v.repetido_de ? { repetido_de: v.repetido_de } : {}),
+      ...(v.solucao_anterior ? { solucao_anterior: v.solucao_anterior } : {}),
     },
     confianca: v.confianca,
     avisos: v.avisos,
@@ -158,11 +187,14 @@ export async function criarSugestaoDePromocao(
   db: SupabaseClient,
   ia: Dependencias,
   chamado: ChamadoParaSugestao,
-): Promise<void> {
+  /** D45: a triagem dos chamados da tela grava com a origem "triagem" e outro aviso no sino. */
+  opcoes: { origem?: typeof ORIGEM_SUGESTAO_LAB_BRAIN | typeof ORIGEM_SUGESTAO_TRIAGEM } = {},
+): Promise<boolean> {
+  const origem = opcoes.origem ?? ORIGEM_SUGESTAO_LAB_BRAIN;
   const { proposta, confianca, avisos } = await montarSugestao(db, ia, chamado);
   try {
     const { error } = await db.from('ti_agente_sugestoes').insert({
-      origem: ORIGEM_SUGESTAO_LAB_BRAIN,
+      origem,
       tipo: TIPO_PROMOVER_CARD,
       card_id: chamado.id,
       proposta,
@@ -173,16 +205,17 @@ export async function criarSugestaoDePromocao(
     if (error) throw new Error(describeError(error));
   } catch (e) {
     console.error(`${LOG} falha ao gravar a sugestão do chamado ${chamado.codigo}:`, describeError(e));
-    return;
+    return false;
   }
 
   try {
     await avisarQuemTem(db, CHAVE_APROVAR, {
-      titulo: 'Chamado do LAB-BRAIN para aprovar',
-      conteudo: `${chamado.codigo} · ${chamado.titulo} aguarda a decisão de entrar no Kanban.`,
+      titulo: origem === ORIGEM_SUGESTAO_TRIAGEM ? 'Chamado novo para o Kanban' : 'Chamado do LAB-BRAIN para aprovar',
+      conteudo: `${chamado.codigo} · ${chamado.titulo} aguarda a decisão de entrar no Kanban.${proposta.repetido_de ? ` Parece repetido do ${proposta.repetido_de}.` : ''}`,
       link: '/it/eva',
     });
   } catch (e) {
     console.error(`${LOG} sugestão do chamado ${chamado.codigo} gravada, mas o aviso do sino falhou:`, describeError(e));
   }
+  return true;
 }
