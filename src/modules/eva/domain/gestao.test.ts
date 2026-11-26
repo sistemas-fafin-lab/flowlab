@@ -3,6 +3,7 @@ import {
   detectarAlertas, diaUtilAnterior, montarBlocoGestao, montarPainelGestao, montarPautaUmAUm, montarRelatorioDiario, montarRelatorioSemanal,
   periodoAnterior, pontosDeAtencao, semanaAnterior, ultimos7Dias, type ChamadoGestao, type EntradaGestao,
 } from './gestao';
+import { fotografar } from './tendencias';
 import { card, projeto, sprint } from './testes/fabricas';
 
 // Sexta, 13/11, 8h em Brasília. Dados fictícios.
@@ -243,5 +244,50 @@ describe('pauta de 1:1 (D41)', () => {
     const calma = entrada({ cards: [], cardsSemResposta: [] });
     expect(montarPautaUmAUm(calma, montarPainelGestao(calma), CARLA, null, 'whatsapp'))
       .toContain('💬 Para conversar\n• Sem pendências para destacar: bom momento para falar de prioridades e desenvolvimento.');
+  });
+});
+
+describe('histórico e tendências (D42)', () => {
+  const ANTES = fotografar(montarPainelGestao(entrada({ hoje: '2026-11-06', agora: Date.parse('2026-11-06T21:00:00Z'), periodo: { de: '2026-11-06', ate: '2026-11-06' } })));
+  const comFoto = montarPainelGestao(entrada({ fotoAnterior: { ...ANTES, abertos: 12, atrasados: 9, naFila: 4 } }));
+
+  it('a foto do dia: os números do painel de hoje, por pessoa também', () => {
+    const f = fotografar(montarPainelGestao(entrada({ periodo: { de: HOJE, ate: HOJE } })));
+    expect(f).toMatchObject({
+      dia: HOJE, abertos: 5, atrasados: 3, vencemHoje: 1, parados: 1, criticosAtrasados: 1, entregas: 0,
+      naFila: 2, foraDoPrazo: 1, emAndamento: 1,
+    });
+    expect(f.pessoas).toEqual({
+      [ANA]: { abertos: 3, atrasados: 3, concluidos: 0 },
+      [BRUNO]: { abertos: 2, atrasados: 0, concluidos: 0 },
+    });
+  });
+
+  it('entregas das 4 últimas semanas, pela data da resolução', () => {
+    const p = montarPainelGestao(entrada());
+    expect(p.entregasSemanas).toEqual([
+      { semana: '2026-10-19', entregas: 0 },
+      { semana: '2026-10-26', entregas: 0 },
+      { semana: '2026-11-02', entregas: 1 },
+      { semana: '2026-11-09', entregas: 1 },
+    ]);
+    // Resolvido em 04/11 e editado em 11/11: a entrega é da semana de 02/11.
+    const editado = { ...FEITO, resolved_at: '2026-11-04T15:00:00Z' };
+    const q = montarPainelGestao(entrada({ cards: [ROBO, VPN, BACKUP, IMPRESSORA, PARADO, editado, FEITO_ANTES] }));
+    expect(q.entregas.periodo).toBe(0);
+    expect(q.entregasSemanas.slice(2)).toEqual([{ semana: '2026-11-02', entregas: 2 }, { semana: '2026-11-09', entregas: 0 }]);
+  });
+
+  it('o relatório da semana compara com a foto de antes do período', () => {
+    expect(montarRelatorioSemanal(comFoto, LINK, '7dias')).toContain('• Em 06/11: 9 atrasados e 4 na fila (agora 3 e 2)');
+    // Sem foto (as primeiras semanas), a linha não aparece.
+    expect(montarRelatorioSemanal(montarPainelGestao(entrada()), LINK, '7dias')).not.toContain('• Em ');
+  });
+
+  it('o bloco da IA leva as entregas por semana e a tendência', () => {
+    const b = montarBlocoGestao(comFoto);
+    expect(b).toContain('Entregas por semana (cards concluídos, das 4 últimas semanas, a última é a atual, até hoje): 19/10: 0; 26/10: 0; 02/11: 1; 09/11: 1.');
+    expect(b).toContain('Tendência: em 06/11 eram 12 abertos, 9 atrasados e 4 chamados na fila (agora 5, 3 e 2).');
+    expect(montarBlocoGestao(montarPainelGestao(entrada()))).not.toContain('Tendência:');
   });
 });

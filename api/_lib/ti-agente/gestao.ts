@@ -4,7 +4,8 @@
 // Só vai para gestor da EVA (canManageAgenteTI, conferido no envio) com WhatsApp e a adesão
 // marcada na aba Membros.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { diaDaSemana, ehDiaUtil, hojeSP, somarDias, type Dia } from '../../../src/modules/eva/domain/datas.js';
+import { diaDaSemana, ehDiaUtil, hojeSP, inicioDaSemana, somarDias, type Dia } from '../../../src/modules/eva/domain/datas.js';
+import { fotografar, type FotoDia } from '../../../src/modules/eva/domain/tendencias.js';
 import { estaAtrasado, type CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import { JANELA_COBRANCA_MS, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
 import {
@@ -32,10 +33,10 @@ const inicioDoDia = (dia: Dia) => new Date(`${dia}T03:00:00Z`).toISOString();
 /** Tudo o que o painel precisa, do período pedido e do anterior (a comparação). */
 export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo: Periodo): Promise<EntradaGestao> {
   const hoje = hojeSP(agora);
-  // Concluídos desde o início do período anterior, e pelo menos 14 dias (o recorte do Início).
-  const desdeDia = [periodoAnterior(periodo).de, somarDias(hoje, -14)].sort()[0];
+  // Concluídos desde o início do período anterior, e pelo menos 4 semanas (as entregas por semana, D42).
+  const desdeDia = [periodoAnterior(periodo).de, somarDias(inicioDaSemana(hoje), -21)].sort()[0];
   const desde = inicioDoDia(desdeDia);
-  const [cfg, cardsBrutos, projetos, sprints, chamados, membros, sugestoes, fila] = await Promise.all([
+  const [cfg, cardsBrutos, projetos, sprints, chamados, membros, sugestoes, fila, fotoAnterior] = await Promise.all([
     lerConfigCobranca(db),
     lerTudo<CardTI>((de, ate) =>
       db.from('it_requests')
@@ -60,6 +61,7 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
       .eq('ativo', true),
     db.from('ti_agente_sugestoes').select('created_at', { count: 'exact' }).eq('status', 'pendente').order('created_at').limit(1),
     lerFilaRecente(db, agora),
+    lerFotoAntesDe(db, periodo.de),
   ]);
   if (membros.error) throw new Error(membros.error.message);
   if (sugestoes.error) throw new Error(sugestoes.error.message);
@@ -101,7 +103,27 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
     sugestaoMaisAntiga: (sugestoes.data?.[0]?.created_at as string | undefined) ?? null,
     cardsSemResposta: semResposta,
     ausencias: Object.fromEntries(equipe.map((m) => [m.id, m.ausencia])),
+    fotoAnterior,
   };
+}
+
+/**
+ * A foto diária mais recente antes do dia (D42). Sem a tabela (migration ainda não aplicada) ou sem
+ * foto, null: a comparação só some do relatório.
+ */
+async function lerFotoAntesDe(db: SupabaseClient, dia: Dia): Promise<FotoDia | null> {
+  const { data, error } = await db.from('ti_agente_fotos').select('foto').lt('dia', dia).order('dia', { ascending: false }).limit(1).maybeSingle();
+  if (error) return null;
+  return (data?.foto as FotoDia | undefined) ?? null;
+}
+
+/** A foto do fim do dia (fechamento das 18h): os números do painel de hoje, uma linha por dia. */
+export async function gravarFotoDoDia(db: SupabaseClient, agora = new Date()): Promise<FotoDia> {
+  const hoje = hojeSP(agora);
+  const foto = fotografar(await lerPainelGestao(db, agora, { de: hoje, ate: hoje }));
+  const { error } = await db.from('ti_agente_fotos').upsert({ dia: hoje, foto }, { onConflict: 'dia' });
+  if (error) throw new Error(error.message);
+  return foto;
 }
 
 /** As mensagens dos últimos dias, no formato do Início (para ultimoContato). */
