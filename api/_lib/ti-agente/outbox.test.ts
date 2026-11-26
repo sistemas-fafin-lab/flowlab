@@ -5,6 +5,7 @@ import type { ClienteWaha, GrupoWaha } from './waha.js';
 function repo(itens: ItemFila[], ativo = true, gruposLidosEm: string | null = '2026-10-13T11:59:00Z') {
   const r = {
     situacao: [] as string[],
+    recursos: [] as (string[] | undefined)[],
     enviadas: [] as { id: string; wahaId: string | null }[],
     falhas: [] as { id: string; status: string; tentativas: number; erro: string }[],
     chatIds: [] as [string, string][],
@@ -13,7 +14,7 @@ function repo(itens: ItemFila[], ativo = true, gruposLidosEm: string | null = '2
   };
   const repositorio: RepositorioFila = {
     whatsappAtivo: async () => ativo,
-    gravarSituacaoSessao: async (s) => { r.situacao.push(s); },
+    gravarSituacaoSessao: async (s, _em, recursos) => { r.situacao.push(s); r.recursos.push(recursos); },
     gruposLidosEm: async () => gruposLidosEm,
     gravarGrupos: async (g) => { r.grupos.push(g); },
     pendentes: async () => itens,
@@ -30,6 +31,7 @@ const waha = (over: Partial<ClienteWaha> = {}): ClienteWaha => ({
   verificarNumero: async () => ({ ok: true, existe: true, chatId: '556199924986@c.us' }),
   enviarTexto: async () => ({ ok: true, id: 'true_556199924986@c.us_ABC' }),
   listarGrupos: async () => ({ ok: true, grupos: [{ id: '120363000000000001@g.us', nome: 'TI FAFIN' }] }),
+  baixarArquivo: async () => ({ ok: false, erro: 'não usado na fila' }),
   ...over,
 });
 
@@ -46,6 +48,12 @@ describe('esvaziarFila (§11.2)', () => {
     expect(res.desligado).toBe(true);
     expect(r.situacao).toEqual(['WORKING']);
     expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it('D43: o sinal de vida leva os recursos do pacote (mídia, relógio)', async () => {
+    const { r, repositorio } = repo([], true);
+    await esvaziarFila(repositorio, waha(), { ...semEspera, recursos: ['midia', 'relogio'] });
+    expect(r.recursos).toEqual([['midia', 'relogio']]);
   });
 
   it('WAHA fora do ar: grava INACESSIVEL e não gasta tentativas', async () => {

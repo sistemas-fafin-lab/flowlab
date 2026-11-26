@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { acharMembro, lerEvento, tokenValido } from './webhook.js';
+import { AUDIO_AINDA_NAO, MIDIA_NAO_SUPORTADA } from '../../../src/modules/eva/domain/midia.js';
+import { acharMembro, lerEvento, planoDaMidia, tokenValido } from './webhook.js';
 
 const msg = (payload: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
   ({ event: 'message', session: 'ti_agente', payload: { id: 'false_556199924986@c.us_AAA', from: '556199924986@c.us', fromMe: false, body: ' IT-045 concluída ', ...payload }, ...extra });
@@ -7,8 +8,17 @@ const msg = (payload: Record<string, unknown>, extra: Record<string, unknown> = 
 describe('lerEvento (RN13)', () => {
   it('mensagem direta de uma pessoa', () => {
     expect(lerEvento(msg({}), 'ti_agente')).toEqual({
-      tipo: 'mensagem', id: 'false_556199924986@c.us_AAA', remetentes: ['556199924986'], texto: 'IT-045 concluída', temMidia: false,
+      tipo: 'mensagem', id: 'false_556199924986@c.us_AAA', remetentes: ['556199924986'], texto: 'IT-045 concluída', temMidia: false, midia: null,
     });
+  });
+
+  it('D43: a mídia que o WAHA baixou vem com a URL e o tipo', () => {
+    const audio = msg({ body: '', hasMedia: true, media: { url: 'http://localhost:3000/api/files/eva/false_5561@c.us_AAA.oga', mimetype: 'audio/ogg; codecs=opus' } });
+    expect(lerEvento(audio, 'ti_agente')).toMatchObject({
+      tipo: 'mensagem', texto: '', temMidia: true, midia: { url: 'http://localhost:3000/api/files/eva/false_5561@c.us_AAA.oga', mimetype: 'audio/ogg; codecs=opus' },
+    });
+    // O WAHA não baixou (WHATSAPP_DOWNLOAD_MEDIA desligado): há mídia, sem os dados dela.
+    expect(lerEvento(msg({ hasMedia: true }), 'ti_agente')).toMatchObject({ temMidia: true, midia: null });
   });
 
   it('ignora grupo, o próprio número, outra sessão e outros eventos', () => {
@@ -36,6 +46,34 @@ describe('lerEvento (RN13)', () => {
   it('confirmação de entrega', () => {
     expect(lerEvento({ event: 'message.ack', session: 'ti_agente', payload: { id: 'true_x@c.us_B', ack: 3 } }, 'ti_agente'))
       .toEqual({ tipo: 'ack', id: 'true_x@c.us_B', ack: 3 });
+  });
+});
+
+describe('planoDaMidia (D43)', () => {
+  const URL_WAHA = 'https://abc.ngrok.app/api/files/eva/x.oga';
+  const e = (texto: string, mimetype: string | null, url: string | null = URL_WAHA) => ({ texto, temMidia: true, midia: mimetype || url ? { url, mimetype } : null });
+
+  it('sem mídia, segue pelo texto', () => {
+    expect(planoDaMidia({ texto: 'oi', temMidia: false, midia: null }, true)).toEqual({ acao: 'texto' });
+  });
+
+  it('com a VPS nova, áudio e imagem esperam o download (o host da URL não importa)', () => {
+    expect(planoDaMidia(e('', 'audio/ogg; codecs=opus'), true)).toEqual({ acao: 'baixar', tipo: 'audio', mimetype: 'audio/ogg; codecs=opus', url: URL_WAHA });
+    expect(planoDaMidia(e('IT-045', 'image/jpeg'), true)).toMatchObject({ acao: 'baixar', tipo: 'imagem' });
+  });
+
+  it('sem a VPS nova: áudio tem a resposta de antes, mais clara; imagem segue pela legenda', () => {
+    expect(planoDaMidia(e('', 'audio/ogg'), false)).toEqual({ acao: 'responder', resposta: AUDIO_AINDA_NAO });
+    expect(planoDaMidia(e('IT-045 deu erro', 'image/jpeg'), false)).toEqual({ acao: 'texto' });
+    // URL fora do /api/files do WAHA: não há o que baixar.
+    expect(planoDaMidia(e('', 'audio/ogg', 'https://outro.site/x.oga'), true)).toEqual({ acao: 'responder', resposta: AUDIO_AINDA_NAO });
+  });
+
+  it('figurinha não responde; vídeo e documento têm a resposta fixa; sem o tipo, vale o texto', () => {
+    expect(planoDaMidia(e('', 'image/webp'), true)).toEqual({ acao: 'ignorar', motivo: 'figurinha' });
+    expect(planoDaMidia(e('', 'video/mp4'), true)).toEqual({ acao: 'responder', resposta: MIDIA_NAO_SUPORTADA });
+    expect(planoDaMidia(e('segue o PDF', 'application/pdf'), true)).toEqual({ acao: 'responder', resposta: MIDIA_NAO_SUPORTADA });
+    expect(planoDaMidia({ texto: '', temMidia: true, midia: null }, true)).toEqual({ acao: 'texto' });
   });
 });
 

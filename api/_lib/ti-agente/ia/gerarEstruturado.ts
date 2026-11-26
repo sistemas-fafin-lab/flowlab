@@ -2,7 +2,7 @@
 // quando ele falha, valida as duas respostas com o mesmo zod e registra cada tentativa
 // em ti_agente_chamadas_ia (RN14). Nenhum outro código chama os SDKs de IA direto.
 import { z } from 'zod';
-import { limparJson, type ClienteIA, type Esforco, type Finalidade, type ResultadoChamada, type TentativaIA } from './tipos.js';
+import { limparJson, type AnexoIA, type ClienteIA, type Esforco, type Finalidade, type ProvedorIA, type ResultadoChamada, type TentativaIA } from './tipos.js';
 
 /** Uma linha de ti_agente_chamadas_ia — só metadados, nunca o texto (RN14). */
 export interface LinhaChamadaIA {
@@ -29,6 +29,12 @@ export interface PedidoEstruturado<T> {
   reuniaoId?: string;
   mensagemId?: string;
   userId?: string;
+  /** Arquivos junto do pedido (D43). */
+  anexos?: AnexoIA[];
+  /** Quem tenta, na ordem. Padrão: Claude, depois Gemini. A transcrição de áudio usa só o Gemini. */
+  provedores?: ProvedorIA[];
+  /** Só o Gemini usa (a transcrição vai com 0). */
+  temperatura?: number;
 }
 
 export interface Dependencias {
@@ -92,7 +98,11 @@ function validar<T>(t: TentativaIA, schema: z.ZodType<T>): { tentativa: Tentativ
 
 export async function gerarEstruturado<T>(pedido: PedidoEstruturado<T>, deps: Dependencias): Promise<ResultadoEstruturado<T>> {
   const schemaJson = paraJsonSchema(pedido.schema);
-  const entrada = { instrucoes: pedido.instrucoes, contexto: pedido.contexto, conteudo: pedido.conteudo, schema: schemaJson, esforco: pedido.esforco };
+  const entrada = {
+    instrucoes: pedido.instrucoes, contexto: pedido.contexto, conteudo: pedido.conteudo, schema: schemaJson, esforco: pedido.esforco,
+    ...(pedido.anexos?.length ? { anexos: pedido.anexos } : {}),
+    ...(pedido.temperatura !== undefined ? { temperatura: pedido.temperatura } : {}),
+  };
   const tentativas: TentativaIA[] = [];
 
   const registrar = async (t: TentativaIA) => {
@@ -116,7 +126,8 @@ export async function gerarEstruturado<T>(pedido: PedidoEstruturado<T>, deps: De
     }
   };
 
-  for (const cliente of [deps.claude, deps.gemini]) {
+  const clientes = (pedido.provedores ?? ['claude', 'gemini']).map((p) => (p === 'claude' ? deps.claude : deps.gemini));
+  for (const cliente of clientes) {
     const { tentativa, dados } = validar(await cliente.chamar(entrada), pedido.schema);
     tentativas.push(tentativa);
     await registrar(tentativa);

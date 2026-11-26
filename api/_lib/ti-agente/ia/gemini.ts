@@ -42,12 +42,17 @@ export function criarClienteGemini(opcoes: OpcoesGemini = {}): ClienteIA {
       try {
         const resposta = await cliente.models.generateContent({
           model: modelo,
-          contents: [{ role: 'user', parts: [{ text: pedido.conteudo }] }],
+          // D43: o áudio vai como inlineData, antes do texto do pedido.
+          contents: [{
+            role: 'user',
+            parts: [...(pedido.anexos ?? []).map((a) => ({ inlineData: { mimeType: a.mimetype, data: a.base64 } })), { text: pedido.conteudo }],
+          }],
           config: {
             // As mesmas instruções e o mesmo contexto do Claude (§9.2).
             systemInstruction: [pedido.instrucoes, pedido.contexto].filter(Boolean).join('\n\n'),
             responseMimeType: 'application/json',
             responseJsonSchema: pedido.schema,
+            ...(pedido.temperatura !== undefined ? { temperature: pedido.temperatura } : {}),
             abortSignal: AbortSignal.timeout(TEMPO_LIMITE_MS),
           },
         });

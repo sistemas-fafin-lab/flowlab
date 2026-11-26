@@ -35,6 +35,8 @@ import { lerBlocoGestao, lerPautaUmAUm, relatorioAgora } from './gestao.js';
 import { APP_BASE_URL } from '../appUrl.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import { ORIGEM_SUGESTAO_LAB_BRAIN } from '../labBrainSugestao.js';
+import { anexei, codigosNoTexto, soCodigos } from '../../../src/modules/eva/domain/midia.js';
+import { anexarAguardando } from './anexos.js';
 import {
   cancelarLembrete, criarLembrete, lerConversa, lerDiaDaPessoa, lerQuando, montarBlocoDia, montarConteudoConversa,
 } from './pessoal.js';
@@ -456,7 +458,8 @@ async function fecharComando(db: SupabaseClient, id: string, resultado: string, 
     .eq('status', 'aguardando');
 }
 
-async function responder(db: SupabaseClient, membroId: string, texto: string, cardIds: string[] = []) {
+/** Enfileira a resposta da EVA para o membro (a VPS envia). */
+export async function responder(db: SupabaseClient, membroId: string, texto: string, cardIds: string[] = []) {
   const { error } = await db.from('ti_agente_mensagens').insert({ membro_id: membroId, direcao: 'saida', tipo: 'confirmacao', status: 'pendente', texto, card_ids: cardIds });
   if (error) throw new Error(error.message);
 }
@@ -859,8 +862,18 @@ async function executarComando(db: SupabaseClient, cmd: Comando, usuario: Usuari
 // ── A mensagem recebida ──────────────────────────────────────────────────────
 
 type Acao =
-  | 'limite' | 'so_texto' | 'agradecimento' | 'confirmado' | 'cancelado' | 'expirado' | 'sem_permissao' | 'sem_ia' | 'erro'
+  | 'limite' | 'so_texto' | 'agradecimento' | 'confirmado' | 'cancelado' | 'expirado' | 'sem_permissao' | 'sem_ia' | 'erro' | 'anexo'
   | SaidaMensagem['intencao'];
+
+/** D43: a mensagem veio de um áudio ou de uma imagem já tratados (midia.ts). */
+export interface OpcoesRecebida {
+  /** Vai antes da resposta ("📎 Anexei a imagem ao IT-045."). */
+  prefixo?: string;
+  /** Vai depois da resposta (o pedido do código do card da imagem). */
+  sufixo?: string;
+  /** Cards que já receberam o comentário com a imagem: o "atualizar" não comenta de novo. */
+  semComentarioEm?: string[];
+}
 
 export interface ResultadoRecebida {
   ok: boolean;
@@ -871,7 +884,13 @@ export interface ResultadoRecebida {
   erro: string | null;
 }
 
-export async function processarRecebida(db: SupabaseClient, ia: Dependencias, mensagemId: string, agora = new Date()): Promise<ResultadoRecebida> {
+export async function processarRecebida(
+  db: SupabaseClient,
+  ia: Dependencias,
+  mensagemId: string,
+  agora = new Date(),
+  opcoes: OpcoesRecebida = {},
+): Promise<ResultadoRecebida> {
   const hoje = hojeSP(agora);
   const { data: msg, error } = await db
     .from('ti_agente_mensagens')
@@ -884,9 +903,13 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
   const membro: Remetente = { id: m.id, user_id: m.user_id, nome: m.perfil?.name ?? '' };
   const texto = ((msg.texto as string) ?? '').trim();
 
+  // O prefixo e o sufixo (D43) mudam por mensagem: "📎 Anexei…" vem do anexo que esperava o código.
+  let prefixo = opcoes.prefixo ?? null;
+  const compor = (resposta: string | null) => [prefixo, resposta, opcoes.sufixo].filter(Boolean).join('\n\n') || null;
   const fim = async (acao: Acao, resposta: string | null, cardIds: string[] = []): Promise<ResultadoRecebida> => {
-    if (resposta) await responder(db, membro.id, resposta, cardIds);
-    return { ok: true, acao, resposta, erro: null };
+    const final = compor(resposta);
+    if (final) await responder(db, membro.id, final, cardIds);
+    return { ok: true, acao, resposta: final, erro: null };
   };
 
   try {
@@ -903,6 +926,17 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
       return { ok: true, acao: 'limite', resposta: null, erro: null };
     }
     if (!texto || texto === '(mídia sem texto)') return fim('so_texto', SO_TEXTO);
+
+    // D43: a imagem que esperava o código do card. Só o código ("IT-045") não precisa de IA.
+    const codigos = codigosNoTexto(texto);
+    if (codigos.length > 0) {
+      const anexo = await anexarAguardando(db, { membro, usuario, codigos, agora });
+      if (anexo) {
+        const aviso = anexei(anexo.codigos, anexo.imagens);
+        if (soCodigos(texto)) return fim('anexo', aviso);
+        prefixo = [prefixo, aviso].filter(Boolean).join('\n\n');
+      }
+    }
 
     // 1. O pedido que espera o SIM (os vencidos há pouco também, para dizer que expirou).
     const pendente = await ultimoComando(db, membro.id, 'aguardando', new Date(agora.getTime() - LISTA_VALE_MS).toISOString());
@@ -931,7 +965,8 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
     // 3. Fecho de conversa, sem IA: "obrigado" → "por nada"; "ok", 👍 → nada.
     const fecho = fechoDeConversa(texto);
     if (fecho === 'obrigado') return fim('agradecimento', porNada(membro.nome));
-    if (fecho === 'ok') return { ok: true, acao: 'agradecimento', resposta: null, erro: null };
+    // "ok" não pede resposta; o aviso do anexo (D43), se houver, sai assim mesmo.
+    if (fecho === 'ok') return fim('agradecimento', null);
 
     // "relatório" do gestor, sem IA (D38). Para os demais, a IA reconhece e o sistema explica.
     const relatorio = papeis.gestor ? lerPedidoDeRelatorio(texto) : null;
@@ -971,8 +1006,9 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
       // §9.1: os dois provedores falharam. Fica registrada para tratamento manual.
       const erro = r.erros.join(' · ');
       await db.from('ti_agente_mensagens').update({ erro: `Sem interpretação: ${erro}`.slice(0, 500) }).eq('id', msg.id);
-      await responder(db, membro.id, SEM_INTERPRETACAO);
-      return { ok: false, acao: 'sem_ia', resposta: SEM_INTERPRETACAO, erro };
+      const resposta = compor(SEM_INTERPRETACAO)!;
+      await responder(db, membro.id, resposta);
+      return { ok: false, acao: 'sem_ia', resposta, erro };
     }
 
     const s = r.dados;
@@ -982,7 +1018,9 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
         const itens = validarResposta({ itens: itensDaSaida(s), confianca: s.confianca }, atualizaveis, hoje);
         if (itens.length === 0) return fim('atualizar_cards', NAO_ACHEI_CARD);
         const executa = executaDireto(papeis);
-        const a = await registrarAtualizacoes(db, { mensagemId: msg.id as string, membro, texto, itens, confianca: s.confianca, executa });
+        const a = await registrarAtualizacoes(db, {
+          mensagemId: msg.id as string, membro, texto, itens, confianca: s.confianca, executa, semComentarioEm: opcoes.semComentarioEm,
+        });
         // D37: concluir e mudar prazo de quem executa direto não vão para a fila: o SIM aplica.
         if (executa && a.sugestoes.length > 0) {
           const ids = a.sugestoes.map((x) => x.id);

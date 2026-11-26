@@ -16,8 +16,12 @@
 #        ./install.sh
 # Uso (checkout): troque ARQUIVO=… por REPO_DIR=/caminho/do/flowlab.
 #   (WAHA_URL padrão: http://127.0.0.1:3000; WAHA_SESSION padrão: eva)
+# Opcional (D43/D44): CRON_SECRET=<o mesmo da Vercel> liga o áudio, a imagem e o relógio da
+#   Vercel; APP_URL troca a URL do app (padrão: https://flow-lab.vercel.app).
 # Reinstalar: sem as variáveis, reaproveita o /etc/flowlab/eva-whatsapp.env já gravado:
 #   sudo ARQUIVO=./eva-whatsapp.mjs bash ./install.sh
+# Para só acrescentar o CRON_SECRET às chaves já gravadas:
+#   sudo ARQUIVO=./eva-whatsapp.mjs CRON_SECRET=<segredo> bash ./install.sh
 # O serviço roda como quem chamou o sudo (RUN_AS, padrão $SUDO_USER), não como root, e
 # /opt/flowlab-eva fica com esse usuário: as próximas atualizações do arquivo não pedem sudo.
 set -euo pipefail
@@ -28,6 +32,9 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 ENV_FILE=/etc/flowlab/eva-whatsapp.env
+# O que veio na linha de comando vale mais que o arquivo reaproveitado (para trocar só o CRON_SECRET).
+NOVO_CRON_SECRET="${CRON_SECRET:-}"
+NOVO_APP_URL="${APP_URL:-}"
 if [ -z "${SUPABASE_URL:-}" ] && [ -f "$ENV_FILE" ]; then
   echo "→ Reaproveitando as chaves de $ENV_FILE"
   set -a
@@ -35,6 +42,8 @@ if [ -z "${SUPABASE_URL:-}" ] && [ -f "$ENV_FILE" ]; then
   . "$ENV_FILE"
   set +a
 fi
+CRON_SECRET="${NOVO_CRON_SECRET:-${CRON_SECRET:-}}"
+APP_URL="${NOVO_APP_URL:-${APP_URL:-}}"
 
 RUN_AS="${RUN_AS:-${SUDO_USER:-root}}"
 if [ "$RUN_AS" != "root" ] && ! id "$RUN_AS" >/dev/null 2>&1; then
@@ -54,8 +63,9 @@ esac
 
 # Texto de exemplo colado no lugar do valor ("…", "<chave>") ou caractere fora do ASCII:
 # o envio falharia com um erro obscuro. O valor não é mostrado.
-for VAR in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY WAHA_API_KEY WAHA_URL WAHA_SESSION; do
+for VAR in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY WAHA_API_KEY WAHA_URL WAHA_SESSION CRON_SECRET APP_URL; do
   VAL="${!VAR}"
+  [ -z "$VAL" ] && continue
   if [[ "$VAL" == "<"*">" ]] || LC_ALL=C printf '%s' "$VAL" | grep -q '[^ -~]'; then
     echo "$VAR parece o texto de exemplo (\"…\" ou \"<…>\") ou tem caractere inválido. Use o valor real." >&2
     exit 1
@@ -109,6 +119,15 @@ WAHA_URL=$WAHA_URL
 WAHA_API_KEY=$WAHA_API_KEY
 WAHA_SESSION=$WAHA_SESSION
 EOF
+# D43/D44: só com o CRON_SECRET a VPS baixa áudio e imagem e chama o relógio da Vercel.
+if [ -n "$CRON_SECRET" ]; then
+  echo "CRON_SECRET=$CRON_SECRET" >> "$ENV_FILE"
+else
+  echo "→ Sem CRON_SECRET: áudio, imagem e o relógio da Vercel ficam desligados (o resto funciona)."
+fi
+if [ -n "$APP_URL" ]; then
+  echo "APP_URL=$APP_URL" >> "$ENV_FILE"
+fi
 chmod 600 "$ENV_FILE"
 umask 022
 

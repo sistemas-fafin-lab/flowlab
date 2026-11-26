@@ -4,9 +4,13 @@
 // (decisão registrada na issue 15). A segunda barreira é o remetente estar entre os membros.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { digitosDoChatId, mesmoNumero } from '../../../src/modules/eva/domain/whatsapp.js';
+import { AUDIO_AINDA_NAO, MIDIA_NAO_SUPORTADA, caminhoNoWaha, ehFigurinha, tipoDaMidia } from '../../../src/modules/eva/domain/midia.js';
+
+/** A mídia que o WAHA baixou (D43): a URL aponta para o WAHA local da VPS. */
+export interface MidiaWaha { url: string | null; mimetype: string | null }
 
 export type EventoWaha =
-  | { tipo: 'mensagem'; id: string; remetentes: string[]; texto: string; temMidia: boolean }
+  | { tipo: 'mensagem'; id: string; remetentes: string[]; texto: string; temMidia: boolean; midia: MidiaWaha | null }
   | { tipo: 'ack'; id: string; ack: number }
   | { tipo: 'ignorar'; motivo: string };
 
@@ -22,6 +26,8 @@ interface CorpoWaha {
     participant?: unknown;
     body?: unknown;
     hasMedia?: unknown;
+    /** Preenchido quando o WAHA baixa a mídia (WHATSAPP_DOWNLOAD_MEDIA, ligado por padrão). */
+    media?: { url?: unknown; mimetype?: unknown } | null;
     ack?: unknown;
     _data?: {
       /** NOWEB/WEBJS: o número quando o remetente vem como LID. */
@@ -57,13 +63,43 @@ export function lerEvento(corpo: unknown, sessaoEsperada: string): EventoWaha {
     .filter((x): x is string => typeof x === 'string')
     .map(digitosDoChatId)
     .filter((x): x is string => !!x);
+  const temMidia = p.hasMedia === true;
+  const m = p.media && typeof p.media === 'object' ? p.media : null;
+  const midia = temMidia && m
+    ? { url: typeof m.url === 'string' && m.url ? m.url : null, mimetype: typeof m.mimetype === 'string' && m.mimetype ? m.mimetype : null }
+    : null;
   return {
     tipo: 'mensagem',
     id: p.id,
     remetentes: Array.from(new Set(candidatos)),
     texto: typeof p.body === 'string' ? p.body.trim() : '',
-    temMidia: p.hasMedia === true,
+    temMidia,
+    midia,
   };
+}
+
+export type PlanoMidia =
+  /** Sem mídia, ou imagem sem a VPS nova: segue pelo texto (a legenda), como antes. */
+  | { acao: 'texto' }
+  /** Figurinha: fica registrada, sem resposta. */
+  | { acao: 'ignorar'; motivo: string }
+  /** Vídeo, documento, áudio sem a VPS nova: a resposta fixa, sem IA. */
+  | { acao: 'responder'; resposta: string }
+  /** Áudio ou imagem: espera a VPS baixar (D43). */
+  | { acao: 'baixar'; tipo: 'audio' | 'imagem'; mimetype: string; url: string };
+
+/** O que fazer com a mídia recebida. `vpsBaixa`: a VPS anunciou que baixa mídia e está viva. */
+export function planoDaMidia(e: { texto: string; temMidia: boolean; midia: MidiaWaha | null }, vpsBaixa: boolean): PlanoMidia {
+  if (!e.temMidia) return { acao: 'texto' };
+  const mimetype = e.midia?.mimetype ?? null;
+  const tipo = tipoDaMidia(mimetype);
+  if (tipo === 'imagem' && ehFigurinha(mimetype, e.texto)) return { acao: 'ignorar', motivo: 'figurinha' };
+  // Sem o tipo, o WAHA não baixou o arquivo: vale a legenda, ou a resposta de "só leio texto".
+  if (tipo === 'outro') return mimetype ? { acao: 'responder', resposta: MIDIA_NAO_SUPORTADA } : { acao: 'texto' };
+  if (!vpsBaixa || !caminhoNoWaha(e.midia?.url) || !mimetype) {
+    return tipo === 'audio' ? { acao: 'responder', resposta: AUDIO_AINDA_NAO } : { acao: 'texto' };
+  }
+  return { acao: 'baixar', tipo, mimetype, url: e.midia!.url! };
 }
 
 /** Compara o token em tempo constante (os dois lados viram SHA-256, então o tamanho não vaza). */
