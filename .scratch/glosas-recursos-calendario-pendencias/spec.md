@@ -27,7 +27,7 @@ Por fim, não dá para acompanhar a evolução por **instância do recurso** (1�
 - os convênios sem prazo cadastrado aparecem numa lista à parte.
 
 **Aba Dashboard de glosa:**
-- **Cards de valor:** Valor glosado, Valor acatado, Glosa recuperada e Saldo pendente substituem os quatro cards por status.
+- **Cards de valor:** Valor glosado, Valor acatado, Glosa recuperada e Glosa em disputa substituem os quatro cards por status.
 - **Bloco "Pendências de glosa":** três cards (prazo de recurso vencido, retorno atrasado, pagamento atrasado).
 - **Aging da glosa em recurso** e **Saldo de glosa por operadora.**
 - **Bloco "Recursos por instância":** 1º, 2º e 3º recurso, com evolução de 6 meses.
@@ -60,7 +60,7 @@ Por fim, não dá para acompanhar a evolução por **instância do recurso** (1�
 17. Como gestora do faturamento, quero um card "Valor glosado" com o percentual do faturado, para saber quanto do faturamento as operadoras glosaram.
 18. Como gestora do faturamento, quero um card "Valor acatado" com o percentual do glosado, para saber quanto foi dado como perdido.
 19. Como gestora do faturamento, quero um card "Glosa recuperada" com o percentual do glosado, para saber quanto os recursos trouxeram de volta.
-20. Como gestora do faturamento, quero um card "Saldo pendente" com a glosa que ainda está em disputa, para saber quanto ainda pode voltar.
+20. Como gestora do faturamento, quero um card "Glosa em disputa" com a glosa que ainda está em disputa, para saber quanto ainda pode voltar.
 21. Como gestora do faturamento, quero ver em cada card a quantidade de requisições e a variação contra o mês anterior, como nos cards de hoje, para perceber tendências.
 22. Como gestora do faturamento, quero que esses cards usem a mesma classificação (recuperada, acatada, em disputa) dos cards de glosa do Contas a Receber, para não ver duas contas diferentes para a mesma coisa.
 
@@ -150,8 +150,9 @@ Cada requisição da foto do período é classificada pela mesma função de fun
 | Valor glosado | recuperada + acatada + em disputa | do faturado do período |
 | Valor acatado | acatada | do glosado |
 | Glosa recuperada | recuperada | do glosado |
-| Saldo pendente | em disputa (glosado − recuperada − acatada) | — |
+| Glosa em disputa | em disputa (glosado − recuperada − acatada) | — |
 
+- **Nome do card:** "Glosa em disputa", e não "Saldo pendente". No Contas a Receber, Saldo pendente é o total a receber (faturado − recebido − acatado), e aqui o card mede só a glosa em disputa (decisão de 26/11/2026).
 - **Período:** é o mês do lote de faturamento original, o mesmo filtro do resto da tela.
 - **Variação:** contra o mês anterior, sobre o valor, como os cards atuais.
 - **Faturado do período:** vem da mesma fonte do card do Contas a Receber.
@@ -182,7 +183,7 @@ Cada requisição da foto do período é classificada pela mesma função de fun
 
 ### Saldo de glosa por operadora
 
-- Soma do "em disputa" (a mesma classe do card Saldo pendente) por fonte pagadora, com os 10 maiores, em barra horizontal, no padrão do Saldo por operadora do Contas a Receber.
+- Soma do "em disputa" (a mesma classe do card Glosa em disputa) por fonte pagadora, com os 10 maiores, em barra horizontal, no padrão do Saldo por operadora do Contas a Receber.
 
 ### Instância do recurso
 
