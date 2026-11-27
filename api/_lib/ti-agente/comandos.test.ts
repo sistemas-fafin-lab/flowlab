@@ -38,6 +38,15 @@ vi.mock('./aviso.js', async (original) => ({
 vi.mock('./anexos.js', () => ({ anexarAguardando: vi.fn(async () => null) }));
 // D46: o check-in (checkin.ts tem os próprios testes); por padrão, nenhuma pergunta em aberto.
 vi.mock('./checkin.js', () => ({ checkinEmAberto: vi.fn(async () => null), responderCheckin: vi.fn(async () => null) }));
+// D47 e D48: o planejamento e a pauta têm os próprios testes; aqui, só o caminho pelo WhatsApp.
+vi.mock('./planejamento.js', () => ({ lerPlanejamento: vi.fn(async () => ({})), sugestoesDaRedistribuicao: vi.fn(() => []) }));
+vi.mock('../../../src/modules/eva/domain/planejamento.js', () => ({ montarTextoPlanejamento: vi.fn(() => 'PLANEJAMENTO (teste)') }));
+vi.mock('./pauta.js', () => ({ lerPautaReuniao: vi.fn(async (_db: unknown, formato: string) => `PAUTA DA REUNIÃO (${formato})`) }));
+// D49: os vencimentos (vencimentos.ts tem os próprios testes); aqui, só quem recebe o bloco.
+vi.mock('./vencimentos.js', async (original) => ({
+  ...(await original<typeof import('./vencimentos.js')>()),
+  lerBlocoVencimentos: vi.fn(async () => 'VENCIMENTOS DO GASTOS DE TI (teste)'),
+}));
 vi.mock('./gestao.js', () => ({
   relatorioAgora: vi.fn(async (_db: unknown, recorte: string) => `RELATÓRIO (${recorte})`),
   lerBlocoGestao: vi.fn(async () => 'PAINEL DE GESTÃO (teste)'),
@@ -46,6 +55,7 @@ vi.mock('./gestao.js', () => ({
 
 import { anexarAguardando } from './anexos.js';
 import { checkinEmAberto, responderCheckin } from './checkin.js';
+import { sugestoesDaRedistribuicao } from './planejamento.js';
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
 import { lerBlocoGestao, relatorioAgora } from './gestao.js';
 import { checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
@@ -844,5 +854,62 @@ describe('ausência e 1:1 pelo WhatsApp (D40, D41)', () => {
   it('a ajuda fixa mostra a ausência para todos e a 1:1 para o gestor', () => {
     expect(ajuda({ gestor: false, aprova: false })).toContain('• ausência: "vou estar de férias de 01/12 a 05/12"');
     expect(ajuda({ gestor: true, aprova: false })).toContain('"prepara minha 1:1 com o Bruno"');
+  });
+});
+
+describe('planejamento e pauta da reunião (D47, D48)', () => {
+  it('planejar: o gestor recebe a conta; sem redistribuição, nada vai para a fila', async () => {
+    ia({ intencao: 'planejar' });
+    expect(await mandar('o que cabe na próxima sprint?')).toMatchObject({ acao: 'planejar', resposta: 'PLANEJAMENTO (teste)' });
+    expect(estado.comandos).toEqual([]);
+    expect(banco.inserts.filter((i) => i.tabela === 'ti_agente_sugestoes')).toEqual([]);
+  });
+
+  it('planejar com redistribuição: vira sugestão do próprio gestor, e o SIM aplica', async () => {
+    (sugestoesDaRedistribuicao as ReturnType<typeof vi.fn>).mockReturnValueOnce([{
+      tipo: 'atualizar_card', card_id: 'c9', proposta: { responsaveis: ['u-bruno'], comentario: 'Redistribuído no planejamento' },
+      trecho: 'Redistribuição proposta pela EVA no planejamento.', confianca: 'media', avisos: [],
+    }]);
+    ia({ intencao: 'planejar' });
+    const previa = await mandar('dá para redistribuir os cards?');
+    expect(previa.resposta).toBe(`PLANEJAMENTO (teste)\n\nAplico essa redistribuição no Kanban? Cada card muda de responsável e ganha um comentário com o motivo.\n${PEDIR_SIM}`);
+    expect(banco.inserts.find((i) => i.tabela === 'ti_agente_sugestoes')!.linhas).toEqual([expect.objectContaining({
+      origem: 'whatsapp', proposta_por: 'u-ana', tipo: 'atualizar_card', card_id: 'c9', proposta: { responsaveis: ['u-bruno'], comentario: 'Redistribuído no planejamento' },
+    })]);
+    expect(estado.comandos[0]).toMatchObject({ tipo: 'aprovar', status: 'aguardando', dados: { daProposta: true } });
+    const sim = await mandar('sim');
+    expect(banco.rpcs[0]).toMatchObject({ fn: 'ti_agente_aprovar_sugestao_como', args: { p_aprovador: 'u-ana' } });
+    expect(sim.resposta).toBe('Pronto, já está no Kanban ✅');
+  });
+
+  it('pauta da reunião: o gestor recebe a pauta montada pelo sistema', async () => {
+    ia({ intencao: 'pauta_reuniao' });
+    expect(await mandar('pauta da reunião')).toMatchObject({ acao: 'pauta_reuniao', resposta: 'PAUTA DA REUNIÃO (whatsapp)' });
+  });
+
+  it('sem ser gestor, nem o planejamento nem a pauta', async () => {
+    estado.permissoes = ['canManageIT'];
+    ia({ intencao: 'planejar' });
+    expect((await mandar('o que cabe na próxima sprint?')).resposta).toContain('Só gestores da EVA podem planejar a sprint');
+    ia({ intencao: 'pauta_reuniao' });
+    expect((await mandar('pauta da reunião')).resposta).toContain('Só gestores da EVA podem montar a pauta da reunião');
+  });
+
+  it('D49: o bloco dos vencimentos só entra no contexto de quem vê o Gastos de TI', async () => {
+    const contexto = () => (gerarMock.mock.calls.at(-1)![0] as { contexto: string }).contexto;
+    ia({ intencao: 'pergunta', resposta: 'O Microsoft 365 renova em 31/12.' });
+    await mandar('o que vence este mês?');
+    expect(contexto()).not.toContain('VENCIMENTOS DO GASTOS DE TI');
+
+    estado.permissoes = [...GESTOR, 'canViewGastosTI'];
+    ia({ intencao: 'pergunta', resposta: 'O Microsoft 365 renova em 31/12.' });
+    await mandar('o que vence este mês?');
+    expect(contexto()).toContain('VENCIMENTOS DO GASTOS DE TI (teste)');
+  });
+
+  it('a ajuda do gestor mostra o planejamento e a pauta', () => {
+    expect(ajuda({ gestor: true, aprova: false })).toContain('• "o que cabe na próxima sprint?"');
+    expect(ajuda({ gestor: true, aprova: false })).toContain('• "pauta da reunião"');
+    expect(ajuda({ gestor: false, aprova: false })).not.toContain('pauta da reunião');
   });
 });

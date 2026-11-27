@@ -17,7 +17,9 @@
 > - **Áudio, imagem e relógio (24/Nov/2026, D43 e D44):** áudio transcrito e imagem anexada ao card pelo WhatsApp; a VPS chama o relógio da Vercel a cada 10 min (§11.10, issue 32).
 > - **Triagem e base de conhecimento (24/Nov/2026, D45):** todo chamado da tela vira sugestão de entrada no Kanban, com o possível repetido e a solução anterior; "como resolvemos…?" no chat e no WhatsApp; rascunho da resolução (§11.11, issue 33).
 > - **Check-in diário (26/Nov/2026, D46):** às 9h, a EVA pergunta a cada membro com WhatsApp o que entra no dia e se há bloqueio; às 10h, o resumo vai para os gestores (§11.12, issue 34).
-> - **Próximos (pedidos em 24/Nov):** Google Workspace (agenda, anotações do Meet, Gmail e criar reunião com Meet pela conta admin fixa); planejamento e pauta de reunião; vencimentos e rotinas; EVA para quem não é da TI (chat em todas as páginas e WhatsApp com número confirmado: abrir chamado e pedir link de reunião); conector do Notion (consulta às páginas compartilhadas, para todos).
+> - **Planejamento e pauta da reunião (27/Nov/2026, D47 e D48):** "o que cabe na próxima sprint?" pelo ritmo de cada pessoa, com a redistribuição aplicada por SIM; a pauta da reunião da equipe 1 h antes do dia e da hora marcados, e na hora; a cobrança cita a reunião que combinou o card (§11.13, issue 35).
+> - **Vencimentos e rotinas (27/Nov/2026, D49 e D50):** a EVA avisa antes de cada renovação ou término das despesas do Gastos de TI e responde "o que vence?"; as rotinas sem custo, cadastradas na aba Rotinas, viram card sozinhas (§11.14, issue 36).
+> - **Próximos (pedidos em 24/Nov):** Google Workspace (agenda, anotações do Meet, Gmail e criar reunião com Meet pela conta admin fixa); EVA para quem não é da TI (chat em todas as páginas e WhatsApp com número confirmado: abrir chamado e pedir link de reunião); conector do Notion (consulta às páginas compartilhadas, para todos).
 > - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
@@ -118,6 +120,10 @@ Entregáveis, na ordem em que geram valor:
 | **D44** | Relógio da VPS | ✅ **Fechado (24/Nov).** Detalhes na §11.10.<br>• A VPS chama `/api/ti/agente-relogio` a cada 10 min. O que depende de hora (alertas de gestão, mídias paradas e as próximas rotinas, como o check-in) fica na Vercel e muda com o deploy, sem gerar o pacote da VPS de novo.<br>• Precisa do `CRON_SECRET` na VPS. Sem ele, ou com o relógio fora do ar, a VPS confere os alertas ela mesma, como antes. | Fase 4 |
 | **D45** | Triagem de todo chamado e base de conhecimento | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário ("Sugestão na fila").** Detalhes na §11.11.<br>• **Triagem:** o relógio analisa os chamados abertos pela tela, como já fazia com os do LAB-BRAIN, e a sugestão de entrada no Kanban vai para a fila, com aviso no sino. Recusar não cancela o chamado da tela: ele segue em Solicitações de TI.<br>• **Repetido e solução anterior:** a análise (as duas origens) diz se o pedido parece repetido de um chamado dos últimos 30 dias e se um parecido já foi resolvido, e como.<br>• **Base de conhecimento:** no chat e no WhatsApp, "como resolvemos a VPN?" responde com as resoluções parecidas.<br>• **Rascunho da resolução:** "Rascunhar com a EVA" no Resolver chamado, a partir da conversa. | Fase 4 |
 | **D46** | Check-in diário | ✅ **Fechado (26/Nov), sugestão aceita pelo usuário ("todos com WhatsApp").** Detalhes na §11.12.<br>• Às 9h de dia útil, a EVA pergunta a cada membro com WhatsApp (fora quem está ausente) o que entra no dia e se há bloqueio, com os cards atrasados ou vencendo no radar.<br>• A resposta, por texto ou áudio, vira o plano do dia; o bloqueio vira comentário no card e aviso aos gestores.<br>• Às 10h, o resumo vai para os gestores que recebem o relatório de gestão.<br>• Desligado por padrão (Configurações). | Fase 4 |
+| **D47** | Planejamento e redistribuição | ✅ **Fechado (27/Nov), sugestão aceita pelo usuário.** Detalhes na §11.13.<br>• "O que cabe na próxima sprint?", pelo WhatsApp e no chat, só o gestor.<br>• **Ritmo** = cards concluídos por semana, na média das últimas 4. A capacidade vai até o fim da próxima sprint planejada (ou os próximos 10 dias úteis), sem os dias de ausência.<br>• Quem passa da capacidade e tem card que ainda não começou, não é crítico e é só dela ganha a proposta de passar até 2 cards para quem tem folga. O gestor confirma (SIM ou o cartão do chat), e a mudança entra pela aprovação de sempre, com um comentário no card.<br>• Sem migration. | Fase 4 |
+| **D48** | Pauta e acompanhamento da reunião | ✅ **Fechado (27/Nov), sugestão aceita pelo usuário ("dia fixo, para gestores").** Detalhes na §11.13.<br>• O dia e a hora da reunião da equipe ficam em Configurações. Uma hora antes, a pauta vai no WhatsApp dos gestores que recebem o relatório de gestão; "pauta da reunião" monta na hora.<br>• **A pauta**, sem IA: o que a última reunião combinou e não andou, os atrasados, os bloqueios do check-in, quem está acima da capacidade, as sugestões paradas e os pontos para decidir.<br>• **Acompanhamento:** a cobrança da manhã cita a reunião que combinou o card ("combinado na reunião de 24/11").<br>• Desligada por padrão. | Fase 4 |
+| **D49** | Vencimentos de licenças, contratos e certificados | ✅ **Fechado (27/Nov), sugestão aceita pelo usuário ("Gastos de TI + rotinas").** Detalhes na §11.14.<br>• **A fonte** são as despesas do Gastos de TI: o término (a última competência), se renova sozinha e a antecedência do aviso, que já estão no cadastro.<br>• **O alerta** pelo WhatsApp sai na antecedência de cada despesa e de novo a 7 dias do fim, para os gestores que recebem alertas e para o responsável da despesa, desde que vejam o Gastos de TI. Sem valores.<br>• "O que vence este mês?" responde para quem vê o Gastos de TI.<br>• Sem migration. | Fase 4 |
+| **D50** | Rotinas que viram card | ✅ **Fechado (27/Nov), sugestão aceita pelo usuário.** Detalhes na §11.14.<br>• Aba **Rotinas** na EVA, para o gestor e quem configura: título, frequência (de semanal a anual), o prazo do próximo card, a antecedência, os responsáveis, a prioridade e o projeto.<br>• Alguns dias antes de cada data, o relógio cria o card no Kanban e anda para a próxima. Cadastrar a rotina é a aprovação: o card não passa pela fila de sugestões.<br>• As datas que passaram (rotina pausada) ficam para trás, sem card atrasado. | Fase 4 |
 
 ---
 
@@ -1162,6 +1168,102 @@ Resposta que chega depois das 10h fica registrada, mas não muda o resumo que j�
 - `ti_agente_config.checkin_ativo`;
 - a tabela `ti_agente_checkins`, com RLS de leitura;
 - os tipos novos na fila.
+
+### 11.13 Planejamento e pauta da reunião (D47, D48)
+
+**Decisão do usuário (24/Nov):** a pauta vai para os gestores, num dia e hora fixos marcados em Configurações ("dia fixo, para gestores"), e também sai na hora. Os dois pedidos são só do gestor (`canManageAgenteTI`).
+
+**Planejamento** (`domain/planejamento.ts`, `montarPlanejamento`):
+- **A janela:** de hoje até o fim da próxima sprint planejada que começa em até 4 semanas. Sem ela, os próximos 10 dias úteis.
+- **O ritmo** de cada pessoa é a média de cards concluídos por semana nas últimas 4 (pela data da resolução, D42).
+  - Sem entrega nesse tempo, vale a média da equipe, e a pessoa não recebe card.
+  - Quem não tem card nem entrega fica de fora.
+- **A capacidade** é o ritmo vezes os dias úteis da janela em que a pessoa está, sem os da ausência (D40).
+- **O comprometido** são os abertos fora do Backlog, mais os do Backlog que já estão na sprint ou vencem na janela.
+- **A redistribuição:**
+  - Quem passa da capacidade em 2 ou mais ganha a proposta. Ela leva até 2 cards por pessoa e 4 no total, dos que ainda não começaram (A Fazer ou Backlog), não são críticos e são só dela, do menos prioritário para o mais.
+  - Recebe quem tem ritmo medido, está aqui hoje, fica pelo menos metade da janela e tem folga de 2 ou mais.
+- **Do Backlog:** o que ninguém assumiu, por prioridade e prazo, até a folga que sobra depois da redistribuição.
+- **Pelo WhatsApp**, a intenção `planejar` responde com a conta. Com redistribuição, as mudanças viram sugestões do próprio gestor (origem `whatsapp`, com um comentário no card), e o SIM aplica (D37). Sem o SIM, elas ficam na fila de sugestões.
+- **No chat**, o campo `planejamento` troca a resposta pela conta, e as mudanças vêm como cartões para confirmar.
+
+**Pauta da reunião** (`domain/pauta.ts`, `montarPautaReuniao`):
+- **Quando:** em Configurações, "Pauta da reunião da equipe", com o dia (segunda a sexta) e a hora (8h às 18h). O relógio (D44) manda de 1 h antes até a hora da reunião, uma vez por dia (`pauta:membro:dia`), para os gestores com "Recebe o relatório de gestão". "Pauta da reunião" monta na hora, pelo WhatsApp (`pauta_reuniao`) e no chat (`pauta_reuniao`).
+- **O que traz**, sem IA:
+  - da última reunião analisada, quantos itens já estão feitos e os que não andaram: atrasados, os que ainda esperam aprovação e os em aberto, com responsável e prazo;
+  - os atrasados do Kanban;
+  - os bloqueios do check-in dos últimos 3 dias, só dos cards que continuam abertos;
+  - quem está acima da capacidade (D47). Sem ritmo medido, ninguém aparece;
+  - as sugestões paradas, as cobranças sem resposta e os projetos em risco;
+  - os pontos para decidir, por regras fixas: repactuar o que está atrasado há mais de 7 dias, destravar os bloqueios, decidir as sugestões da reunião, equilibrar a carga e rever o escopo dos projetos em risco.
+- **Acompanhamento:** na cobrança da manhã, o card criado ou mudado por uma sugestão de reunião aprovada nos últimos 60 dias leva "combinado na reunião de 24/11". Se a leitura falhar, a cobrança sai sem a menção.
+
+```
+🗓️ Pauta da reunião · segunda, 30/11 às 10:00
+
+📝 Da última reunião ("Planning da sprint 6", 24/11): 1 de 3 feitos
+• IT-045 Robô de pré-faturamento · Ana · até 25/11 · atrasado há 5 dias
+• Card novo "Abrir chamado no fornecedor do link" · Carla: a sugestão ainda espera aprovação
+
+⚠️ Atrasados (2)
+• IT-031 Backup do servidor · Bruno · há 12 dias
+• IT-045 Robô de pré-faturamento · Ana · há 5 dias
+
+⛔ Bloqueios do check-in
+• IT-060 Link dedicado da filial: esperando a operadora mandar o técnico (Carla, 27/11)
+
+⚖️ Acima da capacidade até 11/12 (próximos 10 dias úteis)
+• Ana: tem 8, cabem ~6
+
+💬 Para decidir
+• Repactuar o prazo do IT-031 (atrasado há 12 dias)
+• Destravar o IT-060: esperando a operadora mandar o técnico
+• Decidir a sugestão da última reunião que ainda espera aprovação
+• Equilibrar a carga: IT-050 e IT-051 de Ana para Bruno (para aplicar, me peça o planejamento)
+```
+
+**Conferido com a IA real, dados fictícios** (pelo Gemini; o crédito da Anthropic continuava zerado), com 11 frases:
+- **No WhatsApp:**
+  - "o que cabe na próxima sprint?" e "dá pra redistribuir uns cards da Ana?" deram `planejar`;
+  - "pauta da reunião" e "o que eu levo pra reunião de equipe de segunda?" deram `pauta_reuniao`;
+  - "quem está sobrecarregado?" continuou `pergunta`, "prepara minha 1:1 com o Bruno" continuou `preparar_1a1`, e "passa o IT-050 para o Bruno" continuou `propor`.
+- **No chat:** os campos `planejamento`, `pauta_reuniao` e `pauta_1a1` saíram certos.
+
+**Migration `20261127143700_eva_planejamento_pauta.sql`:**
+- `ti_agente_config.pauta_ativa`, `reuniao_dia` (1 a 5) e `reuniao_hora` ("HH:MM");
+- o tipo `pauta` na fila.
+
+### 11.14 Vencimentos e rotinas (D49, D50)
+
+**Decisão do usuário (24/Nov):** "Gastos de TI + rotinas". As renovações vêm das despesas do Gastos de TI, com o término que já está lá. As rotinas sem custo ganham um cadastro novo na EVA, que cria o card sozinho.
+
+**Vencimentos** (`domain/vencimentos.ts`; no servidor, `verificarVencimentos`, no relógio):
+- **O término** é o último dia da última competência da despesa (`competencia_fim`). Despesa sem fim ou de cobrança única não vence. É a mesma regra do card de renovações do Gastos de TI (`terminoDaDespesa`), reescrita na EVA porque aquele domínio não roda na api/.
+- **Quando avisa:** na antecedência marcada em cada despesa (`aviso_renovacao_dias`, 30 por padrão) e de novo a 7 dias do fim. Cada aviso sai uma vez por pessoa (`vencimento:membro:despesa:término:marco`), no horário da EVA.
+- **Quem recebe:** os gestores com "Recebe alertas" e o responsável da despesa, se for membro ativo com WhatsApp e não estiver ausente. Os dois só recebem se virem o Gastos de TI (`canViewGastosTI` ou `canManageGastosTI`).
+- **O texto não leva valores:** "🔁 Microsoft 365 (Microsoft) renova sozinha em 30 dias, em 31/12. Se for renegociar ou cancelar, a hora é agora." ou "⏳ Certificado SSL (Sectigo) termina em 7 dias, em 31/12, e não renova sozinha. Vale decidir se renova.", com o link do Gastos de TI.
+- **"O que vence este mês?":** para quem vê o Gastos de TI, o contexto da IA (chat e WhatsApp) leva os vencimentos dos próximos 90 dias. Sem o bloco, a EVA diz que os vencimentos ficam no Gastos de TI.
+- **Encerrar uma despesa também é marcar o fim** (Gastos de TI). Por isso, a despesa encerrada de propósito recebe o aviso de "termina, sem renovação automática", como no card de renovações do próprio módulo.
+
+**Rotinas** (`domain/rotinas.ts`; no servidor, `criarCardsDeRotina`, no relógio; a tela é a aba Rotinas):
+- **O cadastro:**
+  - o título do card, a descrição, a frequência (semanal, quinzenal, mensal, bimestral, trimestral, semestral ou anual) e o prazo do próximo card;
+  - a antecedência (3 dias por padrão, até 60), os responsáveis, a prioridade e o projeto.
+  - Quem cadastra vira o solicitante dos cards. Pausar e excluir não mexe nos cards que já saíram.
+- **As datas em meses** voltam ao dia da primeira: o "todo dia 31" cai no último dia dos meses curtos e volta a 31 depois.
+- **O card** sai na coluna A Fazer, como suporte interno, com o prazo da data, os responsáveis, a prioridade e as etiquetas `agente-ti` e `rotina`. A descrição diz que é de rotina ("todo mês, dia 5").
+- **A trava:** a data anda antes do card, e só quem trocou a data que leu cria o card. Se o card falhar, o erro fica na rotina e a tela mostra. A data não volta, para não tentar de novo a cada 10 min.
+- **As datas que passaram** (a rotina ficou pausada) ficam para trás, sem card atrasado.
+- **A aba Rotinas** é do gestor e de quem configura. Ela mostra a frequência, o prazo do próximo card e quando ele sai, os responsáveis, o último card e o último erro. Os seletores são os do design system, e a exclusão pede confirmação.
+
+**Conferido:**
+- **Na tela:** a aba num harness com dados fictícios, nos temas claro e escuro, em 390 px de largura e com o formulário aberto.
+- **Com a IA real, dados fictícios (pelo Gemini):**
+  - "o que vence este mês de licença?" respondeu pelo bloco ("a próxima renovação é a do Microsoft 365, em 31/12");
+  - "quando renova o certificado do portal?" achou o certificado e disse que ele não renova sozinho;
+  - sem o bloco, a resposta foi que os vencimentos ficam no Gastos de TI.
+
+**Migration `20261127191300_eva_rotinas.sql`:** a tabela `ti_agente_rotinas`. Leem quem vê a EVA. Cadastram, editam e excluem o gestor e quem configura. O card, quem cria é o servidor.
 
 ---
 

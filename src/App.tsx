@@ -55,7 +55,7 @@ import { ColaboradoresPage, DepartamentosPage, HoleritesPage, MeuPerfilPage } fr
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
 import { GeradorOrcamentoPage, GERADOR_ORCAMENTO_PATH } from './modules/gerador-orcamento';
 import { ResetarSenhaClinicaPage, RESETAR_SENHA_CLINICA_PATH } from './modules/senha-clinica';
-import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage } from './modules/eva';
+import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage, EvaRotinasPage } from './modules/eva';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -578,6 +578,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI', 'canConfigureAgenteTI']} permissions={userPermissions}>
               <EvaReunioesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/eva/rotinas"
+          element={
+            <ProtectedRoute anyOf={['canManageAgenteTI', 'canConfigureAgenteTI']} permissions={userPermissions}>
+              <EvaRotinasPage />
             </ProtectedRoute>
           }
         />

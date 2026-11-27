@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
-import { CalendarClock, ClipboardCheck, Settings, ShieldCheck, Users, type LucideIcon } from 'lucide-react';
+import { CalendarClock, ClipboardCheck, Repeat, Settings, ShieldCheck, Users, type LucideIcon } from 'lucide-react';
 import { usePapeisEva } from '../../hooks/useAgenteAdmin';
 import { EvaOrb } from '../EvaOrb';
 
@@ -11,6 +11,8 @@ interface Aba {
   Icon: LucideIcon;
   /** Abas com dados sensíveis (telefones, configuração) só para quem configura a EVA (§7, D31). */
   soQuemConfigura?: boolean;
+  /** D50: a aba Rotinas cria cards no Kanban: gestor e quem configura. */
+  gestorOuConfigura?: boolean;
 }
 
 // Cada aba é uma rota própria (/it/eva/*): link compartilhável e "voltar" funcionando.
@@ -18,6 +20,7 @@ interface Aba {
 const ABAS: Aba[] = [
   { to: '/it/eva', rotulo: 'Sugestões', Icon: ClipboardCheck },
   { to: '/it/eva/reunioes', rotulo: 'Reuniões', Icon: CalendarClock },
+  { to: '/it/eva/rotinas', rotulo: 'Rotinas', Icon: Repeat, gestorOuConfigura: true },
   { to: '/it/eva/membros', rotulo: 'Membros', Icon: Users, soQuemConfigura: true },
   { to: '/it/eva/permissoes', rotulo: 'Permissões', Icon: ShieldCheck, soQuemConfigura: true },
   { to: '/it/eva/configuracoes', rotulo: 'Configurações', Icon: Settings, soQuemConfigura: true },
@@ -31,8 +34,8 @@ interface Props {
 
 /** Cabeçalho + abas da administração da EVA, no visual do Gastos de TI e do Hub. */
 const EvaAdminShell: React.FC<Props> = ({ subtitulo, acoes, children }) => {
-  const { configura } = usePapeisEva();
-  const abas = ABAS.filter((a) => !a.soQuemConfigura || configura);
+  const { configura, gestor } = usePapeisEva();
+  const abas = ABAS.filter((a) => (!a.soQuemConfigura || configura) && (!a.gestorOuConfigura || gestor || configura));
 
   return (
     <MotionConfig reducedMotion="user">

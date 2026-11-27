@@ -5,6 +5,7 @@
 import { supabase } from '../../../lib/supabase';
 import { origemDosPapeis, papeisDoCargo, papeisDoPerfil, type LinhaPapeis, type OrigemPapeis, type PapeisEva } from '../domain/papeis';
 import { chamarEva } from './agenteApi';
+import type { Rotina } from '../domain/rotinas';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card' | 'promover_card';
 export type StatusSugestao = 'pendente' | 'aprovada' | 'rejeitada' | 'substituida';
@@ -125,13 +126,25 @@ export interface ConfigEva {
   resumo_reuniao_grupo_ativo: boolean;
   /** D46: a pergunta das 9h e o resumo das 10h. */
   checkin_ativo: boolean;
+  /** D48: a pauta da reunião da equipe, 1 h antes; o dia (1 = segunda … 5 = sexta) e a hora ("HH:MM"). */
+  pauta_ativa: boolean;
+  reuniao_dia: number;
+  reuniao_hora: string;
 }
 
 type CampoEditavel =
   | 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'
-  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo' | 'checkin_ativo';
+  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo' | 'checkin_ativo'
+  | 'pauta_ativa' | 'reuniao_dia' | 'reuniao_hora';
 
 export interface Pessoa { id: string; name: string; department?: string | null }
+
+/** D50: uma rotina da aba Rotinas, com o último card que ela criou. */
+export interface RotinaEva extends Rotina {
+  ultimo_card: { codigo: string } | null;
+  ultima_criacao_em: string | null;
+  ultimo_erro: string | null;
+}
 
 /** Uma pessoa na aba Permissões (D33): os papéis que valem e de onde vêm. */
 export interface PessoaPermissoes {
@@ -423,12 +436,49 @@ export const agenteAdmin = {
     erro(error);
   },
 
+  /** D50: as rotinas, as ativas primeiro, pela data do próximo card. */
+  async listarRotinas(): Promise<RotinaEva[]> {
+    const { data, error } = await supabase
+      .from('ti_agente_rotinas')
+      .select('id, titulo, descricao, frequencia, dia_ancora, proxima_em, antecedencia_dias, responsaveis, prioridade, projeto_id, ativa, ultima_criacao_em, ultimo_erro, ultimo_card:it_requests(codigo)')
+      .order('ativa', { ascending: false })
+      .order('proxima_em')
+      .limit(500);
+    erro(error);
+    return (data ?? []).map((r) => {
+      const linha = r as unknown as RotinaEva;
+      return { ...linha, responsaveis: linha.responsaveis ?? [] };
+    });
+  },
+
+  /** Cria (id null) ou edita. Editar limpa o último erro: a próxima volta do relógio tenta de novo. */
+  async salvarRotina(id: string | null, rotina: Omit<Rotina, 'id'>): Promise<void> {
+    const { data, error } = id
+      ? await supabase.from('ti_agente_rotinas').update({ ...rotina, ultimo_erro: null, updated_at: new Date().toISOString() }).eq('id', id).select('id')
+      : await supabase.from('ti_agente_rotinas').insert(rotina).select('id');
+    erro(error);
+    if (!data?.length) throw new Error('Sem permissão para salvar a rotina.');
+  },
+
+  async ativarRotina(id: string, ativa: boolean): Promise<void> {
+    const { data, error } = await supabase.from('ti_agente_rotinas').update({ ativa, updated_at: new Date().toISOString() }).eq('id', id).select('id');
+    erro(error);
+    if (!data?.length) throw new Error('Sem permissão para alterar a rotina.');
+  },
+
+  /** Os cards que a rotina já criou continuam no Kanban. */
+  async excluirRotina(id: string): Promise<void> {
+    const { data, error } = await supabase.from('ti_agente_rotinas').delete().eq('id', id).select('id');
+    erro(error);
+    if (!data?.length) throw new Error('Sem permissão para excluir a rotina.');
+  },
+
   async lerConfig(): Promise<ConfigEva | null> {
     const { data, error } = await supabase
       .from('ti_agente_config')
       .select(`granola_folder_id, granola_ultima_sync_em, granola_verificado_em, granola_ultimo_erro, whatsapp_ativo, cobranca_ativa, dias_parado,
         waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo,
-        checkin_ativo`)
+        checkin_ativo, pauta_ativa, reuniao_dia, reuniao_hora`)
       .eq('id', true)
       .maybeSingle();
     erro(error);

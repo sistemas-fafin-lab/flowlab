@@ -39,6 +39,10 @@ import { anexei, codigosNoTexto, soCodigos } from '../../../src/modules/eva/doma
 import { anexarAguardando } from './anexos.js';
 import { conhecimentoPara } from './conhecimento.js';
 import { checkinEmAberto, responderCheckin } from './checkin.js';
+import { lerPautaReuniao } from './pauta.js';
+import { lerBlocoVencimentos, veGastos } from './vencimentos.js';
+import { lerPlanejamento, sugestoesDaRedistribuicao } from './planejamento.js';
+import { montarTextoPlanejamento } from '../../../src/modules/eva/domain/planejamento.js';
 import {
   cancelarLembrete, criarLembrete, lerConversa, lerDiaDaPessoa, lerQuando, montarBlocoDia, montarConteudoConversa,
 } from './pessoal.js';
@@ -105,7 +109,8 @@ export function ajuda(p: PapeisWhatsApp): string {
   const extras = [
     ...(p.gestor
       ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa o Gabriel que …"', '• "avisa todo mundo que …"', '• "avisa no grupo que …"',
-        '• "relatório" ou "como foi a semana?"', '• "quem está sobrecarregado?"', '• "prepara minha 1:1 com o Bruno"']
+        '• "relatório" ou "como foi a semana?"', '• "quem está sobrecarregado?"', '• "prepara minha 1:1 com o Bruno"',
+        '• "o que cabe na próxima sprint?"', '• "pauta da reunião"']
       : []),
     ...(p.aprova ? ['• "sugestões pendentes", depois "aprovar 1 e 3" ou "rejeitar 2 <motivo>"'] : []),
   ];
@@ -298,7 +303,7 @@ export const SchemaMensagem = z.object({
   intencao: z.enum([
     'atualizar_cards', 'propor', 'pergunta', 'lembrete_criar', 'lembrete_cancelar', 'conversa',
     'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo', 'avisar_pessoa', 'avisar_equipe', 'relatorio',
-    'ausencia', 'preparar_1a1',
+    'ausencia', 'preparar_1a1', 'planejar', 'pauta_reuniao',
   ]),
   resposta: z.string(),
   itens: z.array(ItemWhatsApp),
@@ -349,6 +354,7 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 - "propor": pede uma mudança no Kanban que não é só contar andamento: criar card, mudar prioridade, responsável, coluna ou prazo de um card, ou registrar um comentário. Preencha "propostas".
 - "pergunta": quer saber dos cards, do dia dela, dos membros, dos projetos, das sprints, da última reunião ou dos lembretes dela. Responda em "resposta". Para "o que eu tenho hoje?" e parecidas, use O DIA DE …: primeiro o atrasado (o mais urgente antes), depois o que vence, depois o parado, e termine sugerindo por onde começar.
   Perguntas de gestão (carga e atrasos de cada pessoa, quem está sobrecarregado, entregas da semana, chamados dos usuários, tempo de resolução, projetos em risco, o que travou): quando o contexto tiver PAINEL DE GESTÃO, responda com os números dele, sem contar por conta própria, e diga em uma frase o que pede atenção. Ele traz o que a lista de cards não mostra (concluídos, chamados, tempo de resolução).
+  Vencimentos de licenças, contratos, domínios e certificados ("o que vence este mês?", "quando renova o Microsoft 365?"): quando o contexto tiver VENCIMENTOS DO GASTOS DE TI, responda com ele; sem esse bloco, diga que os vencimentos ficam no Gastos de TI.
   Base de conhecimento: quando o conteúdo trouxer <base_de_conhecimento>, são resoluções reais de chamados parecidos. Para "como resolvemos o problema da VPN?" ou um problema que já aconteceu, responda com base nelas e cite o código ("no IT-812, resolvemos …"). Não invente solução que não esteja lá; se nenhuma resolve, diga que não achou um caso parecido.
 - "lembrete_criar": "me lembra amanhã às 9h de ligar para o fornecedor". Em "lembrete_texto", o que lembrar, curto, como ação ("ligar para o fornecedor"). Em "lembrete_quando", "AAAA-MM-DDTHH:MM" no horário de Brasília, contado a partir de HOJE e da hora da mensagem. Sem hora, use 09:00. Sem dia, hoje se a hora ainda não passou; senão, amanhã. Sem nenhuma pista de quando, "".
 - "lembrete_cancelar": desiste de um lembrete. Em "lembrete_id", o id dele em LEMBRETES MARCADOS.
@@ -356,6 +362,8 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 - "ausencia": a pessoa avisa que vai ficar fora (férias, licença, folga, curso: "vou estar de férias de 01/12 a 05/12", "amanhã vou faltar") ou que voltou ("voltei", "cancela minhas férias"). Em "ausencia_acao", "marcar" ou "cancelar". Em "ausencia_de" e "ausencia_ate", o primeiro e o último dia, "AAAA-MM-DD", contados a partir de HOJE ("" no "de" = a partir de hoje; "amanhã" = de e até amanhã). Em "ausencia_motivo", uma palavra ("férias", "licença", "folga") ou "". "pessoa_id" fica "" quando é a própria pessoa; um gestor pode marcar a de outra ("o Bruno está de férias até sexta"): aí, o id dela em MEMBROS DA EQUIPE. "resposta" fica "": o sistema confirma.
 - Só para gestor ("Quem escreve" diz os papéis da pessoa):
   - "preparar_1a1": "prepara minha 1:1 com o Bruno", "pauta da conversa com a Ana". Em "pessoa_id", o id da pessoa em MEMBROS DA EQUIPE. "resposta" fica "": o sistema monta a pauta.
+  - "planejar": planejar a próxima sprint ou equilibrar a carga ("o que cabe na próxima sprint?", "planejamento da sprint", "dá para redistribuir os cards?", "como equilibrar a carga?"). "resposta" fica "": o sistema faz a conta pelo ritmo de cada pessoa e, se alguém estiver acima, propõe passar cards. Uma pergunta de carga que não fala de sprint, de planejar nem de redistribuir ("quem está sobrecarregado?") é "pergunta".
+  - "pauta_reuniao": a pauta da reunião da equipe ("pauta da reunião", "o que levar para a reunião de hoje?", "monta a pauta da reunião de equipe"). A conversa com uma pessoa só é "preparar_1a1". "resposta" fica "": o sistema monta a pauta.
   - "cobrar": "cobra o IT-045", "cobra a Ana". Os códigos vão em "cobrar_codigos"; a pessoa, pelo id de MEMBROS DA EQUIPE, em "cobrar_pessoa_id".
   - "avisar_grupo": "avisa no grupo que a reunião de amanhã é às 10h". Só quando a pessoa fala do grupo. Em "aviso", só o conteúdo do aviso, claro e curto, sem saudação e sem inventar nada.
   - "avisar_pessoa": avisar, mandar uma mensagem, falar ou lembrar uma pessoa da equipe de algo ("avisa o Gabriel que a reunião mudou para as 10h", "manda uma mensagem para a Ana dizendo…", "fala para o Bruno…"). Em "aviso_pessoa_id", o id da pessoa (de MEMBROS DA EQUIPE); em "aviso", só o conteúdo, claro e curto, sem saudação, sem assinatura e sem inventar nada. Atenda sempre que o pedido for para outra pessoa; lembrete para a própria pessoa é "lembrete_criar".
@@ -385,8 +393,10 @@ GERAL
 
 O QUE VOCÊ FAZ (para explicar quando perguntarem)
 - Para todos: registrar o andamento dos cards ("IT-045 concluída", "IT-052 vai para sexta"); pedir mudanças no Kanban ("cria um card para…", "passa o IT-060 para a Ana"), que vão para aprovação; responder sobre as demandas e o dia ("o que eu tenho hoje?"); marcar lembretes ("me lembra amanhã às 9h de…"), que saem em dia útil, das 7h às 20h; lembrar como um problema parecido foi resolvido antes ("como resolvemos a VPN da filial?"); mandar áudio e print de erro ("IT-045" na legenda anexa no card); e registrar uma ausência ("vou estar de férias de 01/12 a 05/12"), que pausa as cobranças no período.
-- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") ou para a equipe toda ("avisa todo mundo que…"), avisar o grupo da equipe ("avisa no grupo que…"), pedir o relatório de gestão ("relatório", "como foi a semana?"), responder perguntas de gestão com os números do sistema ("quem está sobrecarregado?"), preparar a 1:1 com alguém ("prepara minha 1:1 com o Bruno"), marcar a ausência de alguém da equipe e ter os próprios pedidos de mudança e andamentos aplicados na hora, sem fila. Quem marcar na aba Membros recebe o relatório todo dia útil de manhã e alertas quando algo grave acontece.
+- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") ou para a equipe toda ("avisa todo mundo que…"), avisar o grupo da equipe ("avisa no grupo que…"), pedir o relatório de gestão ("relatório", "como foi a semana?"), responder perguntas de gestão com os números do sistema ("quem está sobrecarregado?"), preparar a 1:1 com alguém ("prepara minha 1:1 com o Bruno"), planejar a próxima sprint pelo ritmo de cada pessoa e propor passar cards de quem está acima ("o que cabe na próxima sprint?"), montar a pauta da reunião da equipe ("pauta da reunião"; com o dia e a hora em Configurações, ela chega 1 h antes), marcar a ausência de alguém da equipe e ter os próprios pedidos de mudança e andamentos aplicados na hora, sem fila. Quem marcar na aba Membros recebe o relatório todo dia útil de manhã e alertas quando algo grave acontece.
 - Para quem aprova sugestões: ver e decidir as sugestões ("sugestões pendentes", "aprovar 1 e 3"), e ter os próprios pedidos de mudança e andamentos aplicados na hora.
+- Para quem vê o Gastos de TI: dizer o que vence (licenças, contratos, domínios e certificados) e avisar antes de cada renovação ou término.
+- Rotinas sem custo (backup mensal, revisão de acessos): o gestor cadastra na aba Rotinas da EVA, no FlowLab, e o card sai sozinho alguns dias antes de cada data.
 - Antes de executar algo desses papéis, você mostra o que vai fazer e espera o SIM. Fale só do que a pessoa pode fazer, pelos papéis de "Quem escreve".`;
 
 export function montarContextoMensagem(e: {
@@ -403,6 +413,8 @@ export function montarContextoMensagem(e: {
   dia: string;
   /** PAINEL DE GESTÃO (D38), só para o gestor: as perguntas de gestão saem dele. */
   gestao?: string | null;
+  /** D49: os vencimentos do Gastos de TI, só para quem vê o módulo. */
+  vencimentos?: string | null;
 }): string {
   const atualizaveis = e.atualizaveis === 'todos' ? '(todos os de CARDS ABERTOS)' : e.atualizaveis.map(linhaDoCard).join('\n') || '(nenhum)';
   return [
@@ -415,6 +427,7 @@ export function montarContextoMensagem(e: {
     '',
     blocoReuniao(e.reuniao),
     ...(e.gestao ? ['', e.gestao] : []),
+    ...(e.vencimentos ? ['', e.vencimentos] : []),
     '',
     `CARDS QUE A PESSOA PODE ATUALIZAR\n${atualizaveis}`,
   ].join('\n');
@@ -496,6 +509,7 @@ async function prepararPropostas(
 ): Promise<string> {
   const validas = validarRespostaChat({
     resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS), avisos: [], aviso_equipe: '', blocos: [], proximos_passos: [], pauta_1a1: '',
+    planejamento: false, pauta_reuniao: false,
   }, ctx).propostas;
   if (validas.length === 0) {
     return 'Não consegui montar essa mudança 🤔 Me diz o card e o que mudar (ex.: "muda a prioridade do IT-045 para alta").';
@@ -529,6 +543,26 @@ async function prepararPropostas(
   }
   const n = primeiroNome(membro.nome);
   return [`Anotado${n ? `, ${n}` : ''}! Mandei para aprovação:`, ...linhas.map((l) => `• ${l}`), ...obs].join('\n');
+}
+
+/**
+ * "O que cabe na próxima sprint?" (D47): a conta de cada pessoa e, se alguém está acima e há
+ * folga, a redistribuição como sugestões do próprio gestor, aplicadas com o SIM (D37). Sem o SIM,
+ * ficam na fila de sugestões.
+ */
+async function prepararPlanejamento(db: SupabaseClient, membro: Remetente, mensagemId: string, agora: Date): Promise<string> {
+  const plano = await lerPlanejamento(db, agora);
+  const texto = montarTextoPlanejamento(plano, 'whatsapp');
+  const sugestoes = sugestoesDaRedistribuicao(plano);
+  if (sugestoes.length === 0) return texto;
+  const { data, error } = await db.from('ti_agente_sugestoes').insert(sugestoes.map((p) => ({
+    origem: 'whatsapp', mensagem_id: mensagemId, proposta_por: membro.user_id, tipo: p.tipo, card_id: p.card_id,
+    proposta: p.proposta, trecho: p.trecho, confianca: p.confianca, avisos: p.avisos,
+  }))).select('id');
+  if (error) throw new Error(error.message);
+  const ids = (data ?? []).map((l) => l.id as string);
+  await criarComando(db, { membro, tipo: 'aprovar', dados: { ids, numeros: ids.map((_, i) => i + 1), motivo: null, daProposta: true }, mensagemId, agora });
+  return [texto, '', 'Aplico essa redistribuição no Kanban? Cada card muda de responsável e ganha um comentário com o motivo.', PEDIR_SIM].join('\n');
 }
 
 async function prepararCobranca(
@@ -987,12 +1021,14 @@ export async function processarRecebida(
     // 4. A IA diz a intenção, com a conversa recente e o dia da pessoa (D30). O gestor recebe
     // também o PAINEL DE GESTÃO, para as perguntas de gestão (D38).
     const veEquipe = !!usuario && (temPapel || tem(usuario, 'canManageIT'));
-    const [cardsAbertos, ctxCompleto, reuniao, conversa, gestao, conhecimento] = await Promise.all([
+    const [cardsAbertos, ctxCompleto, reuniao, conversa, gestao, conhecimento, vencimentos] = await Promise.all([
       lerCardsAbertos(db), lerContexto(db), lerUltimaReuniao(db), lerConversa(db, membro.id, msg.created_at as string, agora),
       // Sem o painel (falha de leitura), a resposta sai como antes, só com os cards.
       papeis.gestor ? lerBlocoGestao(db, agora).catch((e) => { console.error('[EVA/comandos] painel de gestão', e); return null; }) : Promise.resolve(null),
       // D45: as resoluções parecidas, quando a mensagem relata um problema ou pede uma solução.
       conhecimentoPara(db, texto).catch((e) => { console.error('[EVA/comandos] base de conhecimento', e); return null; }),
+      // D49: os vencimentos do Gastos de TI, só para quem vê o módulo.
+      veGastos(usuario) ? lerBlocoVencimentos(db, agora).catch((e) => { console.error('[EVA/comandos] vencimentos', e); return null; }) : Promise.resolve(null),
     ]);
     const meus = cardsAbertos.filter((c) => ehDoUsuario(c, membro.user_id));
     const atualizaveis = temPapel ? cardsAbertos : meus;
@@ -1006,7 +1042,7 @@ export async function processarRecebida(
         finalidade: 'resposta_whatsapp',
         instrucoes: INSTRUCOES_WHATSAPP,
         contexto: montarContextoMensagem({
-          nome: membro.nome, papeis, hoje, hora, ctx, atualizaveis: temPapel ? 'todos' : meus, reuniao, dia: montarBlocoDia(membro.nome, hoje, dia), gestao,
+          nome: membro.nome, papeis, hoje, hora, ctx, atualizaveis: temPapel ? 'todos' : meus, reuniao, dia: montarBlocoDia(membro.nome, hoje, dia), gestao, vencimentos,
         }),
         conteudo: [montarConteudoConversa(texto, conversa.falas, conversa.cobranca, MAX_TEXTO), conhecimento].filter(Boolean).join('\n\n'),
         schema: SchemaMensagem,
@@ -1091,6 +1127,12 @@ export async function processarRecebida(
         if (!pessoa || !ctxCompleto.membros.some((m) => m.id === pessoa)) return fim('preparar_1a1', 'Com quem é a 1:1? Ex.: "prepara minha 1:1 com o Bruno".');
         return fim('preparar_1a1', await lerPautaUmAUm(db, pessoa, 'whatsapp', agora));
       }
+      case 'planejar':
+        if (!papeis.gestor) return fim('sem_permissao', soGestor('planejar a sprint'));
+        return fim('planejar', await prepararPlanejamento(db, membro, msg.id as string, agora));
+      case 'pauta_reuniao':
+        if (!papeis.gestor) return fim('sem_permissao', soGestor('montar a pauta da reunião'));
+        return fim('pauta_reuniao', await lerPautaReuniao(db, 'whatsapp', { agora, linkInicio: LINK_INICIO }));
       default: {
         // Conversa: a IA responde na voz dela; sem resposta, a ajuda fixa.
         const resp = (s.resposta ?? '').trim();
