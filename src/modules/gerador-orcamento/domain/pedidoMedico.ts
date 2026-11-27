@@ -5,6 +5,7 @@
 
 import { chaveExame } from './carrinho';
 import type { ExameDoCarrinho, ItemGeradorOrcamento } from '../types';
+import type { PrecoColaborador } from './tabelaColaborador';
 
 export const MAX_ARQUIVOS_PEDIDO = 5;
 export const MAX_MB_POR_ARQUIVO = 10;
@@ -39,7 +40,8 @@ export type TipoNaoEncontrado = 'variante' | 'generico';
  */
 export interface ExameLidoNoPedido {
   nomeNoPedido: string;
-  item: { tuss: string; nome: string } | null;
+  /** No modo colaborador, o item traz o resultado da regra calculado na leitura. */
+  item: { tuss: string; nome: string; precoColaborador?: PrecoColaborador } | null;
   relacionados: string[];
   tipo: TipoNaoEncontrado | null;
 }
