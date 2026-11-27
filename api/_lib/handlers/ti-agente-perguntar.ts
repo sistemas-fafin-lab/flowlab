@@ -16,6 +16,7 @@ import { gerarEstruturado } from '../ti-agente/ia/gerarEstruturado.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
 import { conhecimentoPara } from '../ti-agente/conhecimento.js';
 import { lerPautaReuniao } from '../ti-agente/pauta.js';
+import { lerBlocoVencimentos, veGastos } from '../ti-agente/vencimentos.js';
 import { lerPlanejamento, propostasDaRedistribuicao } from '../ti-agente/planejamento.js';
 import { montarTextoPlanejamento } from '../../../src/modules/eva/domain/planejamento.js';
 import {
@@ -98,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const ehGestor = tem(auth, 'canManageAgenteTI');
     // D37: quem aprova e o gestor confirmam a proposta e a EVA aplica na hora; os demais, fila.
     const executa = ehGestor || tem(auth, 'canApproveAgenteTI');
-    const [ctxCompleto, { data: reuniao }, fila, gestao, conhecimento] = await Promise.all([
+    const [ctxCompleto, { data: reuniao }, fila, gestao, conhecimento, vencimentos] = await Promise.all([
       lerContexto(db),
       db.from('ti_agente_reunioes')
         .select('titulo, realizada_em, observacoes, resumo_markdown')
@@ -112,6 +113,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ehGestor ? lerBlocoGestao(db).catch((e) => { console.error('[ti/agente-perguntar] painel de gestão', e); return null; }) : Promise.resolve(null),
       // D45: as resoluções parecidas, quando a pergunta relata um problema ou pede uma solução.
       conhecimentoPara(db, pergunta).catch((e) => { console.error('[ti/agente-perguntar] base de conhecimento', e); return null; }),
+      // D49: os vencimentos do Gastos de TI, só para quem vê o módulo.
+      veGastos(auth) ? lerBlocoVencimentos(db).catch((e) => { console.error('[ti/agente-perguntar] vencimentos', e); return null; }) : Promise.resolve(null),
     ]);
     const ctx = recortarParaVisao(ctxCompleto, visao, auth.userId);
     const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -127,7 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           fila,
           ehGestor,
           executa,
-          gestao,
+          [gestao, vencimentos].filter(Boolean).join('\n\n') || null,
         ),
         conteudo: montarConteudoChat(pergunta, historico, conhecimento),
         schema: SchemaChat,
