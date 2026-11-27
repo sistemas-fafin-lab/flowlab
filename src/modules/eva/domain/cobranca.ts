@@ -156,7 +156,8 @@ export const ehTipoDeCobranca = (tipo: string) => tipo === 'cobranca' || tipo ==
  * aviso; D29), os lembretes pessoais (D30) e o aviso de gestor para uma pessoa (D32).
  */
 export const respeitaHorario = (tipo: string) =>
-  ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete' || tipo === 'aviso' || tipo === 'relatorio' || tipo === 'alerta';
+  ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete' || tipo === 'aviso' || tipo === 'relatorio' || tipo === 'alerta'
+  || tipo === 'checkin' || tipo === 'checkin_resumo';
 
 // ── Cobrança sob demanda (D22, RN16) ─────────────────────────────────────────
 

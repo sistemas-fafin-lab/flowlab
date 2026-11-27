@@ -123,11 +123,13 @@ export interface ConfigEva {
   waha_grupos_em: string | null;
   fechamento_diario_ativo: boolean;
   resumo_reuniao_grupo_ativo: boolean;
+  /** D46: a pergunta das 9h e o resumo das 10h. */
+  checkin_ativo: boolean;
 }
 
 type CampoEditavel =
   | 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'
-  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo';
+  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo' | 'checkin_ativo';
 
 export interface Pessoa { id: string; name: string; department?: string | null }
 
@@ -425,7 +427,8 @@ export const agenteAdmin = {
     const { data, error } = await supabase
       .from('ti_agente_config')
       .select(`granola_folder_id, granola_ultima_sync_em, granola_verificado_em, granola_ultimo_erro, whatsapp_ativo, cobranca_ativa, dias_parado,
-        waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo`)
+        waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo,
+        checkin_ativo`)
       .eq('id', true)
       .maybeSingle();
     erro(error);

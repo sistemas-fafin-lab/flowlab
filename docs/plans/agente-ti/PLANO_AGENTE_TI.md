@@ -16,7 +16,8 @@
 > - **Histórico e tendências (24/Nov/2026, D42):** foto diária do painel às 18h, cartão de tendências no Início e a comparação com antes no relatório da semana (§11.9, issue 31).
 > - **Áudio, imagem e relógio (24/Nov/2026, D43 e D44):** áudio transcrito e imagem anexada ao card pelo WhatsApp; a VPS chama o relógio da Vercel a cada 10 min (§11.10, issue 32).
 > - **Triagem e base de conhecimento (24/Nov/2026, D45):** todo chamado da tela vira sugestão de entrada no Kanban, com o possível repetido e a solução anterior; "como resolvemos…?" no chat e no WhatsApp; rascunho da resolução (§11.11, issue 33).
-> - **Próximos (pedidos em 24/Nov):** check-in diário; Google Workspace (agenda, anotações do Meet, Gmail e criar reunião com Meet pela conta admin fixa); planejamento e pauta de reunião; vencimentos e rotinas; EVA para quem não é da TI (chat em todas as páginas e WhatsApp com número confirmado: abrir chamado e pedir link de reunião); conector do Notion (consulta às páginas compartilhadas, para todos).
+> - **Check-in diário (26/Nov/2026, D46):** às 9h, a EVA pergunta a cada membro com WhatsApp o que entra no dia e se há bloqueio; às 10h, o resumo vai para os gestores (§11.12, issue 34).
+> - **Próximos (pedidos em 24/Nov):** Google Workspace (agenda, anotações do Meet, Gmail e criar reunião com Meet pela conta admin fixa); planejamento e pauta de reunião; vencimentos e rotinas; EVA para quem não é da TI (chat em todas as páginas e WhatsApp com número confirmado: abrir chamado e pedir link de reunião); conector do Notion (consulta às páginas compartilhadas, para todos).
 > - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
@@ -116,6 +117,7 @@ Entregáveis, na ordem em que geram valor:
 | **D43** | Áudio e imagem pelo WhatsApp | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário.** Detalhes na §11.10.<br>• **Áudio:** vira texto pelo Gemini (o Claude não ouve áudio) e segue como mensagem escrita. A resposta começa com "🎤 Entendi: …", para um erro de transcrição aparecer na hora.<br>• **Imagem:** vai para um comentário no card ou chamado citado na legenda; sem o código, a EVA pergunta e espera 2 h.<br>• **O arquivo fica no WAHA local** (D9): a VPS baixa, sobe para o bucket privado `ti-agente-midias` e avisa a Vercel. O áudio é apagado depois da transcrição. | Fase 4 |
 | **D44** | Relógio da VPS | ✅ **Fechado (24/Nov).** Detalhes na §11.10.<br>• A VPS chama `/api/ti/agente-relogio` a cada 10 min. O que depende de hora (alertas de gestão, mídias paradas e as próximas rotinas, como o check-in) fica na Vercel e muda com o deploy, sem gerar o pacote da VPS de novo.<br>• Precisa do `CRON_SECRET` na VPS. Sem ele, ou com o relógio fora do ar, a VPS confere os alertas ela mesma, como antes. | Fase 4 |
 | **D45** | Triagem de todo chamado e base de conhecimento | ✅ **Fechado (24/Nov), sugestão aceita pelo usuário ("Sugestão na fila").** Detalhes na §11.11.<br>• **Triagem:** o relógio analisa os chamados abertos pela tela, como já fazia com os do LAB-BRAIN, e a sugestão de entrada no Kanban vai para a fila, com aviso no sino. Recusar não cancela o chamado da tela: ele segue em Solicitações de TI.<br>• **Repetido e solução anterior:** a análise (as duas origens) diz se o pedido parece repetido de um chamado dos últimos 30 dias e se um parecido já foi resolvido, e como.<br>• **Base de conhecimento:** no chat e no WhatsApp, "como resolvemos a VPN?" responde com as resoluções parecidas.<br>• **Rascunho da resolução:** "Rascunhar com a EVA" no Resolver chamado, a partir da conversa. | Fase 4 |
+| **D46** | Check-in diário | ✅ **Fechado (26/Nov), sugestão aceita pelo usuário ("todos com WhatsApp").** Detalhes na §11.12.<br>• Às 9h de dia útil, a EVA pergunta a cada membro com WhatsApp (fora quem está ausente) o que entra no dia e se há bloqueio, com os cards atrasados ou vencendo no radar.<br>• A resposta, por texto ou áudio, vira o plano do dia; o bloqueio vira comentário no card e aviso aos gestores.<br>• Às 10h, o resumo vai para os gestores que recebem o relatório de gestão.<br>• Desligado por padrão (Configurações). | Fase 4 |
 
 ---
 
@@ -1117,6 +1119,49 @@ O relatório e o alerta entram na conversa recente do gestor (§11.5), para ele 
 - `ti_agente_config.triagem_desde`;
 - a finalidade `rascunho_resolucao`;
 - a rejeição que só cancela o chamado do LAB-BRAIN.
+
+### 11.12 Check-in diário (D46)
+
+**Decisão do usuário (24/Nov):** "todos com WhatsApp", pergunta às 9h e resumo para o gestor às 10h. Desligado por padrão: liga em EVA → Configurações ("Check-in diário").
+
+**A pergunta** (`rodarCheckin`, no relógio, das 9h às 12h de dia útil):
+- vai para todo membro ativo com WhatsApp, inclusive quem não recebe a cobrança. Quem está ausente (D40) fica de fora;
+- "Bom dia, Ana! ☀️ Check-in de hoje: o que entra no seu dia? Tem algum bloqueio?", com os cards dela atrasados ou vencendo hoje ("No radar: IT-045");
+- uma linha em `ti_agente_checkins` por pessoa por dia é a trava: o relógio roda de 10 em 10 min sem perguntar duas vezes. Depois das 12h, se o relógio ficou fora do ar de manhã, não pergunta mais.
+
+**A resposta** (`responderCheckin`, no roteador do WhatsApp, antes da IA principal):
+- Com a pergunta de hoje em aberto, uma chamada curta da IA diz se a mensagem responde ao check-in. Ela também separa os cards do dia, os bloqueios com o motivo e uma frase de resumo, e acha o card pelo código ou pelo assunto.
+- Se a mensagem for outro assunto ("tem reunião hoje?", "IT-045 concluída"), segue o fluxo normal, e a pergunta continua em aberto.
+- O bloqueio vira comentário no card e aviso aos gestores no sino, como o "bloqueado" do WhatsApp (D12).
+- A confirmação é montada pelo sistema: "Anotado, Ana! ☀️ Hoje: IT-045 e IT-050. Avisei os gestores do bloqueio no IT-060 e anotei no card."
+- A resposta também vale por áudio (D43).
+
+**O resumo das 10h** (das 10h às 13h, uma vez por dia): vai para os gestores com "Recebe o relatório de gestão" marcado na aba Membros. Os bloqueios vêm primeiro, depois quem respondeu, quem não respondeu e quem está fora:
+```
+☀️ Check-in da equipe · 26/11
+
+• Ana: IT-045, IT-050
+  ⛔ IT-060: esperando o fornecedor
+• Bruno: "fechando o relatório do RH"
+• Carla: sem resposta
+• Davi: de férias até 05/12
+
+1 bloqueio · 1 sem resposta
+```
+Resposta que chega depois das 10h fica registrada, mas não muda o resumo que já saiu.
+
+**Na fila do WhatsApp:** os tipos `checkin` e `checkin_resumo` respeitam o horário (dia útil, 7h às 20h), só valem no próprio dia e entram na conversa recente da pessoa.
+
+**Conferido com a IA real, dados fictícios** (pelo Gemini; o crédito da Anthropic continuava zerado), com 5 frases:
+- "vou fechar o robô do pré-faturamento e começar a migração; o link da filial tá parado esperando a operadora" deu IT-045 e IT-050 planejados e o IT-060 bloqueado, achados pelo assunto;
+- "sem bloqueio, foco no relatório do RH" deu o IT-070;
+- "sem acesso ao storage no 50" deu o IT-050 bloqueado;
+- "tem reunião hoje às 10?" e "IT-045 concluída" não foram lidas como check-in.
+
+**Migration `20261126172900_eva_checkin_diario.sql`:**
+- `ti_agente_config.checkin_ativo`;
+- a tabela `ti_agente_checkins`, com RLS de leitura;
+- os tipos novos na fila.
 
 ---
 
