@@ -3,6 +3,8 @@
 // Exige canManageIT, ou um dos papéis da EVA (aprovar ou gestor). A fila do WhatsApp só entra no
 // contexto do gestor (D24, D31), e só ele recebe avisos para confirmar: para uma pessoa (D32) ou
 // para a equipe toda (D36), com quem recebe já conferido. Limite de 30 perguntas por pessoa por dia (RN17).
+// Para o gestor, o sistema monta a pauta de 1:1 (D41), o planejamento da sprint (D47, com a
+// redistribuição como cartões) e a pauta da reunião da equipe (D48).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -13,6 +15,9 @@ import { lerBlocoGestao, lerPautaUmAUm } from '../ti-agente/gestao.js';
 import { gerarEstruturado } from '../ti-agente/ia/gerarEstruturado.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
 import { conhecimentoPara } from '../ti-agente/conhecimento.js';
+import { lerPautaReuniao } from '../ti-agente/pauta.js';
+import { lerPlanejamento, propostasDaRedistribuicao } from '../ti-agente/planejamento.js';
+import { montarTextoPlanejamento } from '../../../src/modules/eva/domain/planejamento.js';
 import {
   INSTRUCOES_CHAT, LIMITE_DIARIO, MAX_FILA, MAX_PERGUNTA, SchemaChat, montarContextoChat, montarConteudoChat, recortarParaVisao,
   validarRespostaChat, type AvisoChat, type MensagemFila, type MensagemHistorico,
@@ -156,6 +161,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (ehGestor && pessoa && ctxCompleto.membros.some((m) => m.id === pessoa)) {
       const pauta = await lerPautaUmAUm(db, pessoa, 'chat');
       res.status(200).json({ success: true, provedor: r.provedor, ...resposta, resposta: pauta, cardsCitados: [], blocos: [], proximosPassos: [], avisos });
+      return;
+    }
+    // D47: o planejamento também é do sistema, e a redistribuição vem como cartões para confirmar.
+    if (ehGestor && r.dados.planejamento) {
+      const plano = await lerPlanejamento(db);
+      const propostas = propostasDaRedistribuicao(plano);
+      const nomeDe = new Map(ctxCompleto.membros.map((m) => [m.id, m.nome]));
+      const ids = propostas.flatMap((p) => [...(p.proposta.responsaveis ?? []), ...(p.card?.assigned_to ?? [])]);
+      const nomes = Object.fromEntries(ids.filter((id) => nomeDe.has(id)).map((id) => [id, nomeDe.get(id)!]));
+      const texto = montarTextoPlanejamento(plano, 'chat') + (propostas.length ? '\n\nPara aplicar, confirme nos cartões abaixo.' : '');
+      res.status(200).json({ success: true, provedor: r.provedor, ...resposta, resposta: texto, cardsCitados: [], blocos: [], proximosPassos: [], propostas, nomes, avisos });
+      return;
+    }
+    // D48: a pauta da reunião da equipe, pelo sistema.
+    if (ehGestor && r.dados.pauta_reuniao) {
+      const pauta = await lerPautaReuniao(db, 'chat', { linkInicio: '' });
+      res.status(200).json({ success: true, provedor: r.provedor, ...resposta, resposta: pauta, cardsCitados: [], blocos: [], proximosPassos: [], propostas: [], avisos });
       return;
     }
     res.status(200).json({ success: true, provedor: r.provedor, ...resposta, avisos });

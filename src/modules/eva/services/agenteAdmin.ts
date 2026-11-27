@@ -125,11 +125,16 @@ export interface ConfigEva {
   resumo_reuniao_grupo_ativo: boolean;
   /** D46: a pergunta das 9h e o resumo das 10h. */
   checkin_ativo: boolean;
+  /** D48: a pauta da reunião da equipe, 1 h antes; o dia (1 = segunda … 5 = sexta) e a hora ("HH:MM"). */
+  pauta_ativa: boolean;
+  reuniao_dia: number;
+  reuniao_hora: string;
 }
 
 type CampoEditavel =
   | 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'
-  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo' | 'checkin_ativo';
+  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo' | 'checkin_ativo'
+  | 'pauta_ativa' | 'reuniao_dia' | 'reuniao_hora';
 
 export interface Pessoa { id: string; name: string; department?: string | null }
 
@@ -428,7 +433,7 @@ export const agenteAdmin = {
       .from('ti_agente_config')
       .select(`granola_folder_id, granola_ultima_sync_em, granola_verificado_em, granola_ultimo_erro, whatsapp_ativo, cobranca_ativa, dias_parado,
         waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo,
-        checkin_ativo`)
+        checkin_ativo, pauta_ativa, reuniao_dia, reuniao_hora`)
       .eq('id', true)
       .maybeSingle();
     erro(error);
