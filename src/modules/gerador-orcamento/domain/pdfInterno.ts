@@ -12,7 +12,7 @@ import {
   MARGEM,
   corPrimaria,
   desenharCabecalho,
-  desenharPaciente,
+  desenharDestinatario,
   desenharRodapes,
   desenharValidade,
   fundoClaro,
@@ -84,7 +84,7 @@ export function montarPdfOrcamentoInterno(
 
   const doc = new jsPDF();
   desenharCabecalho(doc, logo, emitidoEm, 'ORÇAMENTO INTERNO');
-  const inicioDaTabela = desenharPaciente(doc, paciente);
+  const inicioDaTabela = desenharDestinatario(doc, 'Paciente', paciente);
 
   const corDaMargem = (margem: number) => (margem >= 0 ? corMargemPositiva : corMargemNegativa);
 

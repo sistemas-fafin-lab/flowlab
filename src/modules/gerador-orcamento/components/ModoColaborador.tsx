@@ -2,12 +2,17 @@
 // "Tela e PDF"): busca e carrinho do Gerador com o Valor colaborador, calculado no
 // servidor. Exame sem valor aparece como "consultar a gestão", com o motivo, e não entra
 // no carrinho. Sem desconto automático por volume: o total é a soma dos valores × quantidade.
+// O PDF "Orçamento – Tabela Colaborador" exige o nome do colaborador e não é guardado; o
+// PDF interno (custo × venda × margem) não existe neste modo.
 
-import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, Check, Info, Loader2, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, AlertTriangle, Check, FileDown, Info, Loader2, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useTabelaColaborador } from '../hooks/useTabelaColaborador';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
 import { exameDisponivel, filtrarExamesColaborador, motivoSemValor, totalColaborador } from '../domain/carrinhoColaborador';
+import { MAX_CARACTERES_PACIENTE, nomeValido } from '../domain/paciente';
+import { montarPdfOrcamentoColaborador } from '../domain/pdfCliente';
+import { carregarLogoPdf } from '../logoPdf';
 import ControleQuantidade from './ControleQuantidade';
 import type { PrecoColaborador } from '../domain/tabelaColaborador';
 import type { ItemCarrinho, ItemColaboradorDisponivel, ItemTabelaColaborador } from '../types';
@@ -123,6 +128,35 @@ const ModoColaborador: React.FC = () => {
     setCarrinho((atual) => alterarQuantidade(atual, chave, quantidade));
   const remover = (chave: string) => setCarrinho((atual) => removerDoCarrinho(atual, chave));
 
+  // Nome de quem leva o orçamento. Não persiste; carrinho vazio limpa o campo, para o nome
+  // de um colaborador não passar para o próximo.
+  const [colaborador, setColaborador] = useState('');
+  useEffect(() => {
+    if (carrinho.length === 0) setColaborador('');
+  }, [carrinho.length]);
+
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [erroPdf, setErroPdf] = useState<string | null>(null);
+  const podeGerarPdf = carrinho.length > 0 && nomeValido(colaborador) && !gerandoPdf;
+  const gerarPdf = async () => {
+    if (!podeGerarPdf) return;
+    setGerandoPdf(true);
+    setErroPdf(null);
+    try {
+      const emitidoEm = new Date();
+      const doc = montarPdfOrcamentoColaborador(
+        { carrinho, emitidoEm, colaborador: colaborador.trim() },
+        await carregarLogoPdf(),
+      );
+      doc.save(`Orcamento_Colaborador_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+    } catch (error) {
+      console.error('Falha ao gerar o PDF do Orçamento – Tabela Colaborador:', error);
+      setErroPdf('Não foi possível gerar o PDF. Tente de novo.');
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-12 flex flex-col items-center gap-3 animate-fade-in">
@@ -219,6 +253,43 @@ const ModoColaborador: React.FC = () => {
               </div>
             </dl>
           )}
+          {carrinho.length > 0 && (
+            <div className="mt-4">
+              <label
+                htmlFor="colaborador-orcamento"
+                className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
+              >
+                Nome do colaborador <span className="text-red-500 dark:text-red-400">*</span>
+              </label>
+              <input
+                id="colaborador-orcamento"
+                type="text"
+                required
+                value={colaborador}
+                maxLength={MAX_CARACTERES_PACIENTE}
+                onChange={(e) => setColaborador(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void gerarPdf();
+                }}
+                placeholder="Nome do colaborador"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+              />
+              {!nomeValido(colaborador) && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Informe o nome do colaborador para gerar o PDF.
+                </p>
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => void gerarPdf()}
+            disabled={!podeGerarPdf}
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
+            {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
+          </button>
+          {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
           {carrinho.length > 0 && (
             <button
               type="button"

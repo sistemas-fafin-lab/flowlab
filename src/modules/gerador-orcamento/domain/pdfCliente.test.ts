@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type jsPDF from 'jspdf';
-import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
+import type { ItemCarrinho, ItemColaboradorDisponivel, ItemGeradorOrcamento } from '../types';
 import { orcamentoDoCarrinho } from './orcamento';
-import { montarPdfOrcamentoCliente } from './pdfCliente';
+import { montarPdfOrcamentoCliente, montarPdfOrcamentoColaborador } from './pdfCliente';
 import { pdfBruto, textoDoPdf } from './textoDoPdf.testHelper';
 
 // Portado de Tabela-Particular/lib/alvaro-orcamento/pdf.test.ts (buildClientPdf).
@@ -126,5 +126,66 @@ describe('montarPdfOrcamentoCliente', () => {
   it('desenha o logo quando ele carregou e segue sem ele quando falhou', () => {
     expect(temImagem(pdf(carrinho, LOGO))).toBe(true);
     expect(temImagem(pdf(carrinho, null))).toBe(false);
+  });
+});
+
+const exameColaborador = (nome: string, valor: number, custo?: number): ItemColaboradorDisponivel => ({
+  tuss: '40301630',
+  nome,
+  precoParticular: 100,
+  ...(custo === undefined ? {} : { custo }),
+  precoColaborador: { disponivel: true, valor },
+});
+
+// 2 × R$19,66 + 1 × R$45,10 = R$84,42.
+const carrinhoColaborador: ItemCarrinho<ItemColaboradorDisponivel>[] = [
+  { item: exameColaborador('Hemograma Completo', 19.66, 9.73), quantidade: 2 },
+  { item: exameColaborador('Glicose', 45.1, 22.3), quantidade: 1 },
+];
+
+const pdfColaborador = (linhas = carrinhoColaborador, colaborador = 'João Pereira') =>
+  textoDoPdf(montarPdfOrcamentoColaborador({ carrinho: linhas, emitidoEm, colaborador }, null));
+
+describe('montarPdfOrcamentoColaborador', () => {
+  it('tem o título "Orçamento – Tabela Colaborador" no cabeçalho do laboratório', () => {
+    const texto = pdfColaborador();
+
+    expect(texto).toContain('Laboratório Lab');
+    expect(texto).toContain('Orçamento – Tabela Colaborador');
+    expect(texto).toContain('Emitido: 20/10/2026');
+  });
+
+  it('traz o nome do colaborador abaixo do título e antes da tabela', () => {
+    const texto = pdfColaborador();
+
+    expect(texto).toContain('Colaborador: João Pereira');
+    expect(texto).not.toContain('Paciente');
+    expect(texto.indexOf('Colaborador: João Pereira')).toBeGreaterThan(texto.indexOf('Orçamento – Tabela Colaborador'));
+    expect(texto.indexOf('Colaborador: João Pereira')).toBeLessThan(texto.indexOf('Descrição'));
+  });
+
+  it('lista cada exame com quantidade, valor colaborador e total da linha, e o Valor Total', () => {
+    const texto = pdfColaborador();
+
+    expect(texto).toMatch(/Hemograma Completo 2 19,66 39,32/);
+    expect(texto).toMatch(/Glicose 1 45,10 45,10/);
+    expect(texto).toContain('Valor Total 84,42');
+  });
+
+  it('não tem "Valor com Desconto", custo, margem nem preço particular', () => {
+    const texto = pdfColaborador();
+
+    expect(texto).not.toContain('Valor com Desconto');
+    expect(texto).not.toMatch(/custo|margem|desconto|particular|%/i);
+    expect(texto).not.toContain('9,73');
+    expect(texto).not.toContain('22,30');
+    expect(texto).not.toContain('100,00');
+  });
+
+  it('avisa a validade abaixo do total', () => {
+    const texto = pdfColaborador();
+
+    expect(texto).toContain('Orçamento válido por 10 dias, até 30/10/2026');
+    expect(texto.indexOf('Orçamento válido')).toBeGreaterThan(texto.indexOf('Valor Total 84,42'));
   });
 });

@@ -1,4 +1,4 @@
-// Partes comuns aos PDFs do Orçamento (cliente e interno): cabeçalho, cores e rodapé no
+// Partes comuns aos PDFs do Orçamento (cliente, colaborador e interno): cabeçalho, cores e rodapé no
 // padrão de src/modules/quotations/utils/generateQuotationPDF.ts.
 
 import type jsPDF from 'jspdf';
@@ -66,15 +66,16 @@ export function desenharCabecalho(doc: jsPDF, logo: string | null, emitidoEm: Da
 }
 
 /**
- * Linha "Paciente: <nome>" logo abaixo do título. Nome comprido (caixa alta é largo) quebra
- * em mais de uma linha. Devolve o `startY` da tabela, já abaixo do que foi desenhado.
+ * Linha "<rótulo>: <nome>" (Paciente, ou Colaborador na Tabela Colaborador) logo abaixo do
+ * título. Nome comprido (caixa alta é largo) quebra em mais de uma linha. Devolve o
+ * `startY` da tabela, já abaixo do que foi desenhado.
  */
-export function desenharPaciente(doc: jsPDF, paciente: string): number {
+export function desenharDestinatario(doc: jsPDF, rotulo: string, nome: string): number {
   const larguraUtil = doc.internal.pageSize.getWidth() - MARGEM * 2;
   doc.setTextColor(...textoEscuro);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  const linhas: string[] = doc.splitTextToSize(`Paciente: ${paciente}`, larguraUtil);
+  const linhas: string[] = doc.splitTextToSize(`${rotulo}: ${nome}`, larguraUtil);
   doc.text(linhas, MARGEM, 64);
   return 64 + (linhas.length - 1) * 5 + 6;
 }
