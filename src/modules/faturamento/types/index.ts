@@ -1356,7 +1356,7 @@ export interface PendenciasGlosa {
 /** Faixa do Aging da glosa em recurso: dias desde a data de pagamento prevista. */
 export type FaixaAgingGlosa = 'a-vencer' | 'd1-30' | 'd31-60' | 'd61-90' | 'd90-mais';
 
-/** Aging da glosa em recurso (GET glosas-recursos-aging), de todos os meses de faturamento. */
+/** Aging da glosa em recurso (GET glosas-recursos-aging), do período e convênio. */
 export interface AgingGlosa {
   faixas: Record<FaixaAgingGlosa, number>;
   /** As 7 maiores pelo total nas faixas e, se houver cauda, "Outras" (`outras`) no fim. */

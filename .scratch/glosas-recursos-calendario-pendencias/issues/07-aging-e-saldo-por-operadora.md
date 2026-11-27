@@ -24,10 +24,10 @@ Spec: `.scratch/glosas-recursos-calendario-pendencias/spec.md`
 - Faixas: o dia do pagamento previsto (0 dia) ainda é "A vencer", como no aging do Contas a Receber (`atraso <= 0`).
 - "Fora das faixas":
   - Separa o valor sem data de envio do valor de convênio sem regra.
-  - Para isso o endpoint lê também os lotes de recurso não enviados, de qualquer mês, inclusive lotes em montagem ou abandonados.
-- **Período (27/11/2026, a confirmar pela usuária):**
-  - **Saldo por operadora:** segue o período do cabeçalho (mês do lote original), como o card Glosa em disputa. As barras somam o card, com exceção da cauda além das 10 maiores.
-  - **Aging:** não segue o período. Entram todos os meses de faturamento, como no Aging da carteira do Contas a Receber.
+  - Para isso o endpoint lê também os lotes de recurso não enviados, inclusive lotes em montagem ou abandonados, com as requisições do período.
+- **Decisão (27/11/2026): período.** O aging e o saldo por operadora seguem o período do cabeçalho, isto é, o mês do lote de faturamento original da requisição, como o resto da aba.
+  - No aging, os prazos continuam vindo do lote de recurso (envio, retorno real e regra).
+  - No saldo, as barras somam o card Glosa em disputa, com exceção da cauda além das 10 maiores.
 - **Limitação: o total do aging só fecha para requisições em lote de recurso.**
   - Requisição de lote com valor em aberto zero (por exemplo, sem valor recursado) não entra nem nas faixas nem na nota.
   - Requisição em 1º/2º recurso sem lote de recurso fica fora do universo, como o spec define. Exemplo: 66 das 143 em 2º recurso, em 26/11/2026.

@@ -7,14 +7,15 @@
  * faturamento/dadosPendenciasGlosa.ts, a mesma dos lotes das Pendências de glosa.
  * O Saldo de glosa por operadora, ao lado, vem com o dashboard (é do período).
  *
- * O período do cabeçalho não filtra: o aging é do que está em aberto, de
- * qualquer mês de faturamento, como o Aging da carteira do Contas a Receber.
- * O convênio filtra pela fonte pagadora da requisição.
+ * Segue o período do cabeçalho como o resto da aba (decisão de 27/11/2026): só
+ * contam as requisições do mês do lote de faturamento original. O convênio
+ * filtra pela fonte pagadora da requisição.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). Lido
  * com o cliente do usuário, para respeitar a RLS.
  *
  * Query params:
+ *   competencia      YYYY-MM do lote de faturamento original, obrigatório
  *   fontePagadoraId  filtra por convênio (fatinstituicao.IdInstituicao)
  */
 
@@ -26,7 +27,7 @@ import {
   hojeEmSaoPaulo,
   lerLotesEnviados,
 } from '../faturamento/dadosPendenciasGlosa.js';
-import { agingDaGlosaEmRecurso } from '../faturamento/recursoGlosa.js';
+import { agingDaGlosaEmRecurso, competenciaValida } from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
@@ -56,9 +57,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const q = req.query as Record<string, string | string[] | undefined>;
+    const competencia = primeiro(q.competencia)?.trim() ?? '';
     const fontePagadoraId = inteiroPositivo(primeiro(q.fontePagadoraId));
-    if (fontePagadoraId === null) {
-      res.status(400).json({ success: false, error: 'Parâmetro inválido: fontePagadoraId.' });
+    const invalidos = [
+      !competenciaValida(competencia) ? 'competencia (YYYY-MM)' : null,
+      fontePagadoraId === null ? 'fontePagadoraId' : null,
+    ].filter((c): c is string => c !== null);
+    if (invalidos.length > 0) {
+      res.status(400).json({ success: false, error: `Parâmetro inválido: ${invalidos.join(', ')}.` });
       return;
     }
 
@@ -68,11 +74,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     try {
       // Os não enviados entram para a nota "Fora das faixas".
       const lotes = await lerLotesEnviados(supabase, { fontePagadoraId, incluirNaoEnviados: true });
-      // O lote entra se tem alguma requisição do convênio; só essas contam.
-      const doConvenio = fontePagadoraId === undefined
-        ? lotes
-        : lotes.map((l) => ({ ...l, requisicoes: l.requisicoes.filter((r) => r.fontePagadora.id === fontePagadoraId) }));
-      aging = agingDaGlosaEmRecurso(doConvenio, hoje);
+      // Só contam as requisições do período e do convênio; os prazos continuam
+      // os do lote (envio, retorno real e regra).
+      const doRecorte = lotes.map((l) => ({
+        ...l,
+        requisicoes: l.requisicoes.filter(
+          (r) => r.competencia === competencia && (fontePagadoraId === undefined || r.fontePagadora.id === fontePagadoraId),
+        ),
+      }));
+      aging = agingDaGlosaEmRecurso(doRecorte, hoje);
     } catch (err) {
       if (!(err instanceof ErroLeituraPendencias)) throw err;
       console.error('[faturamento/glosas-recursos-aging] Supabase:', err.message);

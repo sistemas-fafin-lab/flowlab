@@ -174,6 +174,7 @@ export const COLUNAS_LOTE_RECURSO =
 /** Requisição de um lote, em qualquer mês: o selo e os prazos olham o lote inteiro. */
 interface LinhaRequisicaoLote {
   id_lote_recurso: number;
+  competencia: string;
   id_fonte_pagadora: number | null;
   fonte_pagadora_nome: string | null;
   status_aplis: number | null;
@@ -200,6 +201,11 @@ export function regrasDoLote(l: LinhaLoteRecurso, regras: Map<number, RegrasPraz
   return fonte === undefined ? null : regras.get(fonte) ?? null;
 }
 
+/** Requisição de lote de recurso com o mês do lote de faturamento original ('YYYY-MM'). */
+export interface RequisicaoDeLote extends RequisicaoAging {
+  competencia: string;
+}
+
 /**
  * Requisições dos lotes, classificáveis (edições do lápis valendo acima do
  * apLIS), com a fonte pagadora, agrupadas por lote. `enviados`: lotes com data de envio.
@@ -208,14 +214,14 @@ export async function requisicoesDosLotes(
   supabase: SupabaseClient,
   idsLotes: number[],
   enviados: Set<number>,
-): Promise<Map<number, RequisicaoAging[]>> {
-  const porLote = new Map<number, RequisicaoAging[]>();
+): Promise<Map<number, RequisicaoDeLote[]>> {
+  const porLote = new Map<number, RequisicaoDeLote[]>();
   for (let i = 0; i < idsLotes.length; i += IDS_POR_CONSULTA) {
     const ids = idsLotes.slice(i, i + IDS_POR_CONSULTA);
     for (let de = 0; ; de += PAGINA_LEITURA) {
       const { data, error } = await supabase
         .from('glosa_recurso_requisicoes')
-        .select('id_lote_recurso, id_fonte_pagadora, fonte_pagadora_nome, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
+        .select('id_lote_recurso, competencia, id_fonte_pagadora, fonte_pagadora_nome, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
         .in('id_lote_recurso', ids)
         .order('id_requisicao')
         .range(de, de + PAGINA_LEITURA - 1);
@@ -224,6 +230,7 @@ export async function requisicoesDosLotes(
       for (const r of pagina) {
         const lista = porLote.get(r.id_lote_recurso) ?? [];
         lista.push({
+          competencia: r.competencia,
           fontePagadora: { id: r.id_fonte_pagadora, nome: r.fonte_pagadora_nome },
           foto: {
             status: r.status_aplis,
@@ -247,7 +254,7 @@ export async function requisicoesDosLotes(
   return porLote;
 }
 
-export interface LoteRecursoPendencia extends LoteRecursoParaPendencia<RequisicaoAging> {
+export interface LoteRecursoPendencia extends LoteRecursoParaPendencia<RequisicaoDeLote> {
   linha: LinhaLoteRecurso;
 }
 

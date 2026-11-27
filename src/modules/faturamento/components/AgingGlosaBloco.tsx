@@ -10,11 +10,10 @@ import { Painel, Vazio } from './PainelGlosa';
 // Dashboard de glosa → Aging da glosa em recurso e Saldo de glosa por operadora
 // (.scratch/glosas-recursos-calendario-pendencias/issues/07), lado a lado, no
 // padrão do Aging da carteira e do Saldo por operadora do Contas a Receber.
-// Os números vêm prontos do servidor. O aging (recursoGlosa.ts →
-// agingDaGlosaEmRecurso, endpoint próprio) é de todos os meses de faturamento,
-// como o Aging da carteira; o saldo (glosaRecuperada.ts →
-// saldoDeGlosaPorOperadora) vem com o dashboard e é do período, como o card
-// Glosa em disputa. O convênio filtra os dois.
+// Os números vêm prontos do servidor: o aging (recursoGlosa.ts →
+// agingDaGlosaEmRecurso) por endpoint próprio, o saldo (glosaRecuperada.ts →
+// saldoDeGlosaPorOperadora) com o dashboard. Os dois seguem o período do
+// cabeçalho (mês do lote de faturamento original) e o convênio.
 
 // A mesma paleta categórica do Aging da carteira: cada cor é uma operadora;
 // "Outras" em cinza neutro, fora da paleta.
@@ -82,7 +81,7 @@ interface Props {
 
 const AgingGlosaBloco: React.FC<Props> = ({ fontePagadoraId, versao, saldoPorOperadora, competencia }) => {
   const { isDark } = useTheme();
-  const { dados: aging, loading, error, refetch } = useAgingGlosa(fontePagadoraId);
+  const { dados: aging, loading, error, refetch } = useAgingGlosa(competencia, fontePagadoraId);
 
   const versaoVista = useRef(versao);
   useEffect(() => {
@@ -169,7 +168,7 @@ const AgingGlosaBloco: React.FC<Props> = ({ fontePagadoraId, versao, saldoPorOpe
     <div className={`grid grid-cols-1 lg:grid-cols-2 gap-4 transition-opacity ${loading && aging ? 'opacity-60' : ''}`}>
       <Painel
         titulo="Aging da glosa em recurso"
-        sub="Recursado − recebido de glosa dos recursos sem resultado final, por dias desde o pagamento previsto e operadora — inclui recursos de qualquer período"
+        sub={`Recursado − recebido de glosa dos recursos sem resultado final, por dias desde o pagamento previsto e operadora — lotes de ${formatCompetencia(competencia)}`}
       >
         {conteudoAging()}
       </Painel>

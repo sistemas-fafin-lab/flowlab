@@ -456,8 +456,8 @@ interface RespostaAgingGlosa {
 
 const MENSAGEM_ERRO_AGING = 'Não foi possível carregar o aging da glosa.';
 
-/** Aging da glosa em recurso, de todos os meses de faturamento, no convênio. */
-export function useAgingGlosa(fontePagadoraId: number | null) {
+/** Aging da glosa em recurso do período (mês do lote original) e convênio. */
+export function useAgingGlosa(competencia: string, fontePagadoraId: number | null) {
   const [dados, setDados] = useState<AgingGlosa | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -468,7 +468,7 @@ export function useAgingGlosa(fontePagadoraId: number | null) {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ competencia });
       if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
       const body = await chamarLegadoApi<RespostaAgingGlosa>('glosas-recursos-aging', params, MENSAGEM_ERRO_AGING);
       if (reqId !== buscaAtual.current) return;
@@ -480,7 +480,7 @@ export function useAgingGlosa(fontePagadoraId: number | null) {
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [fontePagadoraId]);
+  }, [competencia, fontePagadoraId]);
 
   useEffect(() => {
     void refetch();
