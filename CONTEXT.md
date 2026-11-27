@@ -101,3 +101,15 @@ _Avoid_: exame com desconto, exame promocional
 **Desconto automático por volume**:
 O percentual (10% ou 15%) que o Gerador de Orçamento aplica sozinho sobre os Exames elegíveis a desconto, conforme a quantidade de exames elegíveis distintos ou a soma do valor deles. As faixas não se somam.
 _Avoid_: desconto particular, desconto manual
+
+**Tabela Colaborador**:
+O modo do Gerador de Orçamento para colaboradores do laboratório, liberado pela permissão "Usar Tabela Colaborador". Mostra o Valor colaborador de cada exame ao lado do preço particular, monta o carrinho pelo Valor colaborador e não aplica o Desconto automático por volume. O "Orçamento – Tabela Colaborador" é uma variante do Orçamento, também não guardada.
+_Avoid_: planilha de colaboradores (a planilha só deu a regra), convênio colaborador, tabela de funcionários
+
+**Valor colaborador**:
+O preço de um exame na Tabela Colaborador: custo do Controle de Custos ÷ fator, com fator = (100 − parcela A − parcela B) / 100, arredondado em centavos. Calculado na hora, com os parâmetros da regra do Controle de Custos. Sem custo, com custo maior ou igual ao preço particular, ou a partir do limite de pouca vantagem (hoje 90% do particular), o exame fica sem Valor colaborador: "consultar a gestão".
+_Avoid_: preço colaborador fixo, desconto colaborador
+
+**Exame de uso interno**:
+Exame do Controle de Custos marcado "Uso interno (só Tabela Colaborador)": só aparece na Tabela Colaborador, sem preço particular, e fica fora do Gerador particular, da integração da Tabela Particular e da Conferência de cobertura.
+_Avoid_: exame oculto, exame inativo

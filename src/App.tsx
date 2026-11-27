@@ -536,11 +536,11 @@ const AuthenticatedApp: React.FC = () => {
         />
         {/* Meu perfil: qualquer usuário autenticado (o conteúdo é o próprio colaborador). */}
         <Route path="/meu-perfil" element={<MeuPerfilPage />} />
-        {/* Atendimento */}
+        {/* Atendimento. Gerador: modo Particular (canUseGeradorOrcamento) e/ou Tabela Colaborador (canUseTabelaColaborador). */}
         <Route
           path={GERADOR_ORCAMENTO_PATH}
           element={
-            <ProtectedRoute permission="canUseGeradorOrcamento" permissions={userPermissions}>
+            <ProtectedRoute anyOf={['canUseGeradorOrcamento', 'canUseTabelaColaborador']} permissions={userPermissions}>
               <GeradorOrcamentoPage />
             </ProtectedRoute>
           }

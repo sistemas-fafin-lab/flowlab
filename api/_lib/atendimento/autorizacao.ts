@@ -65,6 +65,24 @@ export async function autorizarGeradorOrcamento(token: string | null): Promise<R
   };
 }
 
+/**
+ * Exige canUseTabelaColaborador (modo Tabela Colaborador do Gerador), independente de
+ * canUseGeradorOrcamento. O custo continua só com canViewGeradorOrcamentoCustos.
+ */
+export async function autorizarTabelaColaborador(token: string | null): Promise<ResultadoAutorizacao> {
+  const chamador = await permissoesDoChamador(token);
+  if ('falha' in chamador) return chamador;
+  if (!chamador.permissoes.includes('canUseTabelaColaborador')) {
+    return negar(403, 'Sem permissão para usar a Tabela Colaborador.');
+  }
+  return {
+    acesso: {
+      userId: chamador.userId,
+      podeVerCustos: chamador.permissoes.includes('canViewGeradorOrcamentoCustos'),
+    },
+  };
+}
+
 /** Exige canResetarSenhaClinica (Resetar senha clínica: grava no cadastro da clínica no apLIS). */
 export async function autorizarResetSenhaClinica(
   token: string | null,

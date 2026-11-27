@@ -682,10 +682,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         name: 'Atendimento',
         href: GERADOR_ORCAMENTO_PATH,
         icon: Headphones,
-        anyOf: ['canUseGeradorOrcamento', 'canResetarSenhaClinica'],
+        anyOf: ['canUseGeradorOrcamento', 'canUseTabelaColaborador', 'canResetarSenhaClinica'],
         category: 'OPERAÇÕES',
         subItems: [
-          { name: 'Gerador de Orçamento', href: GERADOR_ORCAMENTO_PATH, icon: Calculator, permission: 'canUseGeradorOrcamento' },
+          { name: 'Gerador de Orçamento', href: GERADOR_ORCAMENTO_PATH, icon: Calculator, anyOf: ['canUseGeradorOrcamento', 'canUseTabelaColaborador'] },
           { name: 'Resetar senha clínica', href: RESETAR_SENHA_CLINICA_PATH, icon: KeyRound, permission: 'canResetarSenhaClinica' },
         ],
       },

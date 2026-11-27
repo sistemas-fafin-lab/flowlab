@@ -3,7 +3,7 @@
 // para quem tem canViewGeradorOrcamentoCustos; sem ela, o servidor nem o consulta.
 
 import { supabase } from '../../lib/supabase';
-import type { ItemGeradorOrcamento } from './types';
+import type { ItemGeradorOrcamento, ItemTabelaColaborador } from './types';
 import type { ExameLidoNoPedido } from './domain/pedidoMedico';
 
 /** Item como sai do servidor: `nome` é null quando o TUSS não tem exame cadastrado. */
@@ -53,6 +53,36 @@ export async function buscarListaPrecos(): Promise<ListaPrecos> {
     exames: body.itens.filter((i): i is ItemGeradorOrcamento => !!i.nome),
     podeVerCustos: body.podeVerCustos === true,
   };
+}
+
+// ── Tabela Colaborador ──────────────────────────────────────────────────────────
+// GET /api/atendimento/tabela-colaborador-precos: a rota valida o JWT +
+// canUseTabelaColaborador. O Valor colaborador vem pronto do servidor; o custo, só para
+// quem tem canViewGeradorOrcamentoCustos.
+
+interface RespostaTabelaColaborador {
+  success?: boolean;
+  error?: string;
+  itens?: ItemTabelaColaborador[];
+}
+
+/** Busca a lista do modo Tabela Colaborador. Lança com uma mensagem pronta para a tela. */
+export async function buscarTabelaColaborador(): Promise<ItemTabelaColaborador[]> {
+  const { token } = await sessaoAtual();
+
+  let res: Response;
+  try {
+    res = await fetch('/api/atendimento/tabela-colaborador-precos', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new Error(`${FALHA_PADRAO} Verifique a conexão.`);
+  }
+  const body = (await res.json().catch(() => ({}))) as RespostaTabelaColaborador;
+  if (!res.ok || !body.success || !Array.isArray(body.itens)) {
+    throw new Error(body.error || FALHA_PADRAO);
+  }
+  return body.itens;
 }
 
 // ── Leitura do pedido médico por IA ─────────────────────────────────────────────

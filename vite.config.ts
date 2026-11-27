@@ -548,6 +548,7 @@ function atendimentoApiPlugin(env: Record<string, string>): Plugin {
   const ATENDIMENTO_ROUTES: Record<string, string> = {
     'gerador-orcamento-precos': 'GET',
     'gerador-orcamento-pedido-medico': 'POST',
+    'tabela-colaborador-precos': 'GET',
     'senha-clinica-buscar': 'GET',
     'senha-clinica-usuarios': 'GET',
     'senha-clinica-resetar': 'POST',

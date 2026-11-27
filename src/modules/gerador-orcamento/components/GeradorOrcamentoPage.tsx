@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Tag, Trash2, User, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Tag, Trash2, User, Users, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
@@ -29,6 +29,10 @@ import LeituraPedidoMedicoModal from './LeituraPedidoMedicoModal';
 import SeletorConvenio from './SeletorConvenio';
 import ListaConvenios from './ListaConvenios';
 import SeloCobertura from './SeloCobertura';
+import ControleQuantidade from './ControleQuantidade';
+import ModoColaborador from './ModoColaborador';
+import { useAuth } from '../../../hooks/useAuth';
+import { hasPermission } from '../../../utils/permissions';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
@@ -144,9 +148,6 @@ const LinhaCarrinho: React.FC<{
   onRemover: (chave: string) => void;
 }> = ({ linha, cobertura, onQuantidade, onRemover }) => {
   const chave = chaveExame(linha.item);
-  // Rascunho do campo: deixa apagar e redigitar a quantidade; ao sair do campo, volta
-  // para a quantidade válida do carrinho.
-  const [rascunho, setRascunho] = useState<string | null>(null);
   return (
     <li className="py-3 flex items-center gap-3">
       <div className="min-w-0 flex-1">
@@ -160,37 +161,11 @@ const LinhaCarrinho: React.FC<{
           {cobertura && <SeloCobertura coberto={cobertura.coberto} convenio={cobertura.convenio} />}
         </p>
       </div>
-      <div className="flex items-center rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <button
-          type="button"
-          aria-label="Diminuir quantidade"
-          onClick={() => onQuantidade(chave, linha.quantidade - 1)}
-          disabled={linha.quantidade <= 1}
-          className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        >
-          <Minus className="w-3.5 h-3.5" />
-        </button>
-        <input
-          type="number"
-          min={1}
-          aria-label={`Quantidade de ${linha.item.nome}`}
-          value={rascunho ?? linha.quantidade}
-          onChange={(e) => {
-            setRascunho(e.target.value);
-            onQuantidade(chave, e.target.valueAsNumber);
-          }}
-          onBlur={() => setRascunho(null)}
-          className="w-10 text-center text-sm font-semibold bg-transparent text-gray-800 dark:text-gray-100 border-0 focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-        />
-        <button
-          type="button"
-          aria-label="Aumentar quantidade"
-          onClick={() => onQuantidade(chave, linha.quantidade + 1)}
-          className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      <ControleQuantidade
+        nome={linha.item.nome}
+        quantidade={linha.quantidade}
+        onQuantidade={(quantidade) => onQuantidade(chave, quantidade)}
+      />
       <span className="w-24 text-right text-sm font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
         {brl(linha.item.preco * linha.quantidade)}
       </span>
@@ -247,7 +222,8 @@ const ProgressoDesconto: React.FC<{ faixa: ProximaFaixa | null }> = ({ faixa }) 
   );
 };
 
-const GeradorOrcamentoPage: React.FC = () => {
+/** Modo Particular: o Orçamento do cliente particular, com o desconto por volume. */
+const ModoParticular: React.FC = () => {
   const { exames, podeVerCustos, loading, error, recarregar } = useListaPrecos();
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
@@ -321,17 +297,7 @@ const GeradorOrcamentoPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10 lg:pb-0 lg:h-[calc(100vh-1.5rem)] lg:flex lg:flex-col">
-      <div className="flex items-center gap-3 mb-6 shrink-0">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-          <Calculator className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Gerador de Orçamento</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Exames particulares para o cliente</p>
-        </div>
-      </div>
-
+    <>
       {loading ? (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-12 flex flex-col items-center gap-3 animate-fade-in">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
@@ -587,6 +553,83 @@ const GeradorOrcamentoPage: React.FC = () => {
           onFechar={() => setLendoPedido(false)}
           onAdicionar={adicionarDoPedido}
         />
+      )}
+    </>
+  );
+};
+
+type Modo = 'particular' | 'colaborador';
+
+const MODOS: Record<Modo, { rotulo: string; subtitulo: string; icone: React.ElementType }> = {
+  particular: { rotulo: 'Particular', subtitulo: 'Exames particulares para o cliente', icone: Tag },
+  colaborador: { rotulo: 'Colaborador', subtitulo: 'Tabela Colaborador: exames para colaboradores do laboratório', icone: Users },
+};
+
+/**
+ * Gerador de Orçamento. canUseGeradorOrcamento abre o modo Particular e
+ * canUseTabelaColaborador o modo Tabela Colaborador; quem tem as duas alterna entre
+ * eles. Um modo, depois de aberto, fica montado (escondido) para não perder o carrinho
+ * ao alternar.
+ */
+const GeradorOrcamentoPage: React.FC = () => {
+  const { userProfile } = useAuth();
+  const permissoes = userProfile?.permissions || [];
+  const disponiveis = (['particular', 'colaborador'] as const).filter((m) =>
+    hasPermission(permissoes, m === 'particular' ? 'canUseGeradorOrcamento' : 'canUseTabelaColaborador'),
+  );
+  const [escolhido, setEscolhido] = useState<Modo | null>(null);
+  const modo = escolhido && disponiveis.includes(escolhido) ? escolhido : disponiveis[0];
+  const [abertos, setAbertos] = useState<ReadonlySet<Modo>>(new Set());
+  useEffect(() => {
+    if (modo && !abertos.has(modo)) setAbertos((atual) => new Set(atual).add(modo));
+  }, [modo, abertos]);
+
+  return (
+    <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10 lg:pb-0 lg:h-[calc(100vh-1.5rem)] lg:flex lg:flex-col">
+      <div className="flex flex-wrap items-center gap-3 mb-6 shrink-0">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+          <Calculator className="w-6 h-6 text-white" />
+        </div>
+        <div className="mr-auto">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Gerador de Orçamento</h1>
+          {modo && <p className="text-sm text-gray-500 dark:text-gray-400">{MODOS[modo].subtitulo}</p>}
+        </div>
+        {disponiveis.length > 1 && (
+          <div role="tablist" aria-label="Modo do Gerador" className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-gray-800">
+            {disponiveis.map((m) => {
+              const { rotulo, icone: Icone } = MODOS[m];
+              const ativo = m === modo;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativo}
+                  onClick={() => setEscolhido(m)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    ativo
+                      ? 'bg-white text-blue-700 shadow-sm dark:bg-gray-700 dark:text-blue-300'
+                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                  }`}
+                >
+                  <Icone className="w-4 h-4" /> {rotulo}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* `contents` mantém o layout de altura total; o modo escondido segue montado. */}
+      {(modo === 'particular' || abertos.has('particular')) && (
+        <div className={modo === 'particular' ? 'contents' : 'hidden'}>
+          <ModoParticular />
+        </div>
+      )}
+      {(modo === 'colaborador' || abertos.has('colaborador')) && (
+        <div className={modo === 'colaborador' ? 'contents' : 'hidden'}>
+          <ModoColaborador />
+        </div>
       )}
     </div>
   );

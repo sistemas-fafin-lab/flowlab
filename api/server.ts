@@ -132,6 +132,7 @@ HANDLERS.set('POST /api/faturamento/operadoras-sync',          () => import('./_
 HANDLERS.set('GET /api/faturamento/aplis-cobrancas-testes',   () => import('./_lib/handlers/faturamento-aplis-cobrancas-testes.js'));
 HANDLERS.set('GET /api/faturamento/glosas-recursos-cron',      () => import('./_lib/handlers/faturamento-glosas-recursos-cron.js'));
 HANDLERS.set('GET /api/atendimento/gerador-orcamento-precos',  () => import('./_lib/handlers/atendimento-gerador-orcamento-precos.js'));
+HANDLERS.set('GET /api/atendimento/tabela-colaborador-precos', () => import('./_lib/handlers/atendimento-tabela-colaborador-precos.js'));
 HANDLERS.set('POST /api/atendimento/gerador-orcamento-pedido-medico', () => import('./_lib/handlers/atendimento-gerador-orcamento-pedido-medico.js'));
 HANDLERS.set('GET /api/atendimento/senha-clinica-buscar',      () => import('./_lib/handlers/atendimento-senha-clinica-buscar.js'));
 HANDLERS.set('GET /api/atendimento/senha-clinica-usuarios',    () => import('./_lib/handlers/atendimento-senha-clinica-usuarios.js'));

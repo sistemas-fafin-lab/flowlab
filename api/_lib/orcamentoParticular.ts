@@ -7,6 +7,11 @@ import type { VercelRequest } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isBearerApiKeyValid } from './bearerAuth.js';
 import { buscarTodasPaginado } from './supabasePaginado.js';
+import {
+  precoColaborador,
+  type ParametrosTabelaColaborador,
+  type PrecoColaborador,
+} from '../../src/modules/gerador-orcamento/domain/tabelaColaborador.js';
 
 const FONTE_PARTICULAR = 'Particular';
 // Só a tabela associada cadastrada como "Particular" da fonte Particular
@@ -59,10 +64,38 @@ export type OrcamentoParticularItemCustoOpcional = Omit<OrcamentoParticularItem,
 
 export interface OpcoesOrcamentoParticular {
   /**
-   * false = custo_exames é lido sem as colunas de custo e os itens saem sem a
-   * chave `custo` (quem não pode ver custo nem chega a buscá-lo).
+   * false = os itens saem sem a chave `custo`. No modo particular, custo_exames
+   * nem é lido com as colunas de custo (quem não pode ver custo nem chega a
+   * buscá-lo); no modo colaborador o custo é lido porque a regra precisa dele,
+   * mas não sai do servidor.
    */
   incluirCusto: boolean;
+  /**
+   * 'colaborador' = lista da Tabela Colaborador: um item por exame do Controle
+   * de Custos com custo ou com preço Particular, incluindo os de uso interno,
+   * com o Valor colaborador. Padrão: 'particular'.
+   */
+  modo?: 'particular' | 'colaborador';
+}
+
+/**
+ * Um exame da lista do modo colaborador (Tabela Colaborador). Sem convênios
+ * nem elegibilidade ao desconto: o desconto por volume não se aplica.
+ */
+export interface ItemTabelaColaborador {
+  tuss: string;
+  nome: string;
+  /** null sem linha Particular, e sempre null para exame de uso interno. */
+  precoParticular: number | null;
+  /** custo_direto + custo_indireto; só com `incluirCusto`. */
+  custo?: number;
+  precoColaborador: PrecoColaborador;
+}
+
+interface ParametrosRow {
+  parcela_a: number | string;
+  parcela_b: number | string;
+  limite_pouca_vantagem: number | string;
 }
 
 interface FonteRow {
@@ -135,17 +168,22 @@ export function isTabelaParticularApiKeyValid(req: VercelRequest): boolean {
  */
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
-  opcoes: { incluirCusto: true },
+  opcoes: { incluirCusto: boolean; modo: 'colaborador' },
+): Promise<ItemTabelaColaborador[]>;
+export async function buildOrcamentoParticular(
+  supabase: SupabaseClient,
+  opcoes: { incluirCusto: true; modo?: 'particular' },
 ): Promise<OrcamentoParticularItem[]>;
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
-  opcoes: OpcoesOrcamentoParticular,
+  opcoes: { incluirCusto: boolean; modo?: 'particular' },
 ): Promise<OrcamentoParticularItemCustoOpcional[]>;
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
-  { incluirCusto }: OpcoesOrcamentoParticular,
-): Promise<OrcamentoParticularItemCustoOpcional[]> {
-  const [todasFontes, exames, exclusoes, valoresPersonalizados, tabelas] = await Promise.all([
+  { incluirCusto, modo = 'particular' }: OpcoesOrcamentoParticular,
+): Promise<OrcamentoParticularItemCustoOpcional[] | ItemTabelaColaborador[]> {
+  const colaborador = modo === 'colaborador';
+  const [todasFontes, exames, exclusoes, valoresPersonalizados, tabelas, parametros] = await Promise.all([
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
@@ -154,7 +192,9 @@ export async function buildOrcamentoParticular(
     buscarTodasPaginado<ExameRow>(
       supabase,
       'custo_exames',
-      incluirCusto ? 'id, tuss, nome, uso_interno, custo_direto, custo_indireto' : 'id, tuss, nome, uso_interno',
+      incluirCusto || colaborador
+        ? 'id, tuss, nome, uso_interno, custo_direto, custo_indireto'
+        : 'id, tuss, nome, uso_interno',
     ),
     buscarTodasPaginado<ExclusaoRow>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
     buscarTodasPaginado<ValorPersonalizadoRow>(
@@ -163,6 +203,8 @@ export async function buildOrcamentoParticular(
       'payor_id, exame_id, valor',
     ),
     buscarTodasPaginado<TabelaAssociadaRow>(supabase, 'custo_tabelas_associadas', 'id, fonte_pagadora, nome'),
+    // Lidos a cada montagem: mudou na aba do Controle de Custos, vale na próxima consulta.
+    colaborador ? lerParametrosTabelaColaborador(supabase) : null,
   ]);
 
   // Linha não levantada (importação sem exame parecido) não é linha geral do
@@ -279,14 +321,18 @@ export async function buildOrcamentoParticular(
   // Sem custo, a chave nem existe no item (não é `undefined` nem `null`).
   const comCusto = (custo: () => number | null) => (incluirCusto ? { custo: custo() } : {});
 
+  // Preço Particular (e TUSS) de cada exame que virou item: o modo colaborador usa.
+  const particularPorExame = new Map<string, PrecoParticularDoExame>();
   const itemDoExame = (fonte: FonteRow, exame: ExameRow): OrcamentoParticularItemCustoOpcional => {
     const tuss = exame.tuss || fonte.tuss;
+    // Exame pode ter um valor próprio, diferente do preço padrão da linha
+    // (ver custo_fontes_pagadoras_valores_exame).
+    const preco = valoresPersonalizadosPorChave.get(`${fonte.id}:${exame.id}`) ?? Number(fonte.valor);
+    particularPorExame.set(exame.id, { tuss, preco });
     return {
       tuss,
       nome: exame.nome,
-      // Exame pode ter um valor próprio, diferente do preço padrão da linha
-      // (ver custo_fontes_pagadoras_valores_exame).
-      preco: valoresPersonalizadosPorChave.get(`${fonte.id}:${exame.id}`) ?? Number(fonte.valor),
+      preco,
       ...comCusto(() => Number(exame.custo_direto) + Number(exame.custo_indireto)),
       elegivelDescontoParticular: fonte.elegivel_desconto_particular,
       ...coberturaDoItem(tuss, exame.id),
@@ -336,5 +382,60 @@ export async function buildOrcamentoParticular(
       itens.push(itemDoExame(fonte, exame));
     }
   }
-  return itens;
+  if (!colaborador) return itens;
+  return itensTabelaColaborador(exames, particularPorExame, parametros!, incluirCusto);
+}
+
+/** O exame como saiu no modo particular: TUSS (o da linha, se o exame não tem) e preço. */
+interface PrecoParticularDoExame {
+  tuss: string;
+  preco: number;
+}
+
+async function lerParametrosTabelaColaborador(supabase: SupabaseClient): Promise<ParametrosTabelaColaborador> {
+  const [linha] = await buscarTodasPaginado<ParametrosRow>(
+    supabase,
+    'custo_tabela_colaborador_parametros',
+    'parcela_a, parcela_b, limite_pouca_vantagem',
+  );
+  if (!linha) throw new Error('Parâmetros da Tabela Colaborador não cadastrados.');
+  return {
+    parcelaA: Number(linha.parcela_a),
+    parcelaB: Number(linha.parcela_b),
+    limitePoucaVantagem: Number(linha.limite_pouca_vantagem),
+  };
+}
+
+/**
+ * Um item por exame do Controle de Custos com custo ou com preço Particular,
+ * incluindo os de uso interno. O preço Particular é o mesmo que o exame tem no
+ * modo particular; exame de uso interno sai sempre sem ele (mesmo que o TUSS
+ * tenha linha Particular), e por isso não passa pelas checagens com o
+ * particular. Duplicata literal (mesmo TUSS e nome): a última vence, como no
+ * modo particular, porque tuss + nome é a identidade do exame no carrinho.
+ */
+function itensTabelaColaborador(
+  exames: ExameRow[],
+  particularPorExame: Map<string, PrecoParticularDoExame>,
+  parametros: ParametrosTabelaColaborador,
+  incluirCusto: boolean,
+): ItemTabelaColaborador[] {
+  const porChave = new Map<string, ItemTabelaColaborador>();
+  for (const exame of exames) {
+    const custo = Number(exame.custo_direto) + Number(exame.custo_indireto);
+    const particular = exame.uso_interno ? undefined : particularPorExame.get(exame.id);
+    const precoParticular = particular?.preco ?? null;
+    if (!(custo > 0) && precoParticular === null) continue;
+    const tuss = particular?.tuss ?? exame.tuss ?? '';
+    const chave = `${tuss}\u0000${exame.nome}`;
+    porChave.delete(chave); // a última vence, na posição dela
+    porChave.set(chave, {
+      tuss,
+      nome: exame.nome,
+      precoParticular,
+      ...(incluirCusto ? { custo } : {}),
+      precoColaborador: precoColaborador({ custo, precoParticular }, parametros),
+    });
+  }
+  return Array.from(porChave.values());
 }

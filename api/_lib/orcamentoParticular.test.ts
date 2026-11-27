@@ -84,6 +84,12 @@ interface TabelaAssociadaRow {
   nome: string;
 }
 
+interface ParametrosRow {
+  parcela_a: number | string;
+  parcela_b: number | string;
+  limite_pouca_vantagem: number | string;
+}
+
 const TABELA_PARTICULAR: TabelaAssociadaRow = { id: 'tab-particular', fonte_pagadora: 'Particular', nome: 'Particular' };
 
 function criarSupabaseMock(dados: {
@@ -92,6 +98,7 @@ function criarSupabaseMock(dados: {
   custo_fontes_pagadoras_exclusoes?: ExclusaoRow[];
   custo_fontes_pagadoras_valores_exame?: ValorPersonalizadoRow[];
   custo_tabelas_associadas?: TabelaAssociadaRow[];
+  custo_tabela_colaborador_parametros?: ParametrosRow[];
 }) {
   // A maioria dos testes não liga pra tabela associada — linha Particular
   // sem tabela_associada_id explícita aponta pro cadastro "Particular" (o que
@@ -881,5 +888,187 @@ describe('buildOrcamentoParticular — exames de uso interno', () => {
         coberturaConvenios: [{ fonte: 'Convênio A', convenio: 'Convênio A' }],
       },
     ]);
+  });
+});
+
+describe('buildOrcamentoParticular — modo colaborador', () => {
+  // Parâmetros gravados diferentes dos da planilha: fator 0,5 (custo 10 → 20).
+  const PARAMETROS: ParametrosRow = { parcela_a: '40', parcela_b: '10', limite_pouca_vantagem: '0.9' };
+  const linhaParticular = (tuss: string, valor: number, extra: Partial<FonteRow> = {}): FonteRow => ({
+    id: `particular-${tuss}`,
+    fonte_pagadora: 'Particular',
+    tuss,
+    valor,
+    atendido: true,
+    elegivel_desconto_particular: true,
+    ...extra,
+  });
+
+  it('exame de uso interno sem linha Particular aparece, com o valor pela regra', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [],
+      custo_exames: [
+        { id: 'ex-interno', tuss: '', nome: 'Painel colaborador', custo_direto: 10, custo_indireto: 0, uso_interno: true },
+      ],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' });
+
+    expect(itens).toEqual([
+      {
+        tuss: '',
+        nome: 'Painel colaborador',
+        precoParticular: null,
+        precoColaborador: { disponivel: true, valor: 20 },
+      },
+    ]);
+  });
+
+  it('exame de uso interno cujo TUSS tem linha Particular sai sem preço Particular e disponível', async () => {
+    const supabase = criarSupabaseMock({
+      // 30 seria "custo ≥ particular" para o custo 40, se o preço valesse para o interno
+      custo_fontes_pagadoras: [linhaParticular('40301060', 30)],
+      custo_exames: [
+        { id: 'ex-interno', tuss: '40301060', nome: 'Hemograma colaborador', custo_direto: 40, custo_indireto: 0, uso_interno: true },
+      ],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' });
+
+    expect(itens).toEqual([
+      {
+        tuss: '40301060',
+        nome: 'Hemograma colaborador',
+        precoParticular: null,
+        precoColaborador: { disponivel: true, valor: 80 },
+      },
+    ]);
+  });
+
+  it('cada item traz o preço Particular e a regra aplicada com os parâmetros gravados', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linhaParticular('1', 100),
+        linhaParticular('2', 100),
+        linhaParticular('3', 100),
+        linhaParticular('4', 100),
+        { fonte_pagadora: 'Convênio A', tuss: '1', valor: 80, atendido: true, elegivel_desconto_particular: false },
+      ],
+      custo_exames: [
+        { id: 'a', tuss: '1', nome: 'Disponível', custo_direto: 10, custo_indireto: 5 }, // 15 ÷ 0,5 = 30
+        { id: 'b', tuss: '2', nome: 'Sem custo', custo_direto: 0, custo_indireto: 0 },
+        { id: 'c', tuss: '3', nome: 'Caro', custo_direto: 100, custo_indireto: 0 },
+        { id: 'd', tuss: '4', nome: 'Pouca vantagem', custo_direto: 45, custo_indireto: 0 }, // 90 = 90% de 100
+        { id: 'e', tuss: '5', nome: 'Sem custo nem particular', custo_direto: 0, custo_indireto: 0 },
+      ],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' });
+
+    expect(itens).toEqual([
+      { tuss: '1', nome: 'Disponível', precoParticular: 100, precoColaborador: { disponivel: true, valor: 30 } },
+      { tuss: '2', nome: 'Sem custo', precoParticular: 100, precoColaborador: { disponivel: false, motivo: 'sem_custo' } },
+      {
+        tuss: '3',
+        nome: 'Caro',
+        precoParticular: 100,
+        precoColaborador: { disponivel: false, motivo: 'custo_maior_ou_igual_particular' },
+      },
+      {
+        tuss: '4',
+        nome: 'Pouca vantagem',
+        precoParticular: 100,
+        precoColaborador: { disponivel: false, motivo: 'pouca_vantagem' },
+      },
+    ]);
+  });
+
+  it('preço Particular personalizado do exame é o que vale para a regra', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('1', 100)],
+      custo_exames: [{ id: 'a', tuss: '1', nome: 'Hemograma', custo_direto: 15, custo_indireto: 0 }],
+      custo_fontes_pagadoras_valores_exame: [{ payor_id: 'particular-1', exame_id: 'a', valor: '32' }],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' });
+
+    // 30 ÷ 32 ≥ 0,9
+    expect(itens).toEqual([
+      { tuss: '1', nome: 'Hemograma', precoParticular: 32, precoColaborador: { disponivel: false, motivo: 'pouca_vantagem' } },
+    ]);
+  });
+
+  it('sem a permissão de custos nenhum item traz custo; com ela, traz', async () => {
+    const dados = {
+      custo_fontes_pagadoras: [linhaParticular('1', 100)],
+      custo_exames: [
+        { id: 'a', tuss: '1', nome: 'Hemograma', custo_direto: '10', custo_indireto: '5' },
+        { id: 'b', tuss: '', nome: 'Interno', custo_direto: 8, custo_indireto: 0, uso_interno: true },
+      ],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    };
+
+    const semCusto = await buildOrcamentoParticular(criarSupabaseMock(dados), { incluirCusto: false, modo: 'colaborador' });
+    const comCusto = await buildOrcamentoParticular(criarSupabaseMock(dados), { incluirCusto: true, modo: 'colaborador' });
+
+    expect(semCusto).toHaveLength(2);
+    for (const item of semCusto) expect(item).not.toHaveProperty('custo');
+    expect(comCusto.map(i => i.custo)).toEqual([15, 8]);
+  });
+
+  it('não traz convênios que atendem nem elegibilidade ao desconto', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linhaParticular('1', 100),
+        { fonte_pagadora: 'Convênio A', tuss: '1', valor: 80, atendido: true, elegivel_desconto_particular: false },
+      ],
+      custo_exames: [{ id: 'a', tuss: '1', nome: 'Hemograma', custo_direto: 10, custo_indireto: 0 }],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const [item] = await buildOrcamentoParticular(supabase, { incluirCusto: true, modo: 'colaborador' });
+
+    expect(Object.keys(item).sort()).toEqual(['custo', 'nome', 'precoColaborador', 'precoParticular', 'tuss']);
+  });
+
+  it('o modo particular não lê os parâmetros nem traz exame de uso interno', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('1', 100)],
+      custo_exames: [
+        { id: 'a', tuss: '1', nome: 'Hemograma', custo_direto: 10, custo_indireto: 0 },
+        { id: 'b', tuss: '1', nome: 'Interno', custo_direto: 8, custo_indireto: 0, uso_interno: true },
+      ],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(itens.map(i => i.nome)).toEqual(['Hemograma']);
+    expect(supabase.colunasPedidas.custo_tabela_colaborador_parametros).toBeUndefined();
+    expect(supabase.colunasPedidas.custo_exames).not.toContain('custo_direto');
+  });
+
+  it('sem a linha de parâmetros, a montagem falha em vez de inventar a regra', async () => {
+    const supabase = criarSupabaseMock({ custo_fontes_pagadoras: [], custo_exames: [] });
+
+    await expect(buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' })).rejects.toThrow(
+      'Parâmetros da Tabela Colaborador',
+    );
+  });
+
+  it('exame sem TUSS com linha Particular própria leva o TUSS da linha, como no modo particular', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('40301060', 100, { id: 'linha-do-exame', exame_id: 'a' })],
+      custo_exames: [{ id: 'a', tuss: '', nome: 'Painel', custo_direto: 10, custo_indireto: 0 }],
+      custo_tabela_colaborador_parametros: [PARAMETROS],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' });
+
+    expect(itens.map(i => [i.tuss, i.precoParticular])).toEqual([['40301060', 100]]);
   });
 });

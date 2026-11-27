@@ -137,6 +137,10 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string; d
   // Custo na resposta da lista de preços e PDF interno (custo × venda × margem). Sem ela, o
   // servidor nem consulta o custo. Só o Administrador recebe por padrão (não o "atendente").
   { key: 'canViewGeradorOrcamentoCustos', label: 'Ver custos e margem no Gerador de Orçamento', group: 'Atendimento' },
+  // Modo Tabela Colaborador do Gerador (.scratch/tabela-colaborador/spec.md): Valor colaborador
+  // dos exames para colaboradores do laboratório. Independente de canUseGeradorOrcamento; o
+  // custo continua só com canViewGeradorOrcamentoCustos. Só o Administrador recebe por padrão.
+  { key: 'canUseTabelaColaborador', label: 'Usar Tabela Colaborador', group: 'Atendimento' },
   // Supervisão da Central de Atendimento (WhatsApp): etiquetas, respostas rápidas e
   // transferir/assumir conversas. Só o Administrador recebe por padrão (20261106120000).
   {
