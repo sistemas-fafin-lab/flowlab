@@ -14,11 +14,19 @@
  * pode usar a rota não apaga nada, e cada usuário só lê (e apaga) arquivos da
  * própria pasta (`<user id>/...`, também exigida pela policy de upload).
  *
- * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do usuário
- * (exige canUseGeradorOrcamento). Regra em api/_lib/atendimento/autorizacao.ts.
- * Body: { paths: string[] (1..5, todos em `<user id>/`) } — resposta:
- * { success, exames: [{ nomeNoPedido, item: { tuss, nome } | null }], paciente: string | null }
- * (o nome do paciente lido no pedido, para o atendente confirmar na tela; não é gravado).
+ * Modo: `particular` (padrão) casa contra a lista do Gerador particular (sem os
+ * Exames de uso interno); `colaborador` casa contra a lista da Tabela Colaborador
+ * (com eles) e cada item casado traz o resultado da regra (`precoColaborador`: o
+ * Valor colaborador ou o motivo de "consultar a gestão"). Ver
+ * .scratch/tabela-colaborador/spec.md → "Tela e PDF".
+ *
+ * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do usuário,
+ * pela permissão do modo: canUseGeradorOrcamento no particular, canUseTabelaColaborador
+ * no colaborador. Regra em api/_lib/atendimento/autorizacao.ts.
+ * Body: { paths: string[] (1..5, todos em `<user id>/`), modo?: 'particular' | 'colaborador' }
+ * — resposta: { success, exames: [{ nomeNoPedido, item: { tuss, nome, precoColaborador? } | null,
+ * relacionados, tipo }], paciente: string | null } (o nome do paciente lido no pedido, para o
+ * atendente confirmar na tela; não é gravado).
  *
  * Variáveis de ambiente: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY,
  *   GEMINI_MODEL (opcional).
@@ -28,8 +36,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { describeError } from '../errors.js';
-import { autorizarGeradorOrcamento, tokenDoHeader } from '../atendimento/autorizacao.js';
+import { autorizarGeradorOrcamento, autorizarTabelaColaborador, tokenDoHeader } from '../atendimento/autorizacao.js';
 import { buildOrcamentoParticular } from '../orcamentoParticular.js';
+import type { PrecoColaborador } from '../../../src/modules/gerador-orcamento/domain/tabelaColaborador.js';
 import { montarPromptPedidoMedico } from '../atendimento/promptPedidoMedico.js';
 import { casarExamesLidos, lerPacienteDaResposta, lerRespostaIa } from '../atendimento/leituraPedidoMedico.js';
 import {
@@ -80,13 +89,33 @@ async function baixarArquivos(supabase: SupabaseClient, paths: string[]): Promis
   return arquivos;
 }
 
-async function lerPedido(supabase: SupabaseClient, paths: string[]) {
-  const arquivos = await baixarArquivos(supabase, paths);
+type Modo = 'particular' | 'colaborador';
 
+/** O modo pedido no body (ausente = particular); null quando não é um dos dois. */
+function extrairModo(body: unknown): Modo | null {
+  const modo = (body as { modo?: unknown })?.modo;
+  if (modo === undefined || modo === null) return 'particular';
+  return modo === 'particular' || modo === 'colaborador' ? modo : null;
+}
+
+/** O que a resposta leva de um item casado: a identidade e, no colaborador, o resultado da regra. */
+type ItemCasado = { tuss: string; nome: string; precoColaborador?: PrecoColaborador };
+
+/** A lista do modo, sem custo, só com itens orçáveis (com nome), no formato da resposta. */
+async function listaDoModo(supabase: SupabaseClient, modo: Modo): Promise<ItemCasado[]> {
+  if (modo === 'colaborador') {
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false, modo: 'colaborador' });
+    return itens.map(({ tuss, nome, precoColaborador }) => ({ tuss, nome, precoColaborador }));
+  }
   // Item sem nome não é orçável (a tela também o descarta).
-  const lista = (await buildOrcamentoParticular(supabase, { incluirCusto: false })).filter(
-    (i): i is typeof i & { nome: string } => !!i.nome,
-  );
+  return (await buildOrcamentoParticular(supabase, { incluirCusto: false }))
+    .filter((i): i is typeof i & { nome: string } => !!i.nome)
+    .map(({ tuss, nome }) => ({ tuss, nome }));
+}
+
+async function lerPedido(supabase: SupabaseClient, paths: string[], modo: Modo) {
+  const arquivos = await baixarArquivos(supabase, paths);
+  const lista = await listaDoModo(supabase, modo);
 
   let texto: string;
   try {
@@ -109,7 +138,7 @@ async function lerPedido(supabase: SupabaseClient, paths: string[]) {
   return {
     exames: exames.map(({ nomeNoPedido, item, relacionados, tipo }) => ({
       nomeNoPedido,
-      item: item ? { tuss: item.tuss, nome: item.nome } : null,
+      item,
       relacionados,
       tipo,
     })),
@@ -133,10 +162,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
+  const modo = extrairModo(req.body);
+  if (!modo) {
+    res.status(400).json({ success: false, error: 'Modo inválido: use particular ou colaborador.' });
+    return;
+  }
+
   let supabase: SupabaseClient;
   let userId: string;
   try {
-    const autorizacao = await autorizarGeradorOrcamento(tokenDoHeader(req.headers.authorization));
+    const autorizar = modo === 'colaborador' ? autorizarTabelaColaborador : autorizarGeradorOrcamento;
+    const autorizacao = await autorizar(tokenDoHeader(req.headers.authorization));
     if ('falha' in autorizacao) {
       res.status(autorizacao.falha.status).json(autorizacao.falha.payload);
       return;
@@ -156,7 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   // Apaga antes de responder: depois da resposta a Vercel pode congelar a função.
-  const desfecho = await lerPedido(supabase, paths).then(
+  const desfecho = await lerPedido(supabase, paths, modo).then(
     (leitura) => ({ leitura }),
     (erro: unknown) => ({ erro }),
   );

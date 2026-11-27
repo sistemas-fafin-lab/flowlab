@@ -4,7 +4,7 @@
 // arquivos antes do upload e a volta do resultado para os exames que a tela carregou.
 
 import { chaveExame } from './carrinho';
-import type { ItemGeradorOrcamento } from '../types';
+import type { ExameDoCarrinho, ItemGeradorOrcamento } from '../types';
 
 export const MAX_ARQUIVOS_PEDIDO = 5;
 export const MAX_MB_POR_ARQUIVO = 10;
@@ -51,9 +51,9 @@ export interface ExameNaoEncontrado {
   tipo: TipoNaoEncontrado | null;
 }
 
-export interface LeituraDoPedido {
+export interface LeituraDoPedido<T extends ExameDoCarrinho = ItemGeradorOrcamento> {
   /** Exames lidos que têm exame na lista da tela (um por exame da lista). */
-  reconhecidos: { nomeNoPedido: string; exame: ItemGeradorOrcamento }[];
+  reconhecidos: { nomeNoPedido: string; exame: T }[];
   /** Exames lidos sem exame correspondente: o atendente busca à mão. */
   semCorrespondencia: ExameNaoEncontrado[];
 }
@@ -62,12 +62,12 @@ export interface LeituraDoPedido {
  * Liga o resultado do servidor aos exames que a tela carregou (são eles que vão ao
  * carrinho, com o custo quando o usuário pode vê-lo).
  */
-export function resolverLeituraDoPedido(
+export function resolverLeituraDoPedido<T extends ExameDoCarrinho>(
   exames: readonly ExameLidoNoPedido[],
-  lista: readonly ItemGeradorOrcamento[],
-): LeituraDoPedido {
+  lista: readonly T[],
+): LeituraDoPedido<T> {
   const porChave = new Map(lista.map((exame) => [chaveExame(exame), exame]));
-  const leitura: LeituraDoPedido = { reconhecidos: [], semCorrespondencia: [] };
+  const leitura: LeituraDoPedido<T> = { reconhecidos: [], semCorrespondencia: [] };
   const vistos = new Set<string>();
 
   for (const { nomeNoPedido, item, relacionados, tipo } of exames) {

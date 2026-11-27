@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 vi.mock('../supabase.js', () => ({
@@ -26,7 +26,7 @@ const BUCKET = 'atendimento-pedidos-medicos';
 interface CorpoResposta {
   success: boolean;
   error?: string;
-  exames?: { nomeNoPedido: string; item: { tuss: string; nome: string } | null }[];
+  exames?: { nomeNoPedido: string; item: Record<string, unknown> | null }[];
   paciente?: string | null;
 }
 
@@ -326,5 +326,128 @@ describe('POST /api/atendimento/gerador-orcamento-pedido-medico', () => {
     expect(res.statusCode).toBe(405);
     expect(res.headers.Allow).toBe('POST');
     expect(geminiMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/atendimento/gerador-orcamento-pedido-medico no modo colaborador', () => {
+  // Lista do modo colaborador: inclui o exame de uso interno, que a particular não tem.
+  const LISTA_COLABORADOR = [
+    {
+      tuss: '40304361',
+      nome: 'Hemograma Completo',
+      precoParticular: 25,
+      precoColaborador: { disponivel: true, valor: 19.66 },
+    },
+    {
+      tuss: '40316521',
+      nome: 'TSH',
+      precoParticular: 40,
+      precoColaborador: { disponivel: false, motivo: 'pouca_vantagem' },
+    },
+    {
+      tuss: '',
+      nome: 'Painel Interno Colaborador',
+      precoParticular: null,
+      precoColaborador: { disponivel: true, valor: 30 },
+    },
+  ];
+  const RESPOSTA_IA =
+    '{"exams":[{"name":"Hemograma","matched":"Hemograma Completo"},{"name":"TSH","matched":"TSH"},{"name":"Painel interno","matched":"Painel Interno Colaborador"}]}';
+
+  beforeEach(() => {
+    buildOrcamentoParticularMock.mockImplementation(async (_supabase, opcoes: { modo?: string }) =>
+      opcoes.modo === 'colaborador' ? LISTA_COLABORADOR : LISTA,
+    );
+    geminiMock.mockResolvedValue(RESPOSTA_IA);
+  });
+
+  const corpo = (modo?: string) => ({
+    paths: ['user-1/abc/pedido-1.jpg', 'user-1/abc/pedido-2.pdf'],
+    ...(modo === undefined ? {} : { modo }),
+  });
+
+  it('com canUseTabelaColaborador casa contra a lista colaborador, sem custo, e apaga os arquivos', async () => {
+    const { res, apagados } = await executar({ permissoes: ['canUseTabelaColaborador'], body: corpo('colaborador') });
+
+    expect(res.statusCode).toBe(200);
+    expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), {
+      incluirCusto: false,
+      modo: 'colaborador',
+    });
+    const [, prompt] = geminiMock.mock.calls[0] as [unknown, string];
+    expect(prompt).toContain('Painel Interno Colaborador');
+    expect(apagados).toHaveLength(2);
+  });
+
+  it('cada exame casado traz o resultado da regra: o valor ou o motivo de "consultar a gestão"', async () => {
+    const { res } = await executar({ permissoes: ['canUseTabelaColaborador'], body: corpo('colaborador') });
+
+    expect(res.body?.exames).toEqual([
+      {
+        nomeNoPedido: 'Hemograma',
+        item: { tuss: '40304361', nome: 'Hemograma Completo', precoColaborador: { disponivel: true, valor: 19.66 } },
+        relacionados: [],
+        tipo: null,
+      },
+      {
+        nomeNoPedido: 'TSH',
+        item: { tuss: '40316521', nome: 'TSH', precoColaborador: { disponivel: false, motivo: 'pouca_vantagem' } },
+        relacionados: [],
+        tipo: null,
+      },
+      {
+        nomeNoPedido: 'Painel interno',
+        item: { tuss: '', nome: 'Painel Interno Colaborador', precoColaborador: { disponivel: true, valor: 30 } },
+        relacionados: [],
+        tipo: null,
+      },
+    ]);
+  });
+
+  it('o exame de uso interno não casa no modo particular', async () => {
+    const { res } = await executar({ body: corpo('particular') });
+
+    expect(res.statusCode).toBe(200);
+    expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), { incluirCusto: false });
+    expect(res.body?.exames?.find((e) => e.nomeNoPedido === 'Painel interno')?.item).toBeNull();
+    // No particular, o item casado não traz o resultado da regra colaborador.
+    expect(res.body?.exames?.[0].item).toEqual({ tuss: '40304361', nome: 'Hemograma Completo' });
+  });
+
+  it('sem modo, a rota segue no particular', async () => {
+    const { res } = await executar({ body: corpo() });
+
+    expect(res.statusCode).toBe(200);
+    expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), { incluirCusto: false });
+  });
+
+  it('modo colaborador só com canUseGeradorOrcamento devolve 403 sem chamar a IA nem apagar nada', async () => {
+    const { res, apagados } = await executar({
+      permissoes: ['canUseGeradorOrcamento', 'canViewGeradorOrcamentoCustos'],
+      body: corpo('colaborador'),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(geminiMock).not.toHaveBeenCalled();
+    expect(apagados).toEqual([]);
+  });
+
+  it('modo particular só com canUseTabelaColaborador devolve 403 sem chamar a IA nem apagar nada', async () => {
+    const { res, apagados } = await executar({ permissoes: ['canUseTabelaColaborador'], body: corpo('particular') });
+
+    expect(res.statusCode).toBe(403);
+    expect(geminiMock).not.toHaveBeenCalled();
+    expect(apagados).toEqual([]);
+  });
+
+  it('modo desconhecido devolve 400 sem chamar a IA nem apagar nada', async () => {
+    const { res, apagados } = await executar({
+      permissoes: ['canUseGeradorOrcamento', 'canUseTabelaColaborador'],
+      body: corpo('convenio'),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(geminiMock).not.toHaveBeenCalled();
+    expect(apagados).toEqual([]);
   });
 });

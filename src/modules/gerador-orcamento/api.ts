@@ -140,8 +140,15 @@ async function subirArquivosDoPedido(arquivos: File[], userId: string): Promise<
   }
 }
 
-/** Envia o pedido médico à IA e devolve os exames e o paciente lidos. Lança com uma mensagem pronta para a tela. */
-export async function analisarPedidoMedico(arquivos: File[]): Promise<AnaliseDoPedido> {
+/**
+ * Envia o pedido médico à IA e devolve os exames e o paciente lidos. Lança com uma mensagem
+ * pronta para a tela. O modo escolhe a lista contra a qual o servidor casa os exames (e a
+ * permissão que ele exige): a do Gerador particular ou a da Tabela Colaborador.
+ */
+export async function analisarPedidoMedico(
+  arquivos: File[],
+  modo: 'particular' | 'colaborador' = 'particular',
+): Promise<AnaliseDoPedido> {
   const { token, userId } = await sessaoAtual();
   const paths = await subirArquivosDoPedido(arquivos, userId);
 
@@ -150,7 +157,7 @@ export async function analisarPedidoMedico(arquivos: File[]): Promise<AnaliseDoP
     res = await fetch('/api/atendimento/gerador-orcamento-pedido-medico', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paths }),
+      body: JSON.stringify({ paths, modo }),
       signal: AbortSignal.timeout(TEMPO_LIMITE_ANALISE_MS),
     });
   } catch (err) {
