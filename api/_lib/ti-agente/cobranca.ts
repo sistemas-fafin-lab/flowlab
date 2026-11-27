@@ -6,15 +6,16 @@ import { ehDiaUtil, hojeSP, type Dia } from '../../../src/modules/eva/domain/dat
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import {
   chaveDia, citadosNoGrupo, destinatarios, montarCobrancaManual, montarCobrancaNoGrupo, montarMensagemDiaria, pendenciasDoMembro, podeCobrar,
-  podeReceber, proximaJanelaDeCobranca, totalPendencias, type MembroCobranca, type ModoCobranca,
+  podeReceber, presentes, proximaJanelaDeCobranca, totalPendencias, type MembroCobranca, type ModoCobranca,
 } from '../../../src/modules/eva/domain/cobranca.js';
+import { descreverAusencia } from '../../../src/modules/eva/domain/ausencia.js';
 import { CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
-import { nomeParaCitar } from '../../../src/modules/eva/domain/pessoas.js';
+import { nomeParaCitar, primeiroNome } from '../../../src/modules/eva/domain/pessoas.js';
 import { ehChatDeGrupo } from '../../../src/modules/eva/domain/whatsapp.js';
 import { tem, type Usuario } from './autorizacao.js';
 import { lerTudo } from './dados.js';
 
-export const CAMPOS_CARD ='id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at';
+export const CAMPOS_CARD ='id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at, resolved_at';
 
 type Pagina<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
@@ -48,7 +49,7 @@ export async function lerConfigCobranca(db: SupabaseClient): Promise<ConfigCobra
 export async function lerMembrosCobranca(db: SupabaseClient): Promise<MembroCobranca[]> {
   const { data, error } = await db
     .from('ti_agente_membros')
-    .select('id, user_id, whatsapp, recebe_cobranca, ativo, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)');
+    .select('id, user_id, whatsapp, recebe_cobranca, ativo, ausente_de, ausente_ate, ausencia_motivo, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)');
   if (error) throw new Error(error.message);
   type Perfil = { name: string; deleted_at: string | null } | null;
   return (data ?? [])
@@ -60,6 +61,9 @@ export async function lerMembrosCobranca(db: SupabaseClient): Promise<MembroCobr
       ativo: m.ativo as boolean,
       recebe_cobranca: m.recebe_cobranca as boolean,
       whatsapp: m.whatsapp as string | null,
+      ausente_de: (m.ausente_de as string | null) ?? null,
+      ausente_ate: (m.ausente_ate as string | null) ?? null,
+      ausencia_motivo: (m.ausencia_motivo as string | null) ?? null,
     }));
 }
 
@@ -121,7 +125,8 @@ export async function gerarCobrancasDoDia(
   const [membros, cards] = await Promise.all([lerMembrosCobranca(db), lerCardsAbertos(db)]);
   const comentarios = await ultimosComentarios(db, cards);
 
-  for (const m of membros.filter(podeReceber)) {
+  // D40: quem está ausente (férias, licença) não recebe a cobrança da manhã.
+  for (const m of presentes(membros, hoje).filter(podeReceber)) {
     const pendencias = pendenciasDoMembro(cards, m.user_id, hoje, cfg.dias_parado, comentarios);
     const texto = montarMensagemDiaria({ nome: m.nome, hoje, pendencias, diasParado: cfg.dias_parado, ultimoComentario: comentarios, linkInicio: opcoes.linkInicio });
     if (!texto) continue;
@@ -205,8 +210,15 @@ export async function checarCobranca(
   if ('motivo' in r) return { ok: false, status: r.status, erro: r.motivo };
 
   const equipe = membros ?? (await lerMembrosCobranca(db));
-  const alvos = destinatarios(c, r.modo, usuario.userId, equipe);
-  const citaveis = citadosNoGrupo(c, r.modo, equipe);
+  // D40: no Cobrar, quem está ausente fica de fora; com todos os responsáveis fora, a recusa diz até quando.
+  const disponiveis = r.modo === 'cobrar' ? presentes(equipe, hoje) : equipe;
+  const ausentes = equipe.filter((m) => c.assigned_to.includes(m.user_id) && !disponiveis.includes(m));
+  const alvos = destinatarios(c, r.modo, usuario.userId, disponiveis);
+  const citaveis = citadosNoGrupo(c, r.modo, disponiveis);
+  if (r.modo === 'cobrar' && ausentes.length && !c.assigned_to.some((u) => disponiveis.some((m) => m.user_id === u))) {
+    const quem = ausentes.map((m) => `${primeiroNome(m.nome) || m.nome} está ${descreverAusencia({ ausente_de: m.ausente_de ?? null, ausente_ate: m.ausente_ate ?? null, ausencia_motivo: m.ausencia_motivo }, hoje)}`);
+    return { ok: false, status: 422, erro: `${quem.join('; ')}: a cobrança do ${c.codigo} fica para a volta.` };
+  }
   const grupo: CobrancaNoGrupo | null = cfg.grupo_id && citaveis.length
     ? { id: cfg.grupo_id, nome: cfg.grupo_nome, membros: citaveis, citados: citaveis.map((m) => nomeParaCitar(m.nome, equipe.map((x) => x.nome))) }
     : null;

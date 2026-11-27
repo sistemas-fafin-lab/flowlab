@@ -4,18 +4,20 @@
 // Só vai para gestor da EVA (canManageAgenteTI, conferido no envio) com WhatsApp e a adesão
 // marcada na aba Membros.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { diaDaSemana, ehDiaUtil, hojeSP, somarDias, type Dia } from '../../../src/modules/eva/domain/datas.js';
+import { diaDaSemana, ehDiaUtil, hojeSP, inicioDaSemana, somarDias, type Dia } from '../../../src/modules/eva/domain/datas.js';
+import { fotografar, type FotoDia } from '../../../src/modules/eva/domain/tendencias.js';
 import { estaAtrasado, type CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import { JANELA_COBRANCA_MS, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
 import {
-  detectarAlertas, montarBlocoGestao, montarPainelGestao, montarRelatorioDiario, montarRelatorioSemanal, periodoAnterior,
+  detectarAlertas, montarBlocoGestao, montarPainelGestao, montarPautaUmAUm, montarRelatorioDiario, montarRelatorioSemanal, periodoAnterior,
   semanaAnterior, ultimos7Dias, type ChamadoGestao, type EntradaGestao, type PainelGestao, type Periodo,
 } from '../../../src/modules/eva/domain/gestao.js';
 import { CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
 import type { ProjetoTI, SprintTI } from '../../../src/modules/eva/domain/projetos.js';
 import { ultimoContato, type MensagemFila } from '../../../src/modules/eva/domain/whatsapp.js';
 import { CAMPOS_CARD, lerConfigCobranca, ultimosComentarios } from './cobranca.js';
-import { lerNomes, lerQuemTem, lerTudo } from './dados.js';
+import { lerNomes, lerQuemTem, lerTudo, lerUltimaReuniao } from './dados.js';
+import { lerDaReuniaoParaPessoa } from './pessoal.js';
 
 type Pagina<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
@@ -31,10 +33,10 @@ const inicioDoDia = (dia: Dia) => new Date(`${dia}T03:00:00Z`).toISOString();
 /** Tudo o que o painel precisa, do período pedido e do anterior (a comparação). */
 export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo: Periodo): Promise<EntradaGestao> {
   const hoje = hojeSP(agora);
-  // Concluídos desde o início do período anterior, e pelo menos 14 dias (o recorte do Início).
-  const desdeDia = [periodoAnterior(periodo).de, somarDias(hoje, -14)].sort()[0];
+  // Concluídos desde o início do período anterior, e pelo menos 4 semanas (as entregas por semana, D42).
+  const desdeDia = [periodoAnterior(periodo).de, somarDias(inicioDaSemana(hoje), -21)].sort()[0];
   const desde = inicioDoDia(desdeDia);
-  const [cfg, cardsBrutos, projetos, sprints, chamados, membros, sugestoes, fila] = await Promise.all([
+  const [cfg, cardsBrutos, projetos, sprints, chamados, membros, sugestoes, fila, fotoAnterior] = await Promise.all([
     lerConfigCobranca(db),
     lerTudo<CardTI>((de, ate) =>
       db.from('it_requests')
@@ -54,9 +56,12 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
         .or(`status.in.(pending,in_progress),created_at.gte.${desde},resolved_at.gte.${desde}`)
         .order('id')
         .range(de, ate) as unknown as Pagina<ChamadoGestao>),
-    db.from('ti_agente_membros').select('user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)').eq('ativo', true),
+    db.from('ti_agente_membros')
+      .select('user_id, ausente_de, ausente_ate, ausencia_motivo, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)')
+      .eq('ativo', true),
     db.from('ti_agente_sugestoes').select('created_at', { count: 'exact' }).eq('status', 'pendente').order('created_at').limit(1),
     lerFilaRecente(db, agora),
+    lerFotoAntesDe(db, periodo.de),
   ]);
   if (membros.error) throw new Error(membros.error.message);
   if (sugestoes.error) throw new Error(sugestoes.error.message);
@@ -64,7 +69,11 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
   const cards = cardsBrutos.map((c) => ({ ...c, assigned_to: c.assigned_to ?? [], kanban_hidden: !!c.kanban_hidden }));
   type Perfil = { name: string; deleted_at: string | null } | null;
   const equipe = (membros.data ?? [])
-    .map((m) => ({ id: m.user_id as string, perfil: m.perfil as unknown as Perfil }))
+    .map((m) => ({
+      id: m.user_id as string,
+      perfil: m.perfil as unknown as Perfil,
+      ausencia: { ausente_de: (m.ausente_de as string | null) ?? null, ausente_ate: (m.ausente_ate as string | null) ?? null, ausencia_motivo: (m.ausencia_motivo as string | null) ?? null },
+    }))
     .filter((m) => m.perfil && !m.perfil.deleted_at);
   const daEquipe = Object.fromEntries(equipe.map((m) => [m.id, m.perfil!.name]));
   const outros = cards.flatMap((c) => c.assigned_to).filter((id) => !daEquipe[id]);
@@ -76,7 +85,7 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
     if (!estaAtrasado(c, hoje)) return false;
     const contato = ultimoContato(c.id, c.assigned_to, fila, agora.getTime(), hoje, JANELA_COBRANCA_MS);
     return !!contato.semResposta && agora.getTime() - Date.parse(contato.semResposta.desde) >= JANELA_COBRANCA_MS;
-  }).length;
+  }).map((c) => c.id);
 
   return {
     hoje,
@@ -92,8 +101,29 @@ export async function lerEntradaGestao(db: SupabaseClient, agora: Date, periodo:
     ultimoComentario: comentarios,
     sugestoesPendentes: sugestoes.count ?? 0,
     sugestaoMaisAntiga: (sugestoes.data?.[0]?.created_at as string | undefined) ?? null,
-    cobrancasSemResposta: semResposta,
+    cardsSemResposta: semResposta,
+    ausencias: Object.fromEntries(equipe.map((m) => [m.id, m.ausencia])),
+    fotoAnterior,
   };
+}
+
+/**
+ * A foto diária mais recente antes do dia (D42). Sem a tabela (migration ainda não aplicada) ou sem
+ * foto, null: a comparação só some do relatório.
+ */
+async function lerFotoAntesDe(db: SupabaseClient, dia: Dia): Promise<FotoDia | null> {
+  const { data, error } = await db.from('ti_agente_fotos').select('foto').lt('dia', dia).order('dia', { ascending: false }).limit(1).maybeSingle();
+  if (error) return null;
+  return (data?.foto as FotoDia | undefined) ?? null;
+}
+
+/** A foto do fim do dia (fechamento das 18h): os números do painel de hoje, uma linha por dia. */
+export async function gravarFotoDoDia(db: SupabaseClient, agora = new Date()): Promise<FotoDia> {
+  const hoje = hojeSP(agora);
+  const foto = fotografar(await lerPainelGestao(db, agora, { de: hoje, ate: hoje }));
+  const { error } = await db.from('ti_agente_fotos').upsert({ dia: hoje, foto }, { onConflict: 'dia' });
+  if (error) throw new Error(error.message);
+  return foto;
 }
 
 /** As mensagens dos últimos dias, no formato do Início (para ultimoContato). */
@@ -120,6 +150,17 @@ export async function lerPainelGestao(db: SupabaseClient, agora: Date, periodo =
 /** O painel no contexto da IA (perguntas de gestão do gestor, no chat e no WhatsApp). */
 export async function lerBlocoGestao(db: SupabaseClient, agora = new Date()): Promise<string> {
   return montarBlocoGestao(await lerPainelGestao(db, agora));
+}
+
+/** "Prepara minha 1:1 com o Bruno" (D41): a pauta da pessoa, pelo painel dos últimos 7 dias. */
+export async function lerPautaUmAUm(db: SupabaseClient, pessoaId: string, formato: 'whatsapp' | 'chat', agora = new Date()): Promise<string> {
+  const [entrada, reuniao] = await Promise.all([lerEntradaGestao(db, agora, ultimos7Dias(hojeSP(agora))), lerUltimaReuniao(db)]);
+  const itens = reuniao?.id ? await lerDaReuniaoParaPessoa(db, reuniao.id, pessoaId) : [];
+  return montarPautaUmAUm(
+    entrada, montarPainelGestao(entrada), pessoaId,
+    reuniao ? { titulo: reuniao.titulo, realizadaEm: reuniao.realizadaEm, itens } : null,
+    formato,
+  );
 }
 
 export interface DestinoGestao { membroId: string; userId: string; nome: string }
@@ -246,6 +287,8 @@ export async function verificarAlertas(db: SupabaseClient, opcoes: { agora?: Dat
       .select('id', { count: 'exact', head: true })
       .eq('membro_id', d.membroId)
       .eq('tipo', 'alerta')
+      // Só os de gestão: os avisos de saúde das integrações (D39) também são 'alerta', com chave "saude:…".
+      .like('chave_dia', 'alerta:%')
       .gte('created_at', inicioDoDia(hoje));
     if (eCount) throw new Error(eCount.message);
     let vagas = MAX_ALERTAS_DIA - (count ?? 0);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   JANELA_COBRANCA_MS, chaveDia, citadosNoGrupo, destinatarios, destinoDaCobranca, montarCobrancaManual, montarCobrancaNoGrupo, montarMensagemDiaria,
-  pendenciasDoMembro, podeCobrar, proximaJanelaDeCobranca, situacaoDoCobrar, type MembroCobranca, type MembroNoWhatsapp,
+  pendenciasDoMembro, podeCobrar, presentes, proximaJanelaDeCobranca, situacaoDoCobrar, type MembroCobranca, type MembroNoWhatsapp,
 } from './cobranca';
 import { card } from './testes/fabricas';
 
@@ -188,5 +188,22 @@ describe('cobrança no grupo da equipe (D35)', () => {
     expect(situacaoDoCobrar({ ...base, donos: ['u-fora'] })).toEqual({ motivo: 'Nenhum responsável tem WhatsApp com adesão à cobrança (EVA → Membros).' });
     // Lembrar é pessoal: sem adesão, desabilitado, mesmo com grupo.
     expect(situacaoDoCobrar({ ...base, doUsuario: true, donos: [EU] })).toEqual({ motivo: 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).' });
+  });
+
+  it('ausência (D40): com todos os responsáveis fora, o botão diz até quando; com um presente, segue', () => {
+    const membros = new Map<string, MembroNoWhatsapp>([
+      ['u-ana', { whatsapp: true, recebe: true, ausencia: 'de férias até 05/12' }], ['u-bruno', { whatsapp: true, recebe: true }],
+    ]);
+    const nomes: Record<string, string> = { 'u-ana': 'Ana Souza', 'u-bruno': 'Bruno Mendes' };
+    const base = { doUsuario: false, usuarioId: EU, membros, grupo: null, nome: (id: string) => nomes[id] ?? '' };
+    expect(situacaoDoCobrar({ ...base, donos: ['u-ana'] })).toEqual({ motivo: 'Ana está de férias até 05/12.' });
+    expect(situacaoDoCobrar({ ...base, donos: ['u-ana', 'u-bruno'] })).toEqual({});
+  });
+
+  it('presentes: tira quem está ausente hoje', () => {
+    const m = (user_id: string, extra: Partial<MembroCobranca> = {}): MembroCobranca =>
+      ({ id: `m-${user_id}`, user_id, nome: user_id, ativo: true, recebe_cobranca: true, whatsapp: '5561999990000', ...extra });
+    const lista = [m('u-ana', { ausente_de: '2026-10-12', ausente_ate: '2026-10-16' }), m('u-bruno', { ausente_de: '2026-10-20', ausente_ate: '2026-10-22' }), m('u-carla')];
+    expect(presentes(lista, HOJE).map((x) => x.user_id)).toEqual(['u-bruno', 'u-carla']);
   });
 });

@@ -12,6 +12,7 @@ import { getSupabaseAdminClient } from '../supabase.js';
 import { cronAutorizado } from '../ti-agente/autorizacao.js';
 import { gerarCobrancasDoDia } from '../ti-agente/cobranca.js';
 import { gerarRelatoriosDeGestao } from '../ti-agente/gestao.js';
+import { verificarSaudeSemFalhar } from '../ti-agente/saude.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
@@ -25,9 +26,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (cobranca.status === 'rejected') console.error('[ti/agente-cobranca-cron] cobrança', cobranca.reason);
   if (relatorio.status === 'rejected') console.error('[ti/agente-cobranca-cron] relatório de gestão', relatorio.reason);
   const erro = (r: PromiseRejectedResult) => (r.reason instanceof Error ? r.reason.message : 'Erro interno');
+  // D39: a saúde das integrações também é conferida aqui (a Vercel é quem vê a VPS parar).
+  const saude = await verificarSaudeSemFalhar(db, opcoes.dryRun, 'ti/agente-cobranca-cron');
+  const extras = { relatorio: relatorio.status === 'fulfilled' ? relatorio.value : { erro: erro(relatorio) }, saude };
   if (cobranca.status === 'rejected') {
-    res.status(500).json({ success: false, error: erro(cobranca), relatorio: relatorio.status === 'fulfilled' ? relatorio.value : { erro: erro(relatorio) } });
+    res.status(500).json({ success: false, error: erro(cobranca), ...extras });
     return;
   }
-  res.status(200).json({ success: true, ...cobranca.value, relatorio: relatorio.status === 'fulfilled' ? relatorio.value : { erro: erro(relatorio) } });
+  res.status(200).json({ success: true, ...cobranca.value, ...extras });
 }

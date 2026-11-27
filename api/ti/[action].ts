@@ -22,6 +22,9 @@ import agenteAvisar from '../_lib/handlers/ti-agente-avisar.js';
 import agenteCobrar from '../_lib/handlers/ti-agente-cobrar.js';
 import agenteFechamentoCron from '../_lib/handlers/ti-agente-fechamento-cron.js';
 import agenteTeste from '../_lib/handlers/ti-agente-teste.js';
+import agenteMidia from '../_lib/handlers/ti-agente-midia.js';
+import agenteRelogio from '../_lib/handlers/ti-agente-relogio.js';
+import agenteRascunho from '../_lib/handlers/ti-agente-rascunho.js';
 import wahaWebhook from '../_lib/handlers/ti-waha-webhook.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
@@ -37,6 +40,11 @@ const ROTAS: Record<string, Handler> = {
   'agente-avisar': agenteAvisar,
   'agente-fechamento-cron': agenteFechamentoCron,
   'agente-teste': agenteTeste,
+  // D43 e D44: chamadas pela VPS, com o CRON_SECRET.
+  'agente-midia': agenteMidia,
+  'agente-relogio': agenteRelogio,
+  // D45: o rascunho da resolução, no "Resolver chamado".
+  'agente-rascunho': agenteRascunho,
   'waha-webhook': wahaWebhook,
 };
 

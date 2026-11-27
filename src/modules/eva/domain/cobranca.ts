@@ -6,6 +6,7 @@ import {
   compararDestaque, diaVencimento, diasDeAtraso, ehDoUsuario, estaAberto, estaAtrasado, estaParado, ordenarAtrasados,
   type CardTI,
 } from './demandas.js';
+import { estaAusente } from './ausencia.js';
 import { juntarNomes, primeiroNome } from './pessoas.js';
 import { rotuloDoGrupo } from './whatsapp.js';
 
@@ -155,7 +156,8 @@ export const ehTipoDeCobranca = (tipo: string) => tipo === 'cobranca' || tipo ==
  * aviso; D29), os lembretes pessoais (D30) e o aviso de gestor para uma pessoa (D32).
  */
 export const respeitaHorario = (tipo: string) =>
-  ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete' || tipo === 'aviso' || tipo === 'relatorio' || tipo === 'alerta';
+  ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete' || tipo === 'aviso' || tipo === 'relatorio' || tipo === 'alerta'
+  || tipo === 'checkin' || tipo === 'checkin_resumo';
 
 // ── Cobrança sob demanda (D22, RN16) ─────────────────────────────────────────
 
@@ -182,10 +184,18 @@ export interface MembroCobranca {
   ativo: boolean;
   recebe_cobranca: boolean;
   whatsapp: string | null;
+  /** Ausência marcada (D40): no período, ninguém cobra a pessoa. */
+  ausente_de?: Dia | null;
+  ausente_ate?: Dia | null;
+  ausencia_motivo?: string | null;
 }
 
 /** RN12/RN16: só membro ativo, com adesão e WhatsApp. */
 export const podeReceber = (m: MembroCobranca) => m.ativo && m.recebe_cobranca && !!m.whatsapp;
+
+/** Quem está na equipe hoje: fora quem está ausente (D40). */
+export const presentes = (membros: MembroCobranca[], hoje: Dia) =>
+  membros.filter((m) => !estaAusente({ ausente_de: m.ausente_de ?? null, ausente_ate: m.ausente_ate ?? null }, hoje));
 
 /** Quem recebe: no Lembrar, só quem clicou; no Cobrar, cada responsável do card (§10). */
 export function destinatarios(card: CardTI, modo: ModoCobranca, usuarioId: string, membros: MembroCobranca[]): MembroCobranca[] {
@@ -216,8 +226,8 @@ export function destinoDaCobranca(pessoas: string[], citados: string[], grupoNom
   return [juntarNomes(pessoas), grupo].filter(Boolean).join(' e ');
 }
 
-/** Quem é da aba Membros (ativo), para o botão Cobrar do Início. */
-export interface MembroNoWhatsapp { whatsapp: boolean; recebe: boolean }
+/** Quem é da aba Membros (ativo), para o botão Cobrar do Início. `ausencia`: "de férias até 05/12" (D40). */
+export interface MembroNoWhatsapp { whatsapp: boolean; recebe: boolean; ausencia?: string | null }
 
 /**
  * O botão Cobrar/Lembrar do bloco de atrasadas (as regras de checarCobranca, com o que o Início
@@ -232,8 +242,14 @@ export function situacaoDoCobrar(e: {
   nome: (userId: string) => string;
 }): { motivo?: string; nota?: string } {
   if (e.doUsuario) return e.membros.get(e.usuarioId)?.recebe ? {} : { motivo: 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).' };
-  const recebem = e.donos.some((u) => e.membros.get(u)?.recebe);
-  const citaveis = e.donos.filter((u) => e.membros.has(u) && !e.membros.get(u)!.recebe);
+  // D40: quem está ausente não é cobrado; com todos fora, o botão diz quem e até quando.
+  const ausentes = e.donos.filter((u) => e.membros.get(u)?.ausencia);
+  const donos = e.donos.filter((u) => !e.membros.get(u)?.ausencia);
+  if (donos.length === 0 && ausentes.length) {
+    return { motivo: `${ausentes.map((u) => `${primeiroNome(e.nome(u)) || 'Alguém'} está ${e.membros.get(u)!.ausencia}`).join('; ')}.` };
+  }
+  const recebem = donos.some((u) => e.membros.get(u)?.recebe);
+  const citaveis = donos.filter((u) => e.membros.has(u) && !e.membros.get(u)!.recebe);
   if (citaveis.length && e.grupo) {
     const varios = citaveis.length > 1;
     return {

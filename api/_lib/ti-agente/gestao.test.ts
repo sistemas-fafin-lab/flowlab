@@ -6,7 +6,7 @@ vi.mock('./dados.js', async (original) => ({
   lerQuemTem: vi.fn(async () => ['u-ana', 'u-carla']),
 }));
 
-import { MAX_ALERTAS_DIA, gerarRelatoriosDeGestao, verificarAlertas } from './gestao.js';
+import { MAX_ALERTAS_DIA, gerarRelatoriosDeGestao, gravarFotoDoDia, verificarAlertas } from './gestao.js';
 
 const LINK = 'https://app/it/inicio';
 // Sexta, 13/11, 8h e 22h em Brasília; segunda, 16/11, 8h; sábado, 14/11, 8h.
@@ -35,25 +35,38 @@ interface Estado {
   chaves: Set<string>;
   /** Alertas que a pessoa já recebeu hoje. */
   alertasHoje: number;
+  /** A foto diária mais recente antes do período (D42); fotoErro: a tabela ainda não existe. */
+  foto?: Record<string, unknown> | null;
+  fotoErro?: boolean;
 }
 
 /** Banco falso por tabela: o que cada leitura devolve e o que a fila grava. */
 function criarDb(e: Estado) {
   const gravadas: Record<string, unknown>[] = [];
+  const fotos: Record<string, unknown>[] = [];
   const from = (tabela: string) => {
     const f: Record<string, unknown> = {};
     let linha: Record<string, unknown> | null = null;
     let head = false;
     const q: Record<string, unknown> = {};
-    for (const m of ['order', 'limit', 'range', 'gte', 'not', 'or', 'neq', 'in']) q[m] = () => q;
+    for (const m of ['order', 'limit', 'range', 'gte', 'lt', 'not', 'or', 'neq', 'in', 'like']) q[m] = () => q;
     q.select = (_c?: string, o?: { head?: boolean }) => { if (o?.head) head = true; return q; };
     q.eq = (k: string, v: unknown) => { f[k] = v; return q; };
     q.upsert = (l: Record<string, unknown>) => { linha = l; return q; };
-    q.maybeSingle = async () => ({
-      data: tabela === 'ti_agente_config' ? { whatsapp_ativo: e.whatsappAtivo, cobranca_ativa: true, dias_parado: 5 } : null,
-      error: null,
-    });
+    q.maybeSingle = async () => {
+      if (tabela === 'ti_agente_fotos') {
+        return e.fotoErro ? { data: null, error: { message: 'relation "ti_agente_fotos" does not exist' } } : { data: e.foto ? { foto: e.foto } : null, error: null };
+      }
+      return {
+        data: tabela === 'ti_agente_config' ? { whatsapp_ativo: e.whatsappAtivo, cobranca_ativa: true, dias_parado: 5 } : null,
+        error: null,
+      };
+    };
     const resolver = () => {
+      if (linha && tabela === 'ti_agente_fotos') {
+        fotos.push(linha);
+        return { data: null, error: null };
+      }
       if (linha) {
         const chave = linha.chave_dia as string;
         if (e.chaves.has(chave)) return { data: [], error: null };
@@ -77,7 +90,7 @@ function criarDb(e: Estado) {
     q.then = (ok: (v: unknown) => unknown, erro?: (v: unknown) => unknown) => Promise.resolve(resolver()).then(ok, erro);
     return q;
   };
-  return { db: { from }, gravadas };
+  return { db: { from }, gravadas, fotos };
 }
 
 let estado: Estado;
@@ -162,5 +175,27 @@ describe('alertas na hora (D38)', () => {
   it('sem ninguém com os alertas marcados, nem confere o painel', async () => {
     estado.membros = [membro('ana', 'Ana Souza', { relatorio: true })];
     expect(await verificarAlertas(criarDb(estado).db as never, { agora: SEXTA_8H, linkInicio: LINK })).toMatchObject({ pulado: 'Nenhum gestor com os alertas marcados.' });
+  });
+});
+
+describe('foto diária e tendência (D42)', () => {
+  it('o fechamento grava a foto do painel de hoje, uma linha por dia', async () => {
+    const { db, fotos } = criarDb(estado);
+    const f = await gravarFotoDoDia(db as never, new Date('2026-11-13T21:00:00Z'));
+    expect(f).toMatchObject({ dia: '2026-11-13', abertos: 1, atrasados: 1, criticosAtrasados: 1, naFila: 0, pessoas: { 'u-ana': { abertos: 1, atrasados: 1, concluidos: 0 } } });
+    expect(fotos).toEqual([{ dia: '2026-11-13', foto: f }]);
+  });
+
+  it('o relatório da semana compara com a foto de antes do período; sem a tabela, só não compara', async () => {
+    estado.foto = { dia: '2026-11-06', abertos: 4, atrasados: 2, naFila: 3 };
+    const { db, gravadas } = criarDb(estado);
+    await gerarRelatoriosDeGestao(db as never, { agora: SEGUNDA_8H, linkInicio: LINK });
+    expect(gravadas[0].texto).toContain('• Em 06/11: 2 atrasados e 3 na fila (agora 1 e 0)');
+
+    estado.fotoErro = true;
+    estado.chaves = new Set();
+    const semTabela = criarDb(estado);
+    expect(await gerarRelatoriosDeGestao(semTabela.db as never, { agora: SEGUNDA_8H, linkInicio: LINK })).toMatchObject({ gravadas: 1 });
+    expect(semTabela.gravadas[0].texto).not.toContain('• Em ');
   });
 });

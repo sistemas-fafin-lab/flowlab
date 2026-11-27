@@ -8,7 +8,7 @@ import { chamarEva } from './agenteApi';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card' | 'promover_card';
 export type StatusSugestao = 'pendente' | 'aprovada' | 'rejeitada' | 'substituida';
-export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain';
+export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain' | 'triagem';
 
 export interface PropostaCard {
   titulo?: string;
@@ -88,6 +88,10 @@ export interface Membro {
   /** Relatório e alertas de gestão pelo WhatsApp (D38): só valem para gestor da EVA. */
   recebe_relatorio: boolean;
   recebe_alertas: boolean;
+  /** Ausência marcada (D40): AAAA-MM-DD; sem ausência, os dois null. */
+  ausente_de: string | null;
+  ausente_ate: string | null;
+  ausencia_motivo: string | null;
   ativo: boolean;
   nome: string;
   /** Os papéis da EVA pela regra do banco (papeisDoPerfil): admin tem os três (D31); a aba Permissões vale no lugar do cargo (D33). */
@@ -119,11 +123,13 @@ export interface ConfigEva {
   waha_grupos_em: string | null;
   fechamento_diario_ativo: boolean;
   resumo_reuniao_grupo_ativo: boolean;
+  /** D46: a pergunta das 9h e o resumo das 10h. */
+  checkin_ativo: boolean;
 }
 
 type CampoEditavel =
   | 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'
-  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo';
+  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo' | 'checkin_ativo';
 
 export interface Pessoa { id: string; name: string; department?: string | null }
 
@@ -231,7 +237,7 @@ export const agenteAdmin = {
     const [{ data, error }, papeis] = await Promise.all([
       supabase
         .from('ti_agente_membros')
-        .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, recebe_relatorio, recebe_alertas, ativo,
+        .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, recebe_relatorio, recebe_alertas, ativo, ausente_de, ausente_ate, ausencia_motivo,
           perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at, disabled_at, custom_roles(name, permissions))`)
         .order('created_at'),
       supabase.from('ti_agente_papeis').select('user_id, configura, gestor, aprova'),
@@ -360,14 +366,21 @@ export const agenteAdmin = {
     return data as { status: string; erro: string | null } | null;
   },
 
-  /** Histórico de um membro (RF21): enviadas, falhas e recebidas. */
-  async historicoMembro(membroId: string): Promise<{ id: string; direcao: 'saida' | 'entrada'; tipo: string; texto: string; status: string; erro: string | null; created_at: string; enviada_em: string | null }[]> {
-    const { data, error } = await supabase
+  /** Histórico de um membro (RF21): enviadas, falhas e recebidas; o áudio e a imagem marcados (D43). */
+  async historicoMembro(membroId: string): Promise<{
+    id: string; direcao: 'saida' | 'entrada'; tipo: string; texto: string; status: string; erro: string | null; created_at: string; enviada_em: string | null;
+    midia_tipo?: 'audio' | 'imagem' | null; midia_status?: string | null;
+  }[]> {
+    const ler = (campos: string) => supabase
       .from('ti_agente_mensagens')
-      .select('id, direcao, tipo, texto, status, erro, created_at, enviada_em')
+      .select(campos)
       .eq('membro_id', membroId)
       .order('created_at', { ascending: false })
       .limit(30);
+    const base = 'id, direcao, tipo, texto, status, erro, created_at, enviada_em';
+    let { data, error } = await ler(`${base}, midia_tipo, midia_status`);
+    // Sem a migration de D43, as colunas de mídia não existem: o histórico sai sem elas.
+    if (error && /midia_/.test(error.message)) ({ data, error } = await ler(base));
     erro(error);
     return (data ?? []) as never;
   },
@@ -397,10 +410,12 @@ export const agenteAdmin = {
   async salvarMembro(m: {
     id?: string; user_id: string; apelidos: string[]; whatsapp: string | null; recebe_cobranca: boolean;
     recebe_relatorio: boolean; recebe_alertas: boolean; ativo: boolean;
+    ausente_de: string | null; ausente_ate: string | null; ausencia_motivo: string | null;
   }): Promise<void> {
     const linha = {
       user_id: m.user_id, apelidos: m.apelidos, whatsapp: m.whatsapp, recebe_cobranca: m.recebe_cobranca,
       recebe_relatorio: m.recebe_relatorio, recebe_alertas: m.recebe_alertas, ativo: m.ativo,
+      ausente_de: m.ausente_de, ausente_ate: m.ausente_ate, ausencia_motivo: m.ausencia_motivo,
     };
     const { error } = m.id
       ? await supabase.from('ti_agente_membros').update(linha).eq('id', m.id)
@@ -412,7 +427,8 @@ export const agenteAdmin = {
     const { data, error } = await supabase
       .from('ti_agente_config')
       .select(`granola_folder_id, granola_ultima_sync_em, granola_verificado_em, granola_ultimo_erro, whatsapp_ativo, cobranca_ativa, dias_parado,
-        waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo`)
+        waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo,
+        checkin_ativo`)
       .eq('id', true)
       .maybeSingle();
     erro(error);

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle2, Loader2, X } from 'lucide-react';
+import { CheckCircle2, Loader2, Sparkles, Undo2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { chamarEva } from '../../modules/eva/services/agenteApi';
 import { descartarAnexosIT, enviarAnexosIT } from '../../lib/itStorage';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
@@ -79,6 +80,24 @@ const ConteudoResolucao: React.FC<Omit<ITResolucaoModalProps, 'chamado'> & { cha
   const [erro, setErro] = useState<string | null>(null);
   const [tentouEnviar, setTentouEnviar] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  // D45: o rascunho da EVA, a partir da conversa do chamado. "Desfazer" volta ao texto de antes.
+  const [rascunhando, setRascunhando] = useState(false);
+  const [antesDoRascunho, setAntesDoRascunho] = useState<string | null>(null);
+  const [erroRascunho, setErroRascunho] = useState<string | null>(null);
+
+  const rascunhar = async () => {
+    setRascunhando(true);
+    setErroRascunho(null);
+    try {
+      const r = await chamarEva<{ rascunho: string }>('agente-rascunho', { chamadoId: chamado.id });
+      setAntesDoRascunho(texto);
+      setTexto(r.rascunho.slice(0, RESOLUCAO_MAX_CARACTERES));
+    } catch (e) {
+      setErroRascunho(e instanceof Error ? e.message : 'A EVA não conseguiu escrever o rascunho agora.');
+    } finally {
+      setRascunhando(false);
+    }
+  };
 
   const erroTexto = validarResolucao(texto);
 
@@ -234,17 +253,29 @@ const ConteudoResolucao: React.FC<Omit<ITResolucaoModalProps, 'chamado'> & { cha
         {/* Corpo */}
         <div className="relative flex-1 overflow-y-auto custom-scrollbar px-6 pb-2 space-y-5">
           <div>
-            <div className="flex items-baseline justify-between mb-1.5">
+            <div className="flex items-baseline justify-between gap-3 mb-1.5">
               <label htmlFor="resolucao-texto" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 O que foi feito? <span className="text-red-500">*</span>
               </label>
-              <span
-                className={`text-[11px] tabular-nums ${
-                  texto.trim().length > RESOLUCAO_MAX_CARACTERES ? 'text-red-500' : 'text-slate-400'
-                }`}
-              >
-                {texto.trim().length}/{RESOLUCAO_MAX_CARACTERES}
-              </span>
+              <div className="flex items-baseline gap-3">
+                <button
+                  type="button"
+                  onClick={() => void rascunhar()}
+                  disabled={salvando || rascunhando}
+                  title="A EVA escreve um rascunho a partir da conversa do chamado. Revise antes de resolver."
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 disabled:opacity-50 transition-colors"
+                >
+                  {rascunhando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {rascunhando ? 'Escrevendo…' : antesDoRascunho !== null ? 'Refazer o rascunho' : 'Rascunhar com a EVA'}
+                </button>
+                <span
+                  className={`text-[11px] tabular-nums ${
+                    texto.trim().length > RESOLUCAO_MAX_CARACTERES ? 'text-red-500' : 'text-slate-400'
+                  }`}
+                >
+                  {texto.trim().length}/{RESOLUCAO_MAX_CARACTERES}
+                </span>
+              </div>
             </div>
             <textarea
               id="resolucao-texto"
@@ -274,6 +305,19 @@ const ConteudoResolucao: React.FC<Omit<ITResolucaoModalProps, 'chamado'> & { cha
                   : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500/10 focus:border-emerald-500'
               }`}
             />
+            {erroRascunho && <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">{erroRascunho}</p>}
+            {antesDoRascunho !== null && !rascunhando && (
+              <p className="flex flex-wrap items-center gap-x-2 text-xs text-violet-600 dark:text-violet-400 mt-1.5">
+                Rascunho da EVA a partir da conversa: revise e complete o que estiver entre colchetes.
+                <button
+                  type="button"
+                  onClick={() => { setTexto(antesDoRascunho); setAntesDoRascunho(null); }}
+                  className="inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+                >
+                  <Undo2 className="w-3 h-3" /> Desfazer
+                </button>
+              </p>
+            )}
             {mostrarErroTexto ? (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">{erroTexto}</p>
             ) : (

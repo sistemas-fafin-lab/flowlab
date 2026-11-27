@@ -34,6 +34,8 @@ export interface ClienteWaha {
   enviarTexto(chatId: string, texto: string): Promise<{ ok: true; id: string | null } | Falha>;
   /** GET /api/{sessao}/groups — os grupos do número da EVA, para escolher o da equipe (D29). */
   listarGrupos(): Promise<{ ok: true; grupos: GrupoWaha[] } | Falha>;
+  /** GET /api/files/… — o áudio ou a imagem que o WAHA baixou de uma mensagem recebida (D43). */
+  baixarArquivo(caminho: string): Promise<{ ok: true; bytes: Uint8Array; mimetype: string | null } | Falha>;
 }
 
 export interface GrupoWaha { id: string; nome: string }
@@ -85,6 +87,15 @@ export function criarClienteWaha(cfg: ConfigWaha, fetchImpl: FetchLike = fetch):
     ...(cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {}),
   });
 
+  /** A falha de rede, em português (o fetch do Node só diz "fetch failed"; o motivo vem em `cause`). */
+  function falhaDeRede(e: unknown): Falha {
+    const nome = e instanceof Error ? e.name : '';
+    if (nome === 'TimeoutError' || nome === 'AbortError') return { ok: false, erro: `WAHA não respondeu a tempo em ${base}.` };
+    const causa = (e as { cause?: { code?: unknown; message?: unknown } })?.cause;
+    const motivo = typeof causa?.code === 'string' ? (MOTIVOS[causa.code] ?? causa.code) : typeof causa?.message === 'string' ? causa.message : e instanceof Error ? e.message : String(e);
+    return { ok: false, erro: `Sem conexão com o WAHA em ${base} (${motivo}).` };
+  }
+
   async function chamar(caminho: string, init: RequestInit = {}): Promise<{ ok: true; dados: unknown } | Falha> {
     try {
       const resposta = await fetchImpl(`${base}${caminho}`, { ...init, signal: AbortSignal.timeout(cfg.timeoutMs ?? 15_000) });
@@ -99,12 +110,7 @@ export function criarClienteWaha(cfg: ConfigWaha, fetchImpl: FetchLike = fetch):
         return { ok: true, dados: texto };
       }
     } catch (e) {
-      const nome = e instanceof Error ? e.name : '';
-      if (nome === 'TimeoutError' || nome === 'AbortError') return { ok: false, erro: `WAHA não respondeu a tempo em ${base}.` };
-      // O fetch do Node só diz "fetch failed"; o motivo de verdade (ECONNREFUSED…) vem em `cause`.
-      const causa = (e as { cause?: { code?: unknown; message?: unknown } })?.cause;
-      const motivo = typeof causa?.code === 'string' ? (MOTIVOS[causa.code] ?? causa.code) : typeof causa?.message === 'string' ? causa.message : e instanceof Error ? e.message : String(e);
-      return { ok: false, erro: `Sem conexão com o WAHA em ${base} (${motivo}).` };
+      return falhaDeRede(e);
     }
   }
 
@@ -138,6 +144,21 @@ export function criarClienteWaha(cfg: ConfigWaha, fetchImpl: FetchLike = fetch):
       const r = await chamar(`/api/${encodeURIComponent(cfg.sessao)}/groups`, { headers: cabecalhos() });
       if ('erro' in r) return r;
       return { ok: true, grupos: lerGrupos(r.dados) };
+    },
+
+    async baixarArquivo(caminho) {
+      if (!caminho.startsWith('/api/files/')) return { ok: false, erro: 'Caminho de arquivo do WAHA inválido.' };
+      try {
+        const resposta = await fetchImpl(`${base}${caminho}`, {
+          headers: cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {},
+          signal: AbortSignal.timeout(Math.max(cfg.timeoutMs ?? 15_000, 30_000)),
+        });
+        if (!resposta.ok) return { ok: false, erro: `WAHA HTTP ${resposta.status} ao baixar o arquivo.` };
+        const bytes = new Uint8Array(await resposta.arrayBuffer());
+        return { ok: true, bytes, mimetype: resposta.headers.get('content-type') };
+      } catch (e) {
+        return falhaDeRede(e);
+      }
     },
   };
 }

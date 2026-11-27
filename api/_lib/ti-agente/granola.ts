@@ -58,12 +58,17 @@ async function pedir<T>(f: Fetch, apiKey: string, caminho: string): Promise<Resu
       signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
     });
     if (!resp.ok) {
+      const corpo = await resp.json().catch(() => null);
+      // 403 também vem quando a assinatura do workspace venceu (22/Out): aí a chave e a pasta estão certas.
+      if (resp.status === 403 && (corpo as { code?: unknown } | null)?.code === 'SUBSCRIPTION_INACTIVE') {
+        return { ok: false, status: 403, erro: 'a assinatura do workspace do Granola está inativa (renove no Granola para a sincronização voltar)' };
+      }
       const motivo =
         resp.status === 401 ? 'chave do Granola inválida ou revogada' :
         resp.status === 403 ? 'a chave do Granola não tem acesso a esta pasta' :
         resp.status === 429 ? 'limite de requisições do Granola atingido' :
         `Granola respondeu HTTP ${resp.status}`;
-      const detalhe = detalheDoErro(await resp.json().catch(() => null));
+      const detalhe = detalheDoErro(corpo);
       return { ok: false, status: resp.status, erro: detalhe ? `${motivo} (${detalhe})` : motivo };
     }
     return { ok: true, dados: (await resp.json()) as T };

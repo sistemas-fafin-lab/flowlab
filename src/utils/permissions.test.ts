@@ -30,6 +30,8 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canViewEpiReport: '20261119110000_epi_relatorio_permissao.sql',
   canCloseEpiReport: '20261119120000_epi_relatorio_fechamento.sql',
   canEditarColeta: '20261124110000_perm_editar_coleta.sql',
+  canViewSaudePreventiva: '20261124140000_perm_site_institucional.sql',
+  canManageSite: '20261124140000_perm_site_institucional.sql',
   canUseTabelaColaborador: '20261127150000_atendimento_tabela_colaborador_permissao.sql',
 };
 

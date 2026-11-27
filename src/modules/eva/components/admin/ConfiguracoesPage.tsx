@@ -16,6 +16,8 @@ const FINALIDADE: Record<string, string> = {
   chat: 'Chat',
   resposta_whatsapp: 'WhatsApp',
   analise_chamado: 'Chamados do LAB-BRAIN',
+  transcricao_audio: 'Áudios do WhatsApp',
+  rascunho_resolucao: 'Rascunhos de resolução',
 };
 
 /** /it/eva/configuracoes — liga/desliga, pasta do Granola e a saúde das integrações (issue 07). */
@@ -124,6 +126,11 @@ const ConfiguracoesPage: React.FC = () => {
           {[
             { campo: 'whatsapp_ativo' as const, titulo: 'Envio de WhatsApp', texto: 'Liga/desliga geral. Desligado, nada sai da fila.' },
             { campo: 'cobranca_ativa' as const, titulo: 'Cobrança diária', texto: 'Mensagem da manhã com as pendências de cada pessoa.' },
+            {
+              campo: 'checkin_ativo' as const,
+              titulo: 'Check-in diário',
+              texto: 'Às 9h, a EVA pergunta a cada membro com WhatsApp o que entra no dia e se há bloqueio. Às 10h, os gestores que recebem o relatório de gestão ganham o resumo.',
+            },
           ].map((t) => (
             <label key={t.campo} className={`${LINHA} flex items-center justify-between gap-3 cursor-pointer`}>
               <span>

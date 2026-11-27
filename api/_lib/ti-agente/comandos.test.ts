@@ -34,11 +34,18 @@ vi.mock('./aviso.js', async (original) => ({
     ok: true, ids: ['a1', 'a2', 'a3'], para: ['Bruno Mendes', 'Caio Lima'], citadosNoGrupo: ['Dani'], grupoNome: 'TI FAFIN', semDestino: [], agendadaPara: null,
   })),
 }));
+// D43: a imagem que espera o código do card (anexos.ts tem os próprios testes, em midia.test).
+vi.mock('./anexos.js', () => ({ anexarAguardando: vi.fn(async () => null) }));
+// D46: o check-in (checkin.ts tem os próprios testes); por padrão, nenhuma pergunta em aberto.
+vi.mock('./checkin.js', () => ({ checkinEmAberto: vi.fn(async () => null), responderCheckin: vi.fn(async () => null) }));
 vi.mock('./gestao.js', () => ({
   relatorioAgora: vi.fn(async (_db: unknown, recorte: string) => `RELATÓRIO (${recorte})`),
   lerBlocoGestao: vi.fn(async () => 'PAINEL DE GESTÃO (teste)'),
+  lerPautaUmAUm: vi.fn(async (_db: unknown, pessoa: string, formato: string) => `PAUTA (${pessoa}, ${formato})`),
 }));
 
+import { anexarAguardando } from './anexos.js';
+import { checkinEmAberto, responderCheckin } from './checkin.js';
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
 import { lerBlocoGestao, relatorioAgora } from './gestao.js';
 import { checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
@@ -78,7 +85,7 @@ const sug = (s: Partial<SugestaoLista>): SugestaoLista => ({
 const saida = (s: Partial<SaidaMensagem>): SaidaMensagem => ({
   intencao: 'conversa', resposta: '', itens: [], propostas: [], lembrete_texto: '', lembrete_quando: '', lembrete_id: '',
   cobrar_codigos: [], cobrar_pessoa_id: '', numeros: [], todas: false, motivo: '', aviso: '', aviso_pessoa_id: '', relatorio_periodo: '',
-  confianca: 'alta', ...s,
+  pessoa_id: '', ausencia_acao: '', ausencia_de: '', ausencia_ate: '', ausencia_motivo: '', confianca: 'alta', ...s,
 });
 const proposta = (p: Partial<SaidaMensagem['propostas'][number]>): SaidaMensagem['propostas'][number] => ({
   tipo: 'atualizar_card', card_codigo: 'IT-045', titulo: null, descricao: null, responsaveis: [], prazo: null, prazo_texto: null,
@@ -101,6 +108,8 @@ interface Estado {
   historico: { direcao: string; tipo: string; status: string; texto: string; created_at: string }[];
   /** Lembretes pendentes (tipo lembrete). */
   lembretes: { id: string; texto: string; proxima_tentativa_em: string; status: string; tipo: string; membro_id: string }[];
+  /** As linhas de ti_agente_membros que a ausência (D40) atualiza. */
+  membrosTabela?: Record<string, unknown>[];
 }
 
 function criarDb(e: Estado) {
@@ -134,7 +143,8 @@ function criarDb(e: Estado) {
       if (op === 'insert') return { data: [{ id: `ins-${++seq}` }], error: null };
       if (op === 'update') {
         const linhas: Record<string, unknown>[] = tabela === 'ti_agente_comandos' ? e.comandos
-          : tabela === 'ti_agente_mensagens' && f.tipo === 'lembrete' ? e.lembretes : [];
+          : tabela === 'ti_agente_mensagens' && f.tipo === 'lembrete' ? e.lembretes
+            : tabela === 'ti_agente_membros' ? e.membrosTabela ?? [] : [];
         const alvo = linhas.filter(casa);
         alvo.forEach((c) => Object.assign(c, dados));
         return { data: alvo.map((c) => ({ id: c.id })), error: null };
@@ -188,7 +198,10 @@ beforeEach(() => {
   (lerCardsAbertos as ReturnType<typeof vi.fn>).mockResolvedValue([C1, C9]);
   (lerContexto as ReturnType<typeof vi.fn>).mockResolvedValue(CTX);
   (lerConfigGrupo as ReturnType<typeof vi.fn>).mockResolvedValue({ whatsappAtivo: true, grupoId: '120363000000000001@g.us', grupoNome: 'TI FAFIN', fechamento: false, resumoReuniao: false });
-  estado = { texto: '', membro: ANA, permissoes: GESTOR, contagem: 1, comandos: [], sugestoes: [], historico: [], lembretes: [] };
+  estado = {
+    texto: '', membro: ANA, permissoes: GESTOR, contagem: 1, comandos: [], sugestoes: [], historico: [], lembretes: [],
+    membrosTabela: [{ id: 'm-ana', user_id: 'u-ana' }, { id: 'm-bruno', user_id: 'u-bruno' }],
+  };
   banco = criarDb(estado);
 });
 
@@ -270,6 +283,46 @@ describe('processarRecebida: equipe', () => {
     const pedido = gerarMock.mock.calls[0][0] as { contexto: string; finalidade: string };
     expect(pedido.finalidade).toBe('resposta_whatsapp');
     expect(pedido.contexto).not.toContain('IT-099');
+  });
+
+  it('D43: imagem esperando e só o código: anexa e confirma, sem IA', async () => {
+    vi.mocked(anexarAguardando).mockResolvedValueOnce({ codigos: ['IT-045'], imagens: 1 });
+    const r = await mandar('é do IT-045');
+    expect(r).toMatchObject({ acao: 'anexo', resposta: '📎 Anexei a imagem ao IT-045.' });
+    expect(anexarAguardando).toHaveBeenCalledWith(banco.db, expect.objectContaining({ membro: BRUNO, codigos: ['IT-045'] }));
+    expect(gerarMock).not.toHaveBeenCalled();
+  });
+
+  it('D43: imagem esperando e o código com mais texto: anexa e a resposta da IA vem depois do aviso', async () => {
+    vi.mocked(anexarAguardando).mockResolvedValueOnce({ codigos: ['IT-045'], imagens: 1 });
+    ia({ intencao: 'conversa', resposta: 'Vou olhar o erro.' });
+    const r = await mandar('IT-045 deu esse erro de novo');
+    expect(r.resposta).toBe('📎 Anexei a imagem ao IT-045.\n\nVou olhar o erro.');
+  });
+
+  it('D43: da imagem já anexada, o "atualizar" não comenta de novo; o prefixo vai na confirmação', async () => {
+    ia({ intencao: 'atualizar_cards', itens: [{ card_codigo: 'IT-045', intencao: 'atualizar', nova_data: '', prazo_texto: '' }] });
+    estado.texto = 'IT-045 deu esse erro de novo';
+    const r = await processarRecebida(banco.db as never, {} as Dependencias, 'msg1', AGORA, { prefixo: '📎 Anexei a imagem ao IT-045.', semComentarioEm: ['c1'] });
+    expect(banco.inserts.map((i) => i.tabela)).not.toContain('it_task_comments');
+    expect(r.resposta).toMatch(/^📎 Anexei a imagem ao IT-045\.\n\n/);
+  });
+
+  it('D46: com o check-in de hoje em aberto, a resposta vira o plano do dia, sem a IA principal', async () => {
+    vi.mocked(checkinEmAberto).mockResolvedValueOnce({ id: 'ck1' });
+    vi.mocked(responderCheckin).mockResolvedValueOnce({ resposta: 'Anotado, Bruno! ☀️ Hoje: IT-045.', planejados: ['IT-045'], bloqueios: [] });
+    const r = await mandar('hoje fico no IT-045');
+    expect(r).toMatchObject({ acao: 'checkin', resposta: 'Anotado, Bruno! ☀️ Hoje: IT-045.' });
+    expect(responderCheckin).toHaveBeenCalledWith(banco.db, expect.anything(), expect.objectContaining({ checkinId: 'ck1', texto: 'hoje fico no IT-045', membro: BRUNO }));
+    expect(gerarMock).not.toHaveBeenCalled();
+  });
+
+  it('D46: com o check-in em aberto, outro assunto segue o fluxo normal', async () => {
+    vi.mocked(checkinEmAberto).mockResolvedValueOnce({ id: 'ck1' });
+    ia({ intencao: 'conversa', resposta: 'Oi!' });
+    const r = await mandar('tem reunião hoje?');
+    expect(r).toMatchObject({ acao: 'conversa', resposta: 'Oi!' });
+    expect(gerarMock).toHaveBeenCalledTimes(1);
   });
 
   it('pedido de gestor vindo da equipe: recusa, sem comando', async () => {
@@ -739,5 +792,57 @@ describe('relatório e perguntas de gestão (D38)', () => {
   it('a ajuda fixa do gestor mostra o relatório e as perguntas de gestão', () => {
     expect(ajuda({ gestor: true, aprova: false })).toContain('"relatório" ou "como foi a semana?"');
     expect(ajuda({ gestor: false, aprova: false })).not.toContain('relatório');
+  });
+});
+
+describe('ausência e 1:1 pelo WhatsApp (D40, D41)', () => {
+  const NAS_FERIAS = card({ id: 'c10', codigo: 'IT-100', title: 'Migração do e-mail', assigned_to: ['u-ana'], due_date: '2026-10-21T00:00:00.000Z' });
+  const linha = (id: string) => estado.membrosTabela!.find((m) => m.id === id)!;
+
+  it('a própria pessoa marca as férias: grava, diz o que vence no período e avisa os gestores no sino', async () => {
+    (lerCardsAbertos as ReturnType<typeof vi.fn>).mockResolvedValue([C1, C9, NAS_FERIAS]);
+    ia({ intencao: 'ausencia', ausencia_acao: 'marcar', ausencia_de: '2026-10-20', ausencia_ate: '2026-10-24', ausencia_motivo: 'férias' });
+    const r = await mandar('vou estar de férias de 20/10 a 24/10');
+    expect(r.resposta).toBe('Anotado, Ana: de férias de 20/10 a 24/10. Nesse período, eu não te cobro.\nVence nesse período: IT-100 (21/10). Se quiser passar para alguém, é só pedir ("passa o IT-045 para a Ana").');
+    expect(linha('m-ana')).toMatchObject({ ausente_de: '2026-10-20', ausente_ate: '2026-10-24', ausencia_motivo: 'férias' });
+    expect(avisarQuemTem).toHaveBeenCalledWith(expect.anything(), 'canManageAgenteTI', expect.objectContaining({ conteudo: 'Ana Souza: de férias de 20/10 a 24/10. Vence no período: IT-100 (21/10).' }));
+  });
+
+  it('"voltei" desfaz', async () => {
+    estado.membrosTabela = [{ id: 'm-ana', user_id: 'u-ana', ausente_de: '2026-10-13', ausente_ate: '2026-10-17', ausencia_motivo: 'folga' }];
+    ia({ intencao: 'ausencia', ausencia_acao: 'cancelar' });
+    expect((await mandar('voltei!')).resposta).toBe('Que bom que voltou, Ana! A cobrança volta no próximo dia útil.');
+    expect(linha('m-ana')).toMatchObject({ ausente_de: null, ausente_ate: null, ausencia_motivo: null });
+  });
+
+  it('o gestor marca a de outra pessoa; sem ser gestor, não; sem o último dia, pergunta', async () => {
+    ia({ intencao: 'ausencia', ausencia_acao: 'marcar', pessoa_id: 'u-bruno', ausencia_ate: '2026-10-16' });
+    expect((await mandar('o Bruno está de folga até sexta')).resposta).toBe('Anotado: Bruno ausente até 16/10. Nesse período, Bruno não recebe cobrança.');
+    expect(linha('m-bruno')).toMatchObject({ ausente_de: '2026-10-14', ausente_ate: '2026-10-16' });
+    expect(avisarQuemTem).not.toHaveBeenCalled();
+
+    estado.permissoes = ['canManageIT'];
+    ia({ intencao: 'ausencia', ausencia_acao: 'marcar', pessoa_id: 'u-bruno', ausencia_ate: '2026-10-16' });
+    expect((await mandar('o Bruno está de folga até sexta')).resposta).toContain('Só gestores da EVA podem marcar a ausência de outra pessoa');
+
+    ia({ intencao: 'ausencia', ausencia_acao: 'marcar', ausencia_de: '2026-10-20' });
+    expect((await mandar('vou tirar uns dias')).resposta).toBe('Até quando? Diga o último dia (ex.: "até 05/12").');
+  });
+
+  it('1:1: o gestor recebe a pauta montada pelo sistema; sem a pessoa, pergunta; sem ser gestor, não', async () => {
+    ia({ intencao: 'preparar_1a1', pessoa_id: 'u-bruno' });
+    expect(await mandar('prepara minha 1:1 com o Bruno')).toMatchObject({ acao: 'preparar_1a1', resposta: 'PAUTA (u-bruno, whatsapp)' });
+
+    ia({ intencao: 'preparar_1a1', pessoa_id: '' });
+    expect((await mandar('prepara minha 1:1')).resposta).toBe('Com quem é a 1:1? Ex.: "prepara minha 1:1 com o Bruno".');
+
+    estado.permissoes = ['canManageIT'];
+    ia({ intencao: 'preparar_1a1', pessoa_id: 'u-bruno' });
+    expect(await mandar('prepara minha 1:1 com o Bruno')).toMatchObject({ acao: 'sem_permissao' });
+  });
+
+  it('a ajuda fixa mostra a ausência para todos e a 1:1 para o gestor', () => {
+    expect(ajuda({ gestor: false, aprova: false })).toContain('• ausência: "vou estar de férias de 01/12 a 05/12"');
+    expect(ajuda({ gestor: true, aprova: false })).toContain('"prepara minha 1:1 com o Bruno"');
   });
 });
