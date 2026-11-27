@@ -42,6 +42,11 @@ vi.mock('./checkin.js', () => ({ checkinEmAberto: vi.fn(async () => null), respo
 vi.mock('./planejamento.js', () => ({ lerPlanejamento: vi.fn(async () => ({})), sugestoesDaRedistribuicao: vi.fn(() => []) }));
 vi.mock('../../../src/modules/eva/domain/planejamento.js', () => ({ montarTextoPlanejamento: vi.fn(() => 'PLANEJAMENTO (teste)') }));
 vi.mock('./pauta.js', () => ({ lerPautaReuniao: vi.fn(async (_db: unknown, formato: string) => `PAUTA DA REUNIÃO (${formato})`) }));
+// D49: os vencimentos (vencimentos.ts tem os próprios testes); aqui, só quem recebe o bloco.
+vi.mock('./vencimentos.js', async (original) => ({
+  ...(await original<typeof import('./vencimentos.js')>()),
+  lerBlocoVencimentos: vi.fn(async () => 'VENCIMENTOS DO GASTOS DE TI (teste)'),
+}));
 vi.mock('./gestao.js', () => ({
   relatorioAgora: vi.fn(async (_db: unknown, recorte: string) => `RELATÓRIO (${recorte})`),
   lerBlocoGestao: vi.fn(async () => 'PAINEL DE GESTÃO (teste)'),
@@ -888,6 +893,18 @@ describe('planejamento e pauta da reunião (D47, D48)', () => {
     expect((await mandar('o que cabe na próxima sprint?')).resposta).toContain('Só gestores da EVA podem planejar a sprint');
     ia({ intencao: 'pauta_reuniao' });
     expect((await mandar('pauta da reunião')).resposta).toContain('Só gestores da EVA podem montar a pauta da reunião');
+  });
+
+  it('D49: o bloco dos vencimentos só entra no contexto de quem vê o Gastos de TI', async () => {
+    const contexto = () => (gerarMock.mock.calls.at(-1)![0] as { contexto: string }).contexto;
+    ia({ intencao: 'pergunta', resposta: 'O Microsoft 365 renova em 31/12.' });
+    await mandar('o que vence este mês?');
+    expect(contexto()).not.toContain('VENCIMENTOS DO GASTOS DE TI');
+
+    estado.permissoes = [...GESTOR, 'canViewGastosTI'];
+    ia({ intencao: 'pergunta', resposta: 'O Microsoft 365 renova em 31/12.' });
+    await mandar('o que vence este mês?');
+    expect(contexto()).toContain('VENCIMENTOS DO GASTOS DE TI (teste)');
   });
 
   it('a ajuda do gestor mostra o planejamento e a pauta', () => {

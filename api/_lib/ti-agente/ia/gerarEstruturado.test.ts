@@ -30,10 +30,11 @@ describe('paraJsonSchema', () => {
     expect(json).toMatchObject({ type: 'object', required: ['n', 't', 'd'], properties: { n: { type: 'array', items: { type: 'integer' } }, t: { type: 'string' } } });
   });
 
+  // Importar o roteador inteiro (comandos.js) passa dos 5 s quando a suíte toda roda junta.
   it('os schemas da EVA vão sem esses limites', async () => {
     const { SchemaMensagem } = await import('../comandos.js');
     expect(JSON.stringify(paraJsonSchema(SchemaMensagem))).not.toMatch(/"(minimum|maximum|minLength|maxLength)"/);
-  });
+  }, 30_000);
 
   it('poucos campos "ou nulo": o Claude recusa a partir de uns 20 ("too many parameters with union types")', async () => {
     const { SchemaMensagem } = await import('../comandos.js');
@@ -48,7 +49,7 @@ describe('paraJsonSchema', () => {
     };
     // A análise de reunião (11) roda em produção; a resposta do WhatsApp com 20 foi recusada (14/Out).
     for (const s of [SchemaMensagem, SchemaChat, SchemaSugestoes]) expect(unioes(paraJsonSchema(s))).toBeLessThanOrEqual(12);
-  });
+  }, 30_000);
 });
 
 describe('gerarEstruturado — reserva (D17)', () => {

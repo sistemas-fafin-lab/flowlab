@@ -78,6 +78,11 @@ export function useSituacaoEva() {
   return useLista(() => agenteAdmin.situacao(), []);
 }
 
+/** D50: a aba Rotinas. */
+export function useRotinas() {
+  return useLista(() => agenteAdmin.listarRotinas(), []);
+}
+
 export function useProjetosESprints() {
   return useLista(() => agenteAdmin.projetosESprints(), []);
 }

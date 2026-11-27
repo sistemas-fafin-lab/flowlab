@@ -40,6 +40,7 @@ import { anexarAguardando } from './anexos.js';
 import { conhecimentoPara } from './conhecimento.js';
 import { checkinEmAberto, responderCheckin } from './checkin.js';
 import { lerPautaReuniao } from './pauta.js';
+import { lerBlocoVencimentos, veGastos } from './vencimentos.js';
 import { lerPlanejamento, sugestoesDaRedistribuicao } from './planejamento.js';
 import { montarTextoPlanejamento } from '../../../src/modules/eva/domain/planejamento.js';
 import {
@@ -353,6 +354,7 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 - "propor": pede uma mudança no Kanban que não é só contar andamento: criar card, mudar prioridade, responsável, coluna ou prazo de um card, ou registrar um comentário. Preencha "propostas".
 - "pergunta": quer saber dos cards, do dia dela, dos membros, dos projetos, das sprints, da última reunião ou dos lembretes dela. Responda em "resposta". Para "o que eu tenho hoje?" e parecidas, use O DIA DE …: primeiro o atrasado (o mais urgente antes), depois o que vence, depois o parado, e termine sugerindo por onde começar.
   Perguntas de gestão (carga e atrasos de cada pessoa, quem está sobrecarregado, entregas da semana, chamados dos usuários, tempo de resolução, projetos em risco, o que travou): quando o contexto tiver PAINEL DE GESTÃO, responda com os números dele, sem contar por conta própria, e diga em uma frase o que pede atenção. Ele traz o que a lista de cards não mostra (concluídos, chamados, tempo de resolução).
+  Vencimentos de licenças, contratos, domínios e certificados ("o que vence este mês?", "quando renova o Microsoft 365?"): quando o contexto tiver VENCIMENTOS DO GASTOS DE TI, responda com ele; sem esse bloco, diga que os vencimentos ficam no Gastos de TI.
   Base de conhecimento: quando o conteúdo trouxer <base_de_conhecimento>, são resoluções reais de chamados parecidos. Para "como resolvemos o problema da VPN?" ou um problema que já aconteceu, responda com base nelas e cite o código ("no IT-812, resolvemos …"). Não invente solução que não esteja lá; se nenhuma resolve, diga que não achou um caso parecido.
 - "lembrete_criar": "me lembra amanhã às 9h de ligar para o fornecedor". Em "lembrete_texto", o que lembrar, curto, como ação ("ligar para o fornecedor"). Em "lembrete_quando", "AAAA-MM-DDTHH:MM" no horário de Brasília, contado a partir de HOJE e da hora da mensagem. Sem hora, use 09:00. Sem dia, hoje se a hora ainda não passou; senão, amanhã. Sem nenhuma pista de quando, "".
 - "lembrete_cancelar": desiste de um lembrete. Em "lembrete_id", o id dele em LEMBRETES MARCADOS.
@@ -393,6 +395,8 @@ O QUE VOCÊ FAZ (para explicar quando perguntarem)
 - Para todos: registrar o andamento dos cards ("IT-045 concluída", "IT-052 vai para sexta"); pedir mudanças no Kanban ("cria um card para…", "passa o IT-060 para a Ana"), que vão para aprovação; responder sobre as demandas e o dia ("o que eu tenho hoje?"); marcar lembretes ("me lembra amanhã às 9h de…"), que saem em dia útil, das 7h às 20h; lembrar como um problema parecido foi resolvido antes ("como resolvemos a VPN da filial?"); mandar áudio e print de erro ("IT-045" na legenda anexa no card); e registrar uma ausência ("vou estar de férias de 01/12 a 05/12"), que pausa as cobranças no período.
 - Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") ou para a equipe toda ("avisa todo mundo que…"), avisar o grupo da equipe ("avisa no grupo que…"), pedir o relatório de gestão ("relatório", "como foi a semana?"), responder perguntas de gestão com os números do sistema ("quem está sobrecarregado?"), preparar a 1:1 com alguém ("prepara minha 1:1 com o Bruno"), planejar a próxima sprint pelo ritmo de cada pessoa e propor passar cards de quem está acima ("o que cabe na próxima sprint?"), montar a pauta da reunião da equipe ("pauta da reunião"; com o dia e a hora em Configurações, ela chega 1 h antes), marcar a ausência de alguém da equipe e ter os próprios pedidos de mudança e andamentos aplicados na hora, sem fila. Quem marcar na aba Membros recebe o relatório todo dia útil de manhã e alertas quando algo grave acontece.
 - Para quem aprova sugestões: ver e decidir as sugestões ("sugestões pendentes", "aprovar 1 e 3"), e ter os próprios pedidos de mudança e andamentos aplicados na hora.
+- Para quem vê o Gastos de TI: dizer o que vence (licenças, contratos, domínios e certificados) e avisar antes de cada renovação ou término.
+- Rotinas sem custo (backup mensal, revisão de acessos): o gestor cadastra na aba Rotinas da EVA, no FlowLab, e o card sai sozinho alguns dias antes de cada data.
 - Antes de executar algo desses papéis, você mostra o que vai fazer e espera o SIM. Fale só do que a pessoa pode fazer, pelos papéis de "Quem escreve".`;
 
 export function montarContextoMensagem(e: {
@@ -409,6 +413,8 @@ export function montarContextoMensagem(e: {
   dia: string;
   /** PAINEL DE GESTÃO (D38), só para o gestor: as perguntas de gestão saem dele. */
   gestao?: string | null;
+  /** D49: os vencimentos do Gastos de TI, só para quem vê o módulo. */
+  vencimentos?: string | null;
 }): string {
   const atualizaveis = e.atualizaveis === 'todos' ? '(todos os de CARDS ABERTOS)' : e.atualizaveis.map(linhaDoCard).join('\n') || '(nenhum)';
   return [
@@ -421,6 +427,7 @@ export function montarContextoMensagem(e: {
     '',
     blocoReuniao(e.reuniao),
     ...(e.gestao ? ['', e.gestao] : []),
+    ...(e.vencimentos ? ['', e.vencimentos] : []),
     '',
     `CARDS QUE A PESSOA PODE ATUALIZAR\n${atualizaveis}`,
   ].join('\n');
@@ -1014,12 +1021,14 @@ export async function processarRecebida(
     // 4. A IA diz a intenção, com a conversa recente e o dia da pessoa (D30). O gestor recebe
     // também o PAINEL DE GESTÃO, para as perguntas de gestão (D38).
     const veEquipe = !!usuario && (temPapel || tem(usuario, 'canManageIT'));
-    const [cardsAbertos, ctxCompleto, reuniao, conversa, gestao, conhecimento] = await Promise.all([
+    const [cardsAbertos, ctxCompleto, reuniao, conversa, gestao, conhecimento, vencimentos] = await Promise.all([
       lerCardsAbertos(db), lerContexto(db), lerUltimaReuniao(db), lerConversa(db, membro.id, msg.created_at as string, agora),
       // Sem o painel (falha de leitura), a resposta sai como antes, só com os cards.
       papeis.gestor ? lerBlocoGestao(db, agora).catch((e) => { console.error('[EVA/comandos] painel de gestão', e); return null; }) : Promise.resolve(null),
       // D45: as resoluções parecidas, quando a mensagem relata um problema ou pede uma solução.
       conhecimentoPara(db, texto).catch((e) => { console.error('[EVA/comandos] base de conhecimento', e); return null; }),
+      // D49: os vencimentos do Gastos de TI, só para quem vê o módulo.
+      veGastos(usuario) ? lerBlocoVencimentos(db, agora).catch((e) => { console.error('[EVA/comandos] vencimentos', e); return null; }) : Promise.resolve(null),
     ]);
     const meus = cardsAbertos.filter((c) => ehDoUsuario(c, membro.user_id));
     const atualizaveis = temPapel ? cardsAbertos : meus;
@@ -1033,7 +1042,7 @@ export async function processarRecebida(
         finalidade: 'resposta_whatsapp',
         instrucoes: INSTRUCOES_WHATSAPP,
         contexto: montarContextoMensagem({
-          nome: membro.nome, papeis, hoje, hora, ctx, atualizaveis: temPapel ? 'todos' : meus, reuniao, dia: montarBlocoDia(membro.nome, hoje, dia), gestao,
+          nome: membro.nome, papeis, hoje, hora, ctx, atualizaveis: temPapel ? 'todos' : meus, reuniao, dia: montarBlocoDia(membro.nome, hoje, dia), gestao, vencimentos,
         }),
         conteudo: [montarConteudoConversa(texto, conversa.falas, conversa.cobranca, MAX_TEXTO), conhecimento].filter(Boolean).join('\n\n'),
         schema: SchemaMensagem,

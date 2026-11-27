@@ -3,8 +3,9 @@
 // esta rota a cada 10 min (minuto 0, 10, 20…), e o que depende de hora fica aqui, na Vercel: muda
 // com o deploy, sem gerar e copiar o pacote da VPS de novo.
 // Hoje: os alertas de gestão (D38, antes conferidos dentro do script da VPS), as mídias que
-// ficaram para trás (D43), a triagem dos chamados novos da tela (D45), o check-in diário (D46) e a
-// pauta da reunião da equipe (D48). As próximas rotinas de horário entram aqui.
+// ficaram para trás (D43), a triagem dos chamados novos da tela (D45), o check-in diário (D46), a
+// pauta da reunião da equipe (D48), os vencimentos do Gastos de TI (D49) e os cards de rotina (D50).
+// As próximas rotinas de horário entram aqui.
 // Responde 202 na hora e trabalha em segundo plano (waitUntil): a VPS não fica parada esperando,
 // porque é ela que envia as mensagens. Para conferir à mão, ?esperar=true devolve o resultado.
 // Segurança: Authorization: Bearer <CRON_SECRET>. Cada parte falha sozinha, sem derrubar as outras.
@@ -19,6 +20,8 @@ import { dependenciasIA } from '../ti-agente/servicos.js';
 import { triarChamadosNovos } from '../ti-agente/triagem.js';
 import { rodarCheckin } from '../ti-agente/checkin.js';
 import { rodarPauta } from '../ti-agente/pauta.js';
+import { verificarVencimentos } from '../ti-agente/vencimentos.js';
+import { criarCardsDeRotina } from '../ti-agente/rotinas.js';
 
 const ROTA = 'ti/agente-relogio';
 
@@ -36,7 +39,7 @@ export async function rodarRelogio(agora = new Date()) {
   const db = getSupabaseAdminClient();
   const ia = dependenciasIA(db);
   const linkInicio = `${APP_BASE_URL}/it/inicio`;
-  const [alertas, midias, triagem, checkin, pauta] = await Promise.all([
+  const [alertas, midias, triagem, checkin, pauta, vencimentos, rotinas] = await Promise.all([
     parte('alertas', () => verificarAlertas(db, { agora, linkInicio })),
     parte('midias', () => retomarMidias(db, ia, agora)),
     // D45: os chamados novos da tela viram sugestão de entrada no Kanban.
@@ -45,8 +48,12 @@ export async function rodarRelogio(agora = new Date()) {
     parte('checkin', () => rodarCheckin(db, { agora, linkInicio })),
     // D48: a pauta da reunião, 1 h antes do dia e da hora marcados em Configurações.
     parte('pauta', () => rodarPauta(db, { agora, linkInicio })),
+    // D49: licenças, contratos e certificados que vencem, na antecedência de cada despesa e a 7 dias.
+    parte('vencimentos', () => verificarVencimentos(db, { agora, link: `${APP_BASE_URL}/it/gastos/despesas` })),
+    // D50: os cards das rotinas cadastradas na aba Rotinas.
+    parte('rotinas', () => criarCardsDeRotina(db, { agora })),
   ]);
-  return { em: agora.toISOString(), alertas, midias, triagem, checkin, pauta };
+  return { em: agora.toISOString(), alertas, midias, triagem, checkin, pauta, vencimentos, rotinas };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
