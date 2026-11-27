@@ -64,8 +64,8 @@ export const VALIDADE_FILA_MS = 12 * 60 * 60 * 1000;
  * ela foi agendada (horário de cobrança), da hora agendada.
  */
 export function venceuNaFila(tipo: string, criadaEm: string, agora: number, agendadaPara: string | null = null): boolean {
-  // A cobrança da manhã e o check-in (D46) só valem no próprio dia: dizem "hoje".
-  if (tipo === 'cobranca' || tipo === 'checkin' || tipo === 'checkin_resumo') return diaSP(criadaEm) !== diaSP(new Date(agora));
+  // A cobrança da manhã, o check-in (D46) e a pauta da reunião (D48) só valem no próprio dia: dizem "hoje".
+  if (tipo === 'cobranca' || tipo === 'checkin' || tipo === 'checkin_resumo' || tipo === 'pauta') return diaSP(criadaEm) !== diaSP(new Date(agora));
   const desde = Math.max(new Date(criadaEm).getTime(), agendadaPara ? new Date(agendadaPara).getTime() : 0);
   return agora - desde > VALIDADE_FILA_MS;
 }
@@ -101,7 +101,7 @@ export interface MensagemFila {
   membro_user_id: string | null;
   membro_nome: string | null;
   direcao: 'saida' | 'entrada';
-  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida' | 'grupo' | 'lembrete' | 'aviso' | 'relatorio' | 'alerta' | 'checkin' | 'checkin_resumo';
+  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida' | 'grupo' | 'lembrete' | 'aviso' | 'relatorio' | 'alerta' | 'checkin' | 'checkin_resumo' | 'pauta';
   texto: string;
   /** Grupo da equipe (…@g.us): a mensagem não é de um membro (D29). */
   chat_id_destino?: string | null;

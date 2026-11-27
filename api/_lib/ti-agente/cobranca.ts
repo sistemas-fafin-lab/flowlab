@@ -92,6 +92,39 @@ export async function ultimosComentarios(db: SupabaseClient, cards: CardTI[]): P
   return ultimo;
 }
 
+// ── Acompanhamento das reuniões (D48) ────────────────────────────────────────
+
+/** Até quando a reunião ainda é citada na cobrança. */
+export const DIAS_COMBINADO = 60;
+
+/**
+ * Card criado ou mudado por uma sugestão de reunião aprovada nos últimos 60 dias → o dia da
+ * reunião (a mais recente). Falha de leitura não segura a cobrança: ela sai sem a menção.
+ */
+export async function lerCombinadosEmReuniao(db: SupabaseClient, agora = new Date()): Promise<Record<string, Dia>> {
+  try {
+    const { data, error } = await db
+      .from('ti_agente_sugestoes')
+      .select('card_id, card_resultante_id, reuniao:ti_agente_reunioes(realizada_em, created_at)')
+      .eq('status', 'aprovada')
+      .not('reuniao_id', 'is', null)
+      .gte('decidido_em', new Date(agora.getTime() - DIAS_COMBINADO * 86_400_000).toISOString())
+      .limit(1000);
+    if (error) throw new Error(error.message);
+    type Linha = { card_id: string | null; card_resultante_id: string | null; reuniao: { realizada_em: string | null; created_at: string } | null };
+    const combinados: Record<string, Dia> = {};
+    for (const l of (data ?? []) as unknown as Linha[]) {
+      if (!l.reuniao) continue;
+      const dia = hojeSP(new Date(l.reuniao.realizada_em ?? l.reuniao.created_at));
+      for (const id of [l.card_resultante_id, l.card_id]) if (id && (!combinados[id] || combinados[id] < dia)) combinados[id] = dia;
+    }
+    return combinados;
+  } catch (e) {
+    console.error('[EVA/cobranca] Combinados em reunião', e);
+    return {};
+  }
+}
+
 // ── Cron da manhã (RF18, RN12) ───────────────────────────────────────────────
 
 export interface CobrancaMontada { membro: string; itens: number; gravada: boolean; texto?: string }
@@ -122,13 +155,15 @@ export async function gerarCobrancasDoDia(
   // O dryRun monta mesmo com tudo desligado: é como se confere o texto antes de ligar.
   if (pulado && !dryRun) return base;
 
-  const [membros, cards] = await Promise.all([lerMembrosCobranca(db), lerCardsAbertos(db)]);
+  const [membros, cards, combinados] = await Promise.all([lerMembrosCobranca(db), lerCardsAbertos(db), lerCombinadosEmReuniao(db, opcoes.agora)]);
   const comentarios = await ultimosComentarios(db, cards);
 
   // D40: quem está ausente (férias, licença) não recebe a cobrança da manhã.
   for (const m of presentes(membros, hoje).filter(podeReceber)) {
     const pendencias = pendenciasDoMembro(cards, m.user_id, hoje, cfg.dias_parado, comentarios);
-    const texto = montarMensagemDiaria({ nome: m.nome, hoje, pendencias, diasParado: cfg.dias_parado, ultimoComentario: comentarios, linkInicio: opcoes.linkInicio });
+    const texto = montarMensagemDiaria({
+      nome: m.nome, hoje, pendencias, diasParado: cfg.dias_parado, ultimoComentario: comentarios, linkInicio: opcoes.linkInicio, combinados,
+    });
     if (!texto) continue;
     const itens = totalPendencias(pendencias);
     if (dryRun) {

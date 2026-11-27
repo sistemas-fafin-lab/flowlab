@@ -63,6 +63,17 @@ describe('montarMensagemDiaria (D11)', () => {
     ].join('\n'));
   });
 
+  it('D48: o card combinado numa reunião cita o dia dela', () => {
+    const p = {
+      atrasadas: [card({ id: 'c45', codigo: 'IT-045', title: 'Robô de pré-faturamento', due_date: prazo('2026-10-10') })],
+      vencendo: [card({ id: 'c52', codigo: 'IT-052', title: 'Hub de Laudos', due_date: prazo('2026-10-14') })],
+      paradas: [],
+    };
+    const t = montarMensagemDiaria({ ...base, pendencias: p, combinados: { c45: '2026-10-06' } })!;
+    expect(t).toContain('• IT-045 Robô de pré-faturamento: venceu 10/10 · combinado na reunião de 06/10');
+    expect(t).toContain('• IT-052 Hub de Laudos: vence amanhã\n');
+  });
+
   it('sem pendência, sem mensagem (RN12)', () => {
     expect(montarMensagemDiaria({ ...base, pendencias: { atrasadas: [], vencendo: [], paradas: [] } })).toBeNull();
   });

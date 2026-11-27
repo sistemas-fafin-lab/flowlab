@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, CalendarClock, MessageCircle } from 'lucide-react';
 import EvaAdminShell from './EvaAdminShell';
 import Switch from '../../../../components/Switch';
+import Select from '../../../../components/Select';
 import { GlassCard, SectionHeader, StatusBadge } from '../ui';
 import { EvaToast } from '../EvaToast';
 import { useConfigEva, useSituacaoEva, useUsoIA } from '../../hooks/useAgenteAdmin';
 import { agenteAdmin } from '../../services/agenteAdmin';
 import type { AvisoEva } from '../../hooks/useEvaHome';
-import { BOTAO_PRIMARIO, CAMPO, LINHA, ROTULO } from './estilos';
+import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CAMPO, LINHA, ROTULO } from './estilos';
 import GrupoEquipeCard from './GrupoEquipeCard';
 
 const quando = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca');
@@ -20,6 +21,14 @@ const FINALIDADE: Record<string, string> = {
   rascunho_resolucao: 'Rascunhos de resolução',
 };
 
+/** D48: a reunião da equipe, de segunda a sexta, das 8h às 18h (a pauta sai 1 h antes). */
+const DIAS_REUNIAO = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'].map((label, i) => ({ value: String(i + 1), label }));
+const HORAS_REUNIAO = Array.from({ length: 21 }, (_, i) => {
+  const minutos = 8 * 60 + i * 30;
+  const hora = `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
+  return { value: hora, label: hora };
+});
+
 /** /it/eva/configuracoes — liga/desliga, pasta do Granola e a saúde das integrações (issue 07). */
 const ConfiguracoesPage: React.FC = () => {
   const config = useConfigEva();
@@ -27,6 +36,8 @@ const ConfiguracoesPage: React.FC = () => {
   const situacao = useSituacaoEva();
   const [pasta, setPasta] = useState('');
   const [diasParado, setDiasParado] = useState(5);
+  const [reuniaoDia, setReuniaoDia] = useState(1);
+  const [reuniaoHora, setReuniaoHora] = useState('10:00');
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<AvisoEva | null>(null);
 
@@ -34,6 +45,8 @@ const ConfiguracoesPage: React.FC = () => {
     if (config.dados) {
       setPasta(config.dados.granola_folder_id ?? '');
       setDiasParado(config.dados.dias_parado);
+      setReuniaoDia(config.dados.reuniao_dia ?? 1);
+      setReuniaoHora(config.dados.reuniao_hora ?? '10:00');
     }
   }, [config.dados]);
 
@@ -104,6 +117,42 @@ const ConfiguracoesPage: React.FC = () => {
             >
               Salvar
             </button>
+          </div>
+          <div className={`${LINHA} flex flex-col gap-3`}>
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <span>
+                <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">Pauta da reunião da equipe</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  Uma hora antes, a EVA manda a pauta no WhatsApp dos gestores que recebem o relatório de gestão: o que a última reunião combinou e não andou, os atrasados, os bloqueios do check-in e a carga de cada um.
+                </span>
+              </span>
+              <Switch
+                checked={!!c?.pauta_ativa}
+                disabled={salvando || !c}
+                onChange={(v) => void salvar({ pauta_ativa: v }, `Pauta da reunião ${v ? 'ligada' : 'desligada'}.`)}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={ROTULO} htmlFor="eva-reuniao-dia">Dia da reunião</label>
+                <Select id="eva-reuniao-dia" value={String(reuniaoDia)} onChange={(v) => setReuniaoDia(Number(v))} options={DIAS_REUNIAO} controlClass={CAMPO} disabled={salvando || !c} />
+              </div>
+              <div>
+                <label className={ROTULO} htmlFor="eva-reuniao-hora">Hora</label>
+                <Select id="eva-reuniao-hora" value={reuniaoHora} onChange={setReuniaoHora} options={HORAS_REUNIAO} controlClass={CAMPO} disabled={salvando || !c} />
+              </div>
+            </div>
+            <div>
+              <button
+                type="button"
+                className={BOTAO_SECUNDARIO}
+                disabled={salvando || !c || (reuniaoDia === c.reuniao_dia && reuniaoHora === c.reuniao_hora)}
+                onClick={() => void salvar({ reuniao_dia: reuniaoDia, reuniao_hora: reuniaoHora }, 'Dia e hora da reunião salvos.')}
+              >
+                Salvar dia e hora
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">A qualquer hora, também dá para pedir "pauta da reunião" no chat do Início ou pelo WhatsApp.</p>
           </div>
         </GlassCard>
 

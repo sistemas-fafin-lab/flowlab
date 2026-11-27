@@ -73,6 +73,8 @@ export interface EntradaMensagemDiaria {
   ultimoComentario?: Record<string, string>;
   /** URL do Início (`${APP_URL}/it/inicio`). */
   linkInicio: string;
+  /** D48: card combinado numa reunião → o dia dela ("combinado na reunião de 10/11"). */
+  combinados?: Record<string, Dia>;
 }
 
 /** O texto da cobrança diária, ou null quando não há pendência (RN12: sem pendência, sem mensagem). */
@@ -87,10 +89,12 @@ export function montarMensagemDiaria(e: EntradaMensagemDiaria): string | null {
     return `vence ${NOME_DIA[diaDaSemana(v)]} (${formatarDiaMes(v)})`;
   };
   const tituloVencendo = diferencaDias(hoje, limite) === 1 ? 'Vencem hoje ou amanhã' : `Vencem até ${NOME_DIA[diaDaSemana(limite)]}`;
+  // D48: o acompanhamento do que a reunião combinou.
+  const reuniao = (c: CardTI) => (e.combinados?.[c.id] ? ` · combinado na reunião de ${formatarDiaMes(e.combinados[c.id])}` : '');
 
   const secoes: { titulo: string; itens: string[] }[] = [
-    { titulo: '⚠️ Atrasadas', itens: p.atrasadas.map((c) => `• ${c.codigo} ${titulo(c)}: venceu ${formatarDiaMes(diaDoPrazo(c.due_date!))}`) },
-    { titulo: `⏰ ${tituloVencendo}`, itens: p.vencendo.map((c) => `• ${c.codigo} ${titulo(c)}: ${quandoVence(c)}`) },
+    { titulo: '⚠️ Atrasadas', itens: p.atrasadas.map((c) => `• ${c.codigo} ${titulo(c)}: venceu ${formatarDiaMes(diaDoPrazo(c.due_date!))}${reuniao(c)}`) },
+    { titulo: `⏰ ${tituloVencendo}`, itens: p.vencendo.map((c) => `• ${c.codigo} ${titulo(c)}: ${quandoVence(c)}${reuniao(c)}`) },
     {
       titulo: `💤 Paradas há ${pluralDias(e.diasParado)} ou mais`,
       itens: p.paradas.map((c) => `• ${c.codigo} ${titulo(c)}: sem atualização desde ${formatarDiaMes(ultimaMudanca(c, e.ultimoComentario ?? {}))}`),
@@ -157,7 +161,7 @@ export const ehTipoDeCobranca = (tipo: string) => tipo === 'cobranca' || tipo ==
  */
 export const respeitaHorario = (tipo: string) =>
   ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete' || tipo === 'aviso' || tipo === 'relatorio' || tipo === 'alerta'
-  || tipo === 'checkin' || tipo === 'checkin_resumo';
+  || tipo === 'checkin' || tipo === 'checkin_resumo' || tipo === 'pauta';
 
 // ── Cobrança sob demanda (D22, RN16) ─────────────────────────────────────────
 
