@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
@@ -24,6 +25,7 @@ import type {
   CampoEdicaoRequisicaoRecurso,
   DetalheRequisicaoRecurso,
   EventoHistoricoRecurso,
+  InstanciaRecurso,
   JustificativaRecurso,
   LoteRecursoFoto,
   ObservacaoRecurso,
@@ -32,7 +34,7 @@ import type {
 } from '../types';
 import { corStatusFaturamento } from '../utils/corStatusFaturamento';
 import { formatCompetencia, formatCurrency, formatData, formatDataHora, formatDataHoraAplis } from '../utils/formato';
-import { rotuloStatusAplis, SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
+import { rotuloInstancia, rotuloStatusAplis, SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
 import CampoEditavelRecurso, { MarcaEditado } from './CampoEditavelRecurso';
 import { ImagensRequisicaoLegadoModal } from './ImagensRequisicaoLegadoModal';
 
@@ -182,8 +184,14 @@ const ListaRequisicoes: React.FC<{
               <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 Guia {r.numGuia ?? '—'} · Req. {r.codRequisicao ?? r.idRequisicao} · {formatCompetencia(r.competencia)}
               </div>
-              <div className="mt-1">
+              <div className="mt-1 flex flex-wrap items-center gap-1">
                 <ChipStatusAplis codigo={r.statusAplis} />
+                {r.instancia !== null && (
+                  <span className={`${CHIP} bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300`}>
+                    {rotuloInstancia(r.instancia)}
+                    {r.editados.instancia && <MarcaEditado compacta />}
+                  </span>
+                )}
               </div>
             </div>
             <div className="text-right shrink-0 text-xs">
@@ -207,8 +215,13 @@ const ListaRequisicoes: React.FC<{
 };
 
 const ResumoRequisicao: React.FC<{ requisicao: RequisicaoRecursoFoto; edicao: AcoesEdicao }> = ({ requisicao: r, edicao }) => {
-  const salvar = (campo: CampoEdicaoRequisicaoRecurso) => async (valor: number | null) => {
+  const salvar = (campo: Exclude<CampoEdicaoRequisicaoRecurso, 'instancia'>) => async (valor: number | null) => {
     await editarRecurso({ idRequisicao: r.idRequisicao, campo, valor });
+    edicao.onEditado();
+  };
+  const instanciaAplis = r.instanciaAplis === null ? 'sem instância' : rotuloInstancia(r.instanciaAplis);
+  const salvarInstancia = async (valor: InstanciaRecurso | null) => {
+    await editarRecurso({ idRequisicao: r.idRequisicao, campo: 'instancia', valor });
     edicao.onEditado();
   };
   return (
@@ -252,7 +265,28 @@ const ResumoRequisicao: React.FC<{ requisicao: RequisicaoRecursoFoto; edicao: Ac
           podeEditar={edicao.podeEditar}
           onSalvar={salvar('valorRecebidoGlosa')}
         />
+        <CampoEditavelRecurso
+          tipo="instancia"
+          rotulo="Instância do recurso"
+          valor={r.instancia}
+          editado={r.editados.instancia}
+          podeEditar={edicao.podeEditar}
+          dica={r.editados.instancia ? `apLIS: ${instanciaAplis}` : null}
+          onSalvar={salvarInstancia}
+        />
       </dl>
+      {r.instanciaDivergente && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-2"
+        >
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Instância marcada à mão ({rotuloInstancia(r.instancia)}) diferente da do apLIS
+            ({instanciaAplis}). Confira.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
@@ -268,6 +302,7 @@ const RESUMO_ROTULOS = [
   'Glosa fixada',
   'Valor recursado',
   'Recebido de glosa',
+  'Instância do recurso',
 ];
 
 const ResumoRequisicaoEsqueleto: React.FC<{ animado: boolean }> = ({ animado }) => {

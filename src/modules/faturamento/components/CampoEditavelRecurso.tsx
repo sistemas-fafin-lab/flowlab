@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { Check, Pencil, X } from 'lucide-react';
 import CampoMoeda from '../../../components/CostControl/CampoMoeda';
+import type { InstanciaRecurso } from '../types';
 import { formatCurrency, formatData } from '../utils/formato';
+import { rotuloInstancia } from '../utils/recursoGlosaVisual';
 
 // Campo do card "Detalhes do recurso" que o lápis corrige
 // (.scratch/glosas-recursos-dashboard/, issue 07): mostra o valor que vale e a
 // marca "editado manualmente"; quem gerencia o faturamento vê o lápis, edita
-// no lugar e pode remover a edição (volta a valer o apLIS).
+// no lugar e pode remover a edição (volta a valer o apLIS). Tipo `instancia`:
+// a Instância do recurso (issue 08 de .scratch/glosas-recursos-calendario-pendencias/).
 
 type Props = {
   rotulo: string;
@@ -17,7 +20,10 @@ type Props = {
 } & (
   | { tipo: 'data'; valor: string | null; onSalvar: (valor: string | null) => Promise<void> }
   | { tipo: 'moeda'; valor: number | null; onSalvar: (valor: number | null) => Promise<void> }
+  | { tipo: 'instancia'; valor: InstanciaRecurso | null; onSalvar: (valor: InstanciaRecurso | null) => Promise<void> }
 );
+
+const INSTANCIAS: InstanciaRecurso[] = [1, 2, 3];
 
 const BOTAO_ICONE = 'p-1 rounded-md transition-colors disabled:opacity-50';
 const CAMPO = 'w-full px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
@@ -46,7 +52,7 @@ const CampoEditavelRecurso: React.FC<Props> = (props) => {
   const [erro, setErro] = useState<string | null>(null);
 
   const abrir = () => {
-    setRascunho(props.valor ?? (props.tipo === 'data' ? '' : 0));
+    setRascunho(props.valor ?? (props.tipo === 'data' ? '' : props.tipo === 'instancia' ? 1 : 0));
     setErro(null);
     setEditando(true);
   };
@@ -56,6 +62,7 @@ const CampoEditavelRecurso: React.FC<Props> = (props) => {
     setErro(null);
     try {
       if (props.tipo === 'data') await props.onSalvar(valor as string | null);
+      else if (props.tipo === 'instancia') await props.onSalvar(valor as InstanciaRecurso | null);
       else await props.onSalvar(valor as number | null);
       setEditando(false);
     } catch (err) {
@@ -67,7 +74,9 @@ const CampoEditavelRecurso: React.FC<Props> = (props) => {
 
   const exibido = props.tipo === 'data'
     ? formatData(props.valor)
-    : props.valor === null ? '—' : formatCurrency(props.valor);
+    : props.tipo === 'instancia'
+      ? rotuloInstancia(props.valor)
+      : props.valor === null ? '—' : formatCurrency(props.valor);
   const rascunhoValido = props.tipo === 'data' ? typeof rascunho === 'string' && rascunho !== '' : true;
 
   return (
@@ -78,7 +87,18 @@ const CampoEditavelRecurso: React.FC<Props> = (props) => {
           <div className="space-y-1">
             <div className="flex items-center gap-1">
               <div className="flex-1 min-w-0">
-                {props.tipo === 'data' ? (
+                {props.tipo === 'instancia' ? (
+                  <select
+                    value={String(rascunho ?? 1)}
+                    onChange={(e) => setRascunho(Number(e.target.value))}
+                    className={CAMPO}
+                    autoFocus
+                  >
+                    {INSTANCIAS.map((i) => (
+                      <option key={i} value={i}>{rotuloInstancia(i)}</option>
+                    ))}
+                  </select>
+                ) : props.tipo === 'data' ? (
                   <input
                     type="date"
                     value={(rascunho as string) ?? ''}

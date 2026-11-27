@@ -1228,19 +1228,29 @@ export interface RequisicaoRecursoFoto {
   valorRecursado: number | null;
   /** ΔRec: o que entrou de recebido desde a fixação; null sem base. */
   valorRecebidoGlosa: number | null;
+  /** Instância do recurso que vale: a marcada à mão ou a observada no apLIS; null sem instância. */
+  instancia: InstanciaRecurso | null;
+  /** A maior instância já vista no apLIS (7 → 1º, 16 → 2º). */
+  instanciaAplis: InstanciaRecurso | null;
+  /** A marcada à mão difere da do apLIS: o card avisa. */
+  instanciaDivergente: boolean;
   /** Valores corrigidos pelo lápis (valem acima do apLIS). */
-  editados: { valorRecursado: boolean; valorRecebidoGlosa: boolean };
+  editados: { valorRecursado: boolean; valorRecebidoGlosa: boolean; instancia: boolean };
   valorInicialEstimado: boolean;
 }
 
+/** Instância do recurso: 1º, 2º ou 3º (o 3º só existe marcado à mão). */
+export type InstanciaRecurso = 1 | 2 | 3;
+
 /** Campos que o lápis corrige — contrato de POST /api/faturamento/glosas-recursos-editar. */
 export type CampoEdicaoLoteRecurso = 'dataEnvio' | 'dataRetornoReal' | 'dataPagamentoReal';
-export type CampoEdicaoRequisicaoRecurso = 'valorRecursado' | 'valorRecebidoGlosa';
+export type CampoEdicaoRequisicaoRecurso = 'valorRecursado' | 'valorRecebidoGlosa' | 'instancia';
 
 /** Uma edição manual; `valor` null remove a edição e volta a valer o apLIS. */
 export type EdicaoRecurso =
   | { idLoteRecurso: number; campo: CampoEdicaoLoteRecurso; valor: string | null }
-  | { idRequisicao: number; campo: CampoEdicaoRequisicaoRecurso; valor: number | null };
+  | { idRequisicao: number; campo: Exclude<CampoEdicaoRequisicaoRecurso, 'instancia'>; valor: number | null }
+  | { idRequisicao: number; campo: 'instancia'; valor: InstanciaRecurso | null };
 
 /** Procedimento da requisição no lote de recurso, com o que foi argumentado. */
 export interface JustificativaRecurso {

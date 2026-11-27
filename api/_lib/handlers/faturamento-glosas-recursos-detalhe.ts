@@ -24,11 +24,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { detalheRecursoRequisicao } from '../faturamento/bdLab.js';
-import { edicoesDaFoto, valorRecebidoGlosa } from '../faturamento/recursoGlosa.js';
+import { edicoesDaFoto, instanciaDoRecurso, valorRecebidoGlosa } from '../faturamento/recursoGlosa.js';
+import type { InstanciaRecurso } from '../faturamento/recursoGlosa.js';
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
 const COLUNAS_REQUISICAO =
-  'id_requisicao, cod_requisicao, num_guia, paciente, competencia, id_fonte_pagadora, fonte_pagadora_nome, id_lote_recurso, status_aplis, liquido, recebido, glosa_fixada, recebido_fixacao, valor_recursado, valor_inicial_estimado, valor_recursado_editado, valor_recebido_glosa_editado';
+  'id_requisicao, cod_requisicao, num_guia, paciente, competencia, id_fonte_pagadora, fonte_pagadora_nome, id_lote_recurso, status_aplis, liquido, recebido, glosa_fixada, recebido_fixacao, valor_recursado, valor_inicial_estimado, valor_recursado_editado, valor_recebido_glosa_editado, instancia_observada, instancia_editada';
 
 interface LinhaRequisicao {
   id_requisicao: number;
@@ -48,6 +49,8 @@ interface LinhaRequisicao {
   valor_inicial_estimado: boolean;
   valor_recursado_editado: number | string | null;
   valor_recebido_glosa_editado: number | string | null;
+  instancia_observada: number | null;
+  instancia_editada: number | null;
 }
 
 const COLUNAS_HISTORICO = 'id, id_requisicao, id_lote_recurso, ocorrido_em, tipo, valor_anterior, valor_novo, descricao, usuario_id';
@@ -165,6 +168,9 @@ function paraResposta(r: LinhaRequisicao) {
     valorRecursado: numeroOuNulo(r.valor_recursado_editado),
     valorRecebidoGlosa: numeroOuNulo(r.valor_recebido_glosa_editado),
   });
+  const instanciaObservada = (r.instancia_observada ?? null) as InstanciaRecurso | null;
+  const instanciaEditada = (r.instancia_editada ?? null) as InstanciaRecurso | null;
+  const instancia = instanciaDoRecurso({ observada: instanciaObservada, editada: instanciaEditada });
   return {
     idRequisicao: r.id_requisicao,
     codRequisicao: r.cod_requisicao,
@@ -185,9 +191,14 @@ function paraResposta(r: LinhaRequisicao) {
       emLoteRecurso: r.id_lote_recurso !== null,
       loteEnviado: false,
     }, edicoes),
+    /** Instância do recurso: a marcada à mão prevalece; `divergente` avisa que difere do apLIS. */
+    instancia: instancia.vigente,
+    instanciaAplis: instanciaObservada,
+    instanciaDivergente: instancia.divergente,
     editados: {
       valorRecursado: edicoes.valorRecursado !== undefined,
       valorRecebidoGlosa: edicoes.valorRecebidoGlosa !== undefined,
+      instancia: instanciaEditada !== null,
     },
     valorInicialEstimado: r.valor_inicial_estimado,
   };

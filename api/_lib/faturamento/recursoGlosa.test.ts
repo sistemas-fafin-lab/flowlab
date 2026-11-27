@@ -8,6 +8,8 @@ import {
   eventoEdicaoManual,
   eventosDoLote,
   fixarGlosa,
+  instanciaDoRecurso,
+  instanciaObservada,
   pendenciasDeGlosa,
   prazoParaRecorrer,
   prazosDasRequisicoes,
@@ -881,6 +883,22 @@ describe('eventoEdicaoManual', () => {
     expect(eventoEdicaoManual('dataPagamentoReal', '2026-11-30', null, { removida: true }).descricao)
       .toBe('Edição manual da data real de pagamento removida');
   });
+
+  it('instância do recurso marcada à mão: de 1º para 3º recurso', () => {
+    expect(eventoEdicaoManual('instancia', 1, 3)).toEqual({
+      tipo: 'edicao_manual',
+      valorAnterior: '1',
+      valorNovo: '3',
+      descricao: 'Instância do recurso editada manualmente: de 1º recurso para 3º recurso',
+    });
+  });
+
+  it('instância marcada numa requisição sem instância no apLIS e depois removida', () => {
+    expect(eventoEdicaoManual('instancia', null, 2).descricao)
+      .toBe('Instância do recurso editada manualmente: de — para 2º recurso');
+    expect(eventoEdicaoManual('instancia', 3, 2, { removida: true }).descricao)
+      .toBe('Edição manual da instância do recurso removida: volta a valer 2º recurso (apLIS)');
+  });
 });
 
 describe('somarGlosasPorLote', () => {
@@ -1437,5 +1455,45 @@ describe('agingDaGlosaEmRecurso', () => {
   it('até 7 operadoras não há "Outras"', () => {
     const lotes = [1, 2].map((id) => lote({ requisicoes: [{ foto: emAnalise, fontePagadora: { id, nome: `OP ${id}` } }] }));
     expect(agingDaGlosaEmRecurso(lotes, HOJE).operadoras.map((o) => o.nome)).toEqual(['OP 1', 'OP 2']);
+  });
+});
+
+describe('instanciaObservada', () => {
+  it('na primeira vez: 1º recurso (7) → 1, 2º recurso (16) → 2, o resto fica vazio', () => {
+    expect(instanciaObservada(null, 7)).toBe(1);
+    expect(instanciaObservada(null, 16)).toBe(2);
+    expect(instanciaObservada(null, 6)).toBeNull();
+    expect(instanciaObservada(null, 34)).toBeNull();
+    expect(instanciaObservada(null, null)).toBeNull();
+  });
+
+  it('só cresce: sai do recurso ou volta ao 1º e continua com a maior já vista', () => {
+    expect(instanciaObservada(1, 16)).toBe(2);
+    expect(instanciaObservada(2, 7)).toBe(2);
+    expect(instanciaObservada(2, 34)).toBe(2);
+    expect(instanciaObservada(1, 15)).toBe(1);
+    expect(instanciaObservada(3, 16)).toBe(3);
+  });
+});
+
+describe('instanciaDoRecurso', () => {
+  it('sem edição vale a observada no apLIS, sem aviso', () => {
+    expect(instanciaDoRecurso({ observada: 2, editada: null })).toEqual({ vigente: 2, divergente: false });
+  });
+
+  it('a editada vence a observada e avisa quando diverge (marcada 3, apLIS ainda em 1º)', () => {
+    expect(instanciaDoRecurso({ observada: 1, editada: 3 })).toEqual({ vigente: 3, divergente: true });
+  });
+
+  it('editada igual à observada não avisa', () => {
+    expect(instanciaDoRecurso({ observada: 2, editada: 2 })).toEqual({ vigente: 2, divergente: false });
+  });
+
+  it('editada sem instância no apLIS avisa', () => {
+    expect(instanciaDoRecurso({ observada: null, editada: 1 })).toEqual({ vigente: 1, divergente: true });
+  });
+
+  it('requisição sem instância', () => {
+    expect(instanciaDoRecurso({ observada: null, editada: null })).toEqual({ vigente: null, divergente: false });
   });
 });

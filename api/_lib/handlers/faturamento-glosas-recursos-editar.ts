@@ -6,10 +6,12 @@
  * que o apLIS não guarda ou não reflete:
  *
  *   lote de recurso  dataEnvio, dataRetornoReal, dataPagamentoReal ('YYYY-MM-DD')
- *   requisição       valorRecursado, valorRecebidoGlosa (reais, ≥ 0)
+ *   requisição       valorRecursado, valorRecebidoGlosa (reais, ≥ 0),
+ *                    instancia (1, 2 ou 3: a instância do recurso; issue 08 de
+ *                    .scratch/glosas-recursos-calendario-pendencias/)
  *
- * Grava só no FlowLab, nas colunas de edição da foto (migration
- * 20261023180000), com quem editou e quando; o valor editado vale acima do
+ * Grava só no FlowLab, nas colunas de edição da foto (migrations
+ * 20261023180000 e, a instância, 20261127100000), com quem editou e quando; o valor editado vale acima do
  * apLIS e a sincronização não o sobrescreve. `valor: null` remove a edição e
  * volta a valer o apLIS. Cada edição vira evento 'edicao_manual' no histórico,
  * com o valor que valia antes e o que passa a valer
@@ -29,7 +31,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { eventoEdicaoManual, valorRecebidoGlosa } from '../faturamento/recursoGlosa.js';
-import type { CampoEdicaoLote, CampoEdicaoRequisicao, EventoHistorico } from '../faturamento/recursoGlosa.js';
+import type {
+  CampoEdicaoLote,
+  CampoEdicaoRequisicao,
+  EventoHistorico,
+  InstanciaRecurso,
+} from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 /** Coluna do valor editado; `<coluna>_por` e `<coluna>_em` guardam quem e quando. */
@@ -42,7 +49,10 @@ const COLUNA_LOTE: Record<CampoEdicaoLote, string> = {
 const COLUNA_REQUISICAO: Record<CampoEdicaoRequisicao, string> = {
   valorRecursado: 'valor_recursado_editado',
   valorRecebidoGlosa: 'valor_recebido_glosa_editado',
+  instancia: 'instancia_editada',
 };
+
+const INSTANCIAS: readonly unknown[] = [1, 2, 3];
 
 /** DECIMAL(15, 2). */
 const VALOR_MAXIMO = 1e13;
@@ -72,6 +82,8 @@ interface LinhaRequisicao {
   valor_recursado: number | string | null;
   valor_recursado_editado: number | string | null;
   valor_recebido_glosa_editado: number | string | null;
+  instancia_observada: number | null;
+  instancia_editada: number | null;
 }
 
 /** O que a edição muda: o valor gravado e o evento do histórico. */
@@ -148,23 +160,51 @@ async function edicaoDoLote(
   };
 }
 
+async function requisicaoDaFoto(supabase: SupabaseClient, id: number): Promise<LinhaRequisicao> {
+  const { data, error } = await supabase
+    .from('glosa_recurso_requisicoes')
+    .select('id_requisicao, id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado, instancia_observada, instancia_editada')
+    .eq('id_requisicao', id)
+    .maybeSingle();
+  if (error) throw new Error(`foto da requisição: ${error.message}`);
+  if (!data) throw new Recusa(404, 'Requisição não encontrada na foto de glosas e recursos.');
+  return data as LinhaRequisicao;
+}
+
+/**
+ * Instância do recurso marcada à mão. O que valia antes é a editada ou, sem
+ * edição, a observada no apLIS; removida, volta a valer a observada.
+ */
+async function edicaoDaInstancia(supabase: SupabaseClient, id: number, valor: unknown): Promise<Edicao> {
+  if (valor !== null && !INSTANCIAS.includes(valor)) throw new Recusa(400, 'Informe a instância do recurso: 1, 2 ou 3.');
+  const r = await requisicaoDaFoto(supabase, id);
+  const editada = r.instancia_editada as InstanciaRecurso | null;
+  const observada = r.instancia_observada as InstanciaRecurso | null;
+  const nova = valor as InstanciaRecurso | null;
+  return {
+    tabela: 'glosa_recurso_requisicoes',
+    chave: 'id_requisicao',
+    id: r.id_requisicao,
+    coluna: COLUNA_REQUISICAO.instancia,
+    valor: nova,
+    idRequisicao: r.id_requisicao,
+    idLoteRecurso: r.id_lote_recurso,
+    evento: nova === editada
+      ? null
+      : eventoEdicaoManual('instancia', editada ?? observada, nova ?? observada, { removida: nova === null }),
+  };
+}
+
 async function edicaoDaRequisicao(
   supabase: SupabaseClient,
   id: number,
-  campo: CampoEdicaoRequisicao,
+  campo: Exclude<CampoEdicaoRequisicao, 'instancia'>,
   valor: unknown,
 ): Promise<Edicao> {
   if (valor !== null && !(typeof valor === 'number' && Number.isFinite(valor) && valor >= 0 && valor < VALOR_MAXIMO)) {
     throw new Recusa(400, 'Informe um valor em reais maior ou igual a zero.');
   }
-  const { data, error } = await supabase
-    .from('glosa_recurso_requisicoes')
-    .select('id_requisicao, id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
-    .eq('id_requisicao', id)
-    .maybeSingle();
-  if (error) throw new Error(`foto da requisição: ${error.message}`);
-  if (!data) throw new Recusa(404, 'Requisição não encontrada na foto de glosas e recursos.');
-  const r = data as LinhaRequisicao;
+  const r = await requisicaoDaFoto(supabase, id);
 
   const coluna = COLUNA_REQUISICAO[campo];
   const editado = numeroOuNulo(campo === 'valorRecursado' ? r.valor_recursado_editado : r.valor_recebido_glosa_editado);
@@ -233,7 +273,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     try {
       edicao = idLoteRecurso !== undefined
         ? await edicaoDoLote(supabase, idLoteRecurso, campo as CampoEdicaoLote, corpo.valor)
-        : await edicaoDaRequisicao(supabase, idRequisicao as number, campo as CampoEdicaoRequisicao, corpo.valor);
+        : campo === 'instancia'
+          ? await edicaoDaInstancia(supabase, idRequisicao as number, corpo.valor)
+          : await edicaoDaRequisicao(supabase, idRequisicao as number, campo as Exclude<CampoEdicaoRequisicao, 'instancia'>, corpo.valor);
     } catch (err) {
       if (!(err instanceof Recusa)) throw err;
       res.status(err.status).json({ success: false, error: err.message });

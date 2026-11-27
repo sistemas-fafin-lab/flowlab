@@ -1,7 +1,13 @@
 // Rótulos e cores da tela Glosas e Recursos, comuns à lista de lotes de
 // recurso e ao card "Detalhes do recurso".
 
-import type { SeloAtrasoLote, StatusGlosaDashboard, StatusLoteRecurso, TipoPendenciaGlosa } from '../types/index.js';
+import type {
+  InstanciaRecurso,
+  SeloAtrasoLote,
+  StatusGlosaDashboard,
+  StatusLoteRecurso,
+  TipoPendenciaGlosa,
+} from '../types/index.js';
 
 export const STATUS_LOTE_CORES: Record<StatusLoteRecurso, string> = {
   Criado: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
@@ -49,3 +55,8 @@ export const ROTULOS_PENDENCIA: Record<TipoPendenciaGlosa, string> = {
   'retorno-atrasado': 'Retorno atrasado',
   'pagamento-atrasado': 'Pagamento atrasado',
 };
+
+/** Instância do recurso como o card mostra ('1º recurso'); '—' sem instância. */
+export function rotuloInstancia(instancia: InstanciaRecurso | null): string {
+  return instancia === null ? '—' : `${instancia}º recurso`;
+}

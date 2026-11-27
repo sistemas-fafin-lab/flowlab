@@ -21,6 +21,10 @@
  * sincronização não as sobrescreve. O campo editado também não gera evento —
  * o valor do apLIS é ignorado nele.
  *
+ * Instância do recurso: a foto guarda a maior instância já vista no apLIS
+ * (recursoGlosa.instanciaObservada), que nunca diminui. A marcada à mão
+ * (instancia_editada) mora em coluna própria, como as outras edições.
+ *
  * Saída da glosa: requisição da foto do recorte (mês e convênio) que o apLIS
  * não devolve mais e que não é glosada em nenhum outro mês
  * (`requisicoesAindaGlosadas`) saiu da glosa — voltou a "Recebido",
@@ -35,12 +39,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { glosasRecursosDoPeriodo, requisicoesAindaGlosadas } from './bdLab.js';
 import type { LoteRecursoAplis, RequisicaoGlosaRecursoAplis } from './bdLab.js';
-import { eventosDaRequisicao, eventosDoLote, fixarGlosa } from './recursoGlosa.js';
+import { eventosDaRequisicao, eventosDoLote, fixarGlosa, instanciaObservada } from './recursoGlosa.js';
 import type {
   EventoHistorico,
   FotoHistoricoLote,
   FotoHistoricoRequisicao,
   GlosaFixada,
+  InstanciaRecurso,
 } from './recursoGlosa.js';
 
 /** Ids por `.in()` / linhas por upsert: o maior mês de 2026 tem ~700 requisições. */
@@ -55,6 +60,7 @@ interface RequisicaoGravada {
   recebido_fixacao: number | string | null;
   valor_inicial_estimado: boolean;
   valor_recebido_glosa_editado: number | string | null;
+  instancia_observada: number | null;
 }
 
 class ErroGravacao extends Error {}
@@ -74,6 +80,7 @@ interface RequisicaoAnterior {
   fixacao: GlosaFixada;
   historico: FotoHistoricoRequisicao;
   recebidoGlosaEditado: boolean;
+  instanciaObservada: InstanciaRecurso | null;
 }
 
 interface LoteAnterior {
@@ -90,7 +97,7 @@ async function requisicoesGravadas(
   for (const bloco of blocos(ids)) {
     const { data, error } = await supabase
       .from('glosa_recurso_requisicoes')
-      .select('id_requisicao, status_aplis, recebido, id_lote_recurso, glosa_fixada, recebido_fixacao, valor_inicial_estimado, valor_recebido_glosa_editado')
+      .select('id_requisicao, status_aplis, recebido, id_lote_recurso, glosa_fixada, recebido_fixacao, valor_inicial_estimado, valor_recebido_glosa_editado, instancia_observada')
       .in('id_requisicao', bloco);
     if (error) throw new ErroGravacao(`foto das requisições: ${error.message}`);
     for (const linha of (data ?? []) as RequisicaoGravada[]) {
@@ -106,6 +113,7 @@ async function requisicoesGravadas(
           idLoteRecurso: linha.id_lote_recurso,
         },
         recebidoGlosaEditado: (linha.valor_recebido_glosa_editado ?? null) !== null,
+        instanciaObservada: (linha.instancia_observada ?? null) as InstanciaRecurso | null,
       });
     }
   }
@@ -222,6 +230,7 @@ function linhaLote(lote: LoteRecursoAplis, agora: string): Record<string, unknow
 function linhaRequisicao(
   req: RequisicaoGlosaRecursoAplis,
   fixacao: GlosaFixada,
+  instancia: InstanciaRecurso | null,
   agora: string,
 ): Record<string, unknown> {
   return {
@@ -245,6 +254,7 @@ function linhaRequisicao(
     data_recebimento: req.dataRecebimento,
     procedimentos: req.procedimentos,
     motivos: req.motivos,
+    instancia_observada: instancia,
     ultima_sincronizacao: agora,
   };
 }
@@ -277,7 +287,8 @@ async function foraDoApLis(
       .select('id_requisicao')
       .eq('competencia', competencia)
       .is('valor_recursado_editado', null)
-      .is('valor_recebido_glosa_editado', null);
+      .is('valor_recebido_glosa_editado', null)
+      .is('instancia_editada', null);
     if (fontePagadoraId !== undefined) consulta = consulta.eq('id_fonte_pagadora', fontePagadoraId);
     const { data, error } = await consulta.order('id_requisicao').range(de, de + 999);
     if (error) throw new ErroGravacao(`foto do recorte: ${error.message}`);
@@ -334,6 +345,7 @@ export async function sincronizarRecorte(
           cargaInicial: cargaInicial(r),
           recursoEnviado: r.idLoteRecurso !== null && lotesEnviados.has(r.idLoteRecurso),
         }),
+        instanciaObservada(anteriores.get(r.idRequisicao)?.instanciaObservada ?? null, r.status),
         agora,
       )),
       'id_requisicao',

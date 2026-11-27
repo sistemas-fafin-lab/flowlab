@@ -1202,6 +1202,48 @@ export function calendarioDeRecursos<R extends RequisicaoCalendario>(
   };
 }
 
+/**
+ * Instância do recurso (spec, "Instância do recurso"): em que rodada a
+ * requisição está. O apLIS só conhece 1º (7) e 2º (16); o 3º só existe
+ * marcado à mão.
+ */
+export type InstanciaRecurso = 1 | 2 | 3;
+
+const INSTANCIA_DO_STATUS: Record<number, InstanciaRecurso> = {
+  [STATUS_GLOSA.primeiroRecurso]: 1,
+  [STATUS_GLOSA.segundoRecurso]: 2,
+};
+
+/**
+ * Instância observada no apLIS: a maior já vista. `anterior` é a que a foto
+ * guarda (null na primeira vez); nunca diminui, para continuar valendo depois
+ * que a requisição sai do recurso (paga, não acatada, acatada).
+ */
+export function instanciaObservada(anterior: InstanciaRecurso | null, status: number | null): InstanciaRecurso | null {
+  const agora = status === null ? null : INSTANCIA_DO_STATUS[status] ?? null;
+  if (anterior === null) return agora;
+  if (agora === null) return anterior;
+  return Math.max(anterior, agora) as InstanciaRecurso;
+}
+
+export interface InstanciaVigente {
+  /** A editada, se houver; senão a observada; senão null. */
+  vigente: InstanciaRecurso | null;
+  /** Há edição e ela difere da observada no apLIS: a responsável confere. */
+  divergente: boolean;
+}
+
+/** Instância que vale para a requisição: a marcada à mão prevalece sobre a do apLIS. */
+export function instanciaDoRecurso(foto: {
+  observada: InstanciaRecurso | null;
+  editada: InstanciaRecurso | null;
+}): InstanciaVigente {
+  return {
+    vigente: foto.editada ?? foto.observada,
+    divergente: foto.editada !== null && foto.editada !== foto.observada,
+  };
+}
+
 /** Rótulo do evento de faturamento no histórico; espelha rotuloStatusAplis da tela (src/…/recursoGlosaVisual.ts). */
 const ROTULO_STATUS: Record<number, string> = {
   5: 'Recebido',
@@ -1355,30 +1397,41 @@ export function eventosDoLote(
   }];
 }
 
-/** Campos que o lápis corrige: os três do lote e os dois da requisição. */
+/** Campos que o lápis corrige: os três do lote e os três da requisição. */
 export type CampoEdicaoLote = 'dataEnvio' | 'dataRetornoReal' | 'dataPagamentoReal';
-export type CampoEdicaoRequisicao = 'valorRecursado' | 'valorRecebidoGlosa';
+export type CampoEdicaoRequisicao = 'valorRecursado' | 'valorRecebidoGlosa' | 'instancia';
 export type CampoEdicao = CampoEdicaoLote | CampoEdicaoRequisicao;
 
-const CAMPOS_EDICAO: Record<CampoEdicao, { nome: string; feminino: boolean; data: boolean }> = {
-  dataEnvio: { nome: 'data de envio', feminino: true, data: true },
-  dataRetornoReal: { nome: 'data real de retorno', feminino: true, data: true },
-  dataPagamentoReal: { nome: 'data real de pagamento', feminino: true, data: true },
-  valorRecursado: { nome: 'valor recursado', feminino: false, data: false },
-  valorRecebidoGlosa: { nome: 'valor recebido de glosa', feminino: false, data: false },
+type FormatoEdicao = 'data' | 'moeda' | 'instancia';
+
+const CAMPOS_EDICAO: Record<CampoEdicao, { nome: string; feminino: boolean; formato: FormatoEdicao }> = {
+  dataEnvio: { nome: 'data de envio', feminino: true, formato: 'data' },
+  dataRetornoReal: { nome: 'data real de retorno', feminino: true, formato: 'data' },
+  dataPagamentoReal: { nome: 'data real de pagamento', feminino: true, formato: 'data' },
+  valorRecursado: { nome: 'valor recursado', feminino: false, formato: 'moeda' },
+  valorRecebidoGlosa: { nome: 'valor recebido de glosa', feminino: false, formato: 'moeda' },
+  instancia: { nome: 'instância do recurso', feminino: true, formato: 'instancia' },
 };
 
-/** Data 'YYYY-MM-DD' ou valor em reais, como o histórico guarda. */
+/** Data 'YYYY-MM-DD', valor em reais ou instância (1, 2, 3), como o histórico guarda. */
 type ValorEdicao = string | number | null;
 
 function valorGuardado(campo: CampoEdicao, valor: ValorEdicao): string | null {
   if (valor === null) return null;
-  return CAMPOS_EDICAO[campo].data ? String(valor) : centavos(Number(valor)).toFixed(2);
+  switch (CAMPOS_EDICAO[campo].formato) {
+    case 'data': return String(valor);
+    case 'moeda': return centavos(Number(valor)).toFixed(2);
+    case 'instancia': return String(Number(valor));
+  }
 }
 
 function valorLegivel(campo: CampoEdicao, valor: ValorEdicao): string {
   if (valor === null) return '—';
-  return CAMPOS_EDICAO[campo].data ? dataBr(String(valor)) : reais(centavos(Number(valor)));
+  switch (CAMPOS_EDICAO[campo].formato) {
+    case 'data': return dataBr(String(valor));
+    case 'moeda': return reais(centavos(Number(valor)));
+    case 'instancia': return `${Number(valor)}º recurso`;
+  }
 }
 
 /**
