@@ -31,18 +31,19 @@ import type { CardValorGlosa, FiltroPendenciaGlosa, ItemRankingGlosa, RecorteGlo
 import { formatCompetencia, formatCurrency, formatPercentual, plural } from '../utils/formato';
 import { STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosaVisual';
 import { Kpi, VIDRO } from './KpiVidro';
+import AgingGlosaBloco from './AgingGlosaBloco';
+import { CARD, Painel, Vazio } from './PainelGlosa';
 import PendenciasGlosaBloco from './PendenciasGlosaBloco';
 
 // Glosas e Recursos → aba Dashboard: cards de valor (Valor glosado, Valor
 // acatado, Glosa recuperada e Glosa em disputa, no visual dos cards de glosa do
 // Contas a Receber, com a variação sobre o mês de faturamento anterior),
-// Pendências de glosa (PendenciasGlosaBloco), evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
+// Pendências de glosa (PendenciasGlosaBloco), Aging da glosa em recurso e Saldo
+// de glosa por operadora (AgingGlosaBloco), evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
 // (api/_lib/faturamento/recursoGlosa.ts → resumirDashboard).
 //
 // Gráficos no padrão do Dashboard de Contas a Receber (recharts, eixos e
 // tooltip pelo tema); a rosca com o total no centro é a do Dashboard principal.
-
-const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
 
 /** Cor de cada status, na mesma família dos selos da lista (STATUS_GLOSA_DASHBOARD). */
 const COR_STATUS: Record<StatusGlosaDashboard, string> = {
@@ -101,32 +102,6 @@ const RodapeCard: React.FC<{ card: CardValorGlosa; subirEhBom?: boolean }> = ({ 
 /** "x% do faturado": sem base, um traço. */
 const percentualDe = (percentual: number | null, base: string): string =>
   percentual === null ? `— ${base}` : `${formatPercentual(percentual)} ${base}`;
-
-const Painel: React.FC<{ titulo: string; sub?: string; acao?: React.ReactNode; className?: string; children: React.ReactNode }> = ({
-  titulo,
-  sub,
-  acao,
-  className = '',
-  children,
-}) => (
-  <div className={`${CARD} flex flex-col ${className}`}>
-    <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{titulo}</h3>
-        {sub && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sub}</p>}
-      </div>
-      {acao}
-    </div>
-    <div className="flex-1 min-h-0">{children}</div>
-  </div>
-);
-
-const Vazio: React.FC<{ icon: React.ReactNode; texto: string }> = ({ icon, texto }) => (
-  <div className="h-full min-h-[12rem] flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500">
-    <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center mb-2">{icon}</div>
-    <p className="text-sm">{texto}</p>
-  </div>
-);
 
 type OrdemProcedimentos = 'valor' | 'ocorrencias';
 
@@ -276,6 +251,13 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao, onAbrirPendencia })
       </div>
 
       <PendenciasGlosaBloco fontePagadoraId={recorte.fontePagadoraId} versao={versao} onAbrir={onAbrirPendencia} />
+
+      <AgingGlosaBloco
+        fontePagadoraId={recorte.fontePagadoraId}
+        versao={versao}
+        saldoPorOperadora={dashboard.saldoPorOperadora}
+        competencia={recorte.competencia}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Painel

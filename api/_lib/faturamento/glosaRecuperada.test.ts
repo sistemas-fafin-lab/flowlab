@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { STATUS_GLOSA } from './recursoGlosa.js';
 import type { RequisicaoClassificavel } from './recursoGlosa.js';
-import { cardsValorGlosa, classificarParaFunil, STATUS_APLIS_RECUPERADA, valorRecuperado } from './glosaRecuperada.js';
+import {
+  cardsValorGlosa,
+  classificarParaFunil,
+  saldoDeGlosaPorOperadora,
+  STATUS_APLIS_RECUPERADA,
+  valorRecuperado,
+} from './glosaRecuperada.js';
 
 function req(parcial: Partial<RequisicaoClassificavel['foto']>, edicoes = {}): RequisicaoClassificavel {
   return {
@@ -123,5 +129,38 @@ describe('cardsValorGlosa', () => {
     expect(cards.acatado.variacao).toBe(100);
     expect(cards.recuperado.variacao).toBeNull();
     expect(cardsValorGlosa('2026-01', { '2025-12': [emDisputa] }, 0).saldoPendente.variacao).toBe(-100);
+  });
+});
+
+describe('saldoDeGlosaPorOperadora', () => {
+  const amil = { id: 10, nome: 'AMIL' };
+  const cassi = { id: 20, nome: 'CASSI' };
+
+  it('soma por operadora só a glosa em disputa, a mesma classe do card Glosa em disputa', () => {
+    const requisicoes = [
+      { ...req({ status: 6, emLoteRecurso: false }), glosaFixada: 80, fontePagadora: amil },
+      { ...req({ status: 7 }), glosaFixada: 120, fontePagadora: amil },
+      { ...req({ status: 16 }), glosaFixada: 500, fontePagadora: cassi },
+      // Acatada, recuperada e fora do funil não entram.
+      { ...req({ status: 18, liquido: 500, recebido: 380 }), glosaFixada: 120, fontePagadora: amil },
+      { ...req({ status: 17, recebido: 300 }), glosaFixada: 300, fontePagadora: cassi },
+      { ...req({ status: STATUS_GLOSA.emTratativas }), glosaFixada: 50, fontePagadora: cassi },
+    ];
+    expect(saldoDeGlosaPorOperadora(requisicoes)).toEqual([
+      { fonteId: 20, nome: 'CASSI', valor: 500, quantidade: 1 },
+      { fonteId: 10, nome: 'AMIL', valor: 200, quantidade: 2 },
+    ]);
+    const card = cardsValorGlosa('2026-10', { '2026-10': requisicoes }, 0).saldoPendente.valor;
+    expect(card).toBe(700);
+  });
+
+  it('as 10 maiores, do maior saldo ao menor', () => {
+    const requisicoes = Array.from({ length: 12 }, (_, k) => ({
+      ...req({ status: 6, emLoteRecurso: false }),
+      glosaFixada: 10 * (k + 1),
+      fontePagadora: { id: k + 1, nome: `OP ${k + 1}` },
+    }));
+    const saldo = saldoDeGlosaPorOperadora(requisicoes);
+    expect(saldo.map((s) => s.valor)).toEqual([120, 110, 100, 90, 80, 70, 60, 50, 40, 30]);
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type {
+  AgingGlosa,
   CalendarioRecursos,
   DashboardGlosas,
   DetalheRequisicaoRecurso,
@@ -445,6 +446,49 @@ export function usePendenciasGlosa(mes: string | null, fontePagadoraId: number |
   }, [refetch]);
 
   return { pendencias, loading, error, refetch };
+}
+
+interface RespostaAgingGlosa {
+  success?: boolean;
+  error?: string;
+  aging?: AgingGlosa;
+}
+
+const MENSAGEM_ERRO_AGING = 'Não foi possível carregar o aging da glosa.';
+
+/** Aging da glosa em recurso, de todos os meses de faturamento, no convênio. */
+export function useAgingGlosa(fontePagadoraId: number | null) {
+  const [dados, setDados] = useState<AgingGlosa | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const buscaAtual = useRef(0);
+
+  const refetch = useCallback(async () => {
+    const reqId = ++buscaAtual.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
+      const body = await chamarLegadoApi<RespostaAgingGlosa>('glosas-recursos-aging', params, MENSAGEM_ERRO_AGING);
+      if (reqId !== buscaAtual.current) return;
+      setDados(body.aging ?? null);
+    } catch (err) {
+      if (reqId !== buscaAtual.current) return;
+      setError(err instanceof Error ? err.message : MENSAGEM_ERRO_AGING);
+      setDados(null);
+    } finally {
+      if (reqId === buscaAtual.current) setLoading(false);
+    }
+  }, [fontePagadoraId]);
+
+  useEffect(() => {
+    void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { buscaAtual.current++; };
+  }, [refetch]);
+
+  return { dados, loading, error, refetch };
 }
 
 interface RespostaDashboardGlosas {

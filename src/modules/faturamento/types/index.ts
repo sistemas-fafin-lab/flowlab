@@ -1353,6 +1353,26 @@ export interface PendenciasGlosa {
   pagamentoAtrasado: { valor: number; quantidade: number; qtdLotes: number };
 }
 
+/** Faixa do Aging da glosa em recurso: dias desde a data de pagamento prevista. */
+export type FaixaAgingGlosa = 'a-vencer' | 'd1-30' | 'd31-60' | 'd61-90' | 'd90-mais';
+
+/** Aging da glosa em recurso (GET glosas-recursos-aging), de todos os meses de faturamento. */
+export interface AgingGlosa {
+  faixas: Record<FaixaAgingGlosa, number>;
+  /** As 7 maiores pelo total nas faixas e, se houver cauda, "Outras" (`outras`) no fim. */
+  operadoras: { fonteId: number | null; nome: string; outras: boolean; faixas: Record<FaixaAgingGlosa, number>; total: number }[];
+  /** Sem envio ou convênio sem regra de Análise ou de Pagamento. */
+  foraDasFaixas: { valor: number; quantidade: number; semEnvio: number; semRegra: number };
+}
+
+/** Linha do Saldo de glosa por operadora: a glosa em disputa do período. */
+export interface SaldoGlosaOperadora {
+  fonteId: number | null;
+  nome: string;
+  valor: number;
+  quantidade: number;
+}
+
 export interface LotesRecursoFiltros extends RecorteGlosas {
   status?: StatusLoteRecurso;
   busca?: string;
@@ -1418,6 +1438,8 @@ export interface DashboardGlosas {
   /** Σ valor dos lotes de faturamento criados no mês: base do "% do faturado". */
   faturado: number;
   valores: CardsValorGlosa;
+  /** As 10 maiores fontes pagadoras pela glosa em disputa do período (a do card). */
+  saldoPorOperadora: SaldoGlosaOperadora[];
   /** Os 6 meses até o período, do mais antigo ao filtrado. */
   evolucao: { competencia: string; aberta: number; emRecurso: number; revertida: number }[];
   /** Total = requisições nos quatro status; percentual da quantidade. */

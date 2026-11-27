@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agingDaGlosaEmRecurso,
   aplicarRegraPrazo,
   calendarioDeRecursos,
   classificarRequisicao,
@@ -20,6 +21,7 @@ import {
 } from './recursoGlosa.js';
 import type {
   EdicoesRequisicao,
+  LoteParaAging,
   LoteParaPrazo,
   LoteRecursoParaPendencia,
   RegraPrazo,
@@ -1302,5 +1304,138 @@ describe('pendenciasDeGlosa', () => {
       const lotes = [lote({ requisicoes: [{ foto: emAnalise, edicoes: { valorRecebidoGlosa: 100 } }] })];
       expect(pendenciasDeGlosa({ ...vazio, lotes }, null, HOJE).pagamentoAtrasado.valor).toBe(200);
     });
+  });
+});
+
+describe('agingDaGlosaEmRecurso', () => {
+  const HOJE = '2026-11-20';
+  const regras: RegrasPrazoLote = {
+    glosaAnalise: { tipo: 'dias_corridos', n: 30 },
+    glosaPagamento: { tipo: 'dias_corridos', n: 10 },
+  };
+  const emAnalise: RequisicaoFoto = {
+    status: 7,
+    liquido: 1000,
+    recebido: 700,
+    recebidoFixacao: 700,
+    valorRecursado: 300,
+    emLoteRecurso: true,
+    loteEnviado: true,
+  };
+
+  /** Pagamento previsto = envio + 40 dias; `diasAtraso` = hoje − pagamento previsto. */
+  function envioPara(diasAtraso: number): string {
+    const d = new Date(Date.UTC(2026, 10, 20 - diasAtraso - 40));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function lote(overrides: Partial<LoteParaAging> = {}): LoteParaAging {
+    return {
+      dataEnvio: envioPara(1),
+      dataRetornoReal: null,
+      regras,
+      requisicoes: [{ foto: emAnalise, fontePagadora: { id: 10, nome: 'AMIL' } }],
+      ...overrides,
+    };
+  }
+
+  it('um dia depois do pagamento previsto cai em 1–30, pelo recursado − recebido de glosa', () => {
+    const aging = agingDaGlosaEmRecurso([lote()], HOJE);
+    expect(aging.faixas).toEqual({ 'a-vencer': 0, 'd1-30': 300, 'd31-60': 0, 'd61-90': 0, 'd90-mais': 0 });
+    expect(aging.operadoras).toEqual([
+      { fonteId: 10, nome: 'AMIL', outras: false, faixas: { 'a-vencer': 0, 'd1-30': 300, 'd31-60': 0, 'd61-90': 0, 'd90-mais': 0 }, total: 300 },
+    ]);
+  });
+
+  it.each([
+    [-1, 'a-vencer'],
+    [0, 'a-vencer'],
+    [30, 'd1-30'],
+    [31, 'd31-60'],
+    [60, 'd31-60'],
+    [61, 'd61-90'],
+    [90, 'd61-90'],
+    [91, 'd90-mais'],
+  ] as const)('%i dias depois do pagamento previsto: faixa %s', (dias, faixa) => {
+    const aging = agingDaGlosaEmRecurso([lote({ dataEnvio: envioPara(dias) })], HOJE);
+    expect(aging.faixas[faixa]).toBe(300);
+    expect(Object.values(aging.faixas).reduce((a, b) => a + b, 0)).toBe(300);
+  });
+
+  describe('fora das faixas', () => {
+    const naoEnviada: RequisicaoFoto = { ...emAnalise, loteEnviado: false };
+
+    it('lote sem data de envio', () => {
+      const lotes = [lote({ dataEnvio: null, requisicoes: [{ foto: naoEnviada, fontePagadora: { id: 10, nome: 'AMIL' } }] })];
+      const aging = agingDaGlosaEmRecurso(lotes, HOJE);
+      expect(aging.foraDasFaixas).toEqual({ valor: 300, quantidade: 1, semEnvio: 300, semRegra: 0 });
+      expect(aging.operadoras).toEqual([]);
+    });
+
+    it('convênio sem regra ligada', () => {
+      const aging = agingDaGlosaEmRecurso([lote({ regras: null })], HOJE);
+      expect(aging.foraDasFaixas).toEqual({ valor: 300, quantidade: 1, semEnvio: 0, semRegra: 300 });
+    });
+
+    it('regra de Pagamento sem prazo', () => {
+      const semPagamento = { ...regras, glosaPagamento: { tipo: 'sem_prazo' as const, n: null } };
+      const aging = agingDaGlosaEmRecurso([lote({ regras: semPagamento })], HOJE);
+      expect(aging.foraDasFaixas).toMatchObject({ valor: 300, semRegra: 300 });
+    });
+
+    // Decisão de 26/11/2026: prazosDasRequisicoes dá data de pagamento a partir
+    // do retorno real, mas o aging deixa o convênio sem regra de Análise fora.
+    it('regra de Análise sem prazo fica fora mesmo com data real de retorno', () => {
+      const semAnalise = { ...regras, glosaAnalise: { tipo: 'sem_prazo' as const, n: null } };
+      const aging = agingDaGlosaEmRecurso([lote({ regras: semAnalise, dataRetornoReal: '2026-11-01' })], HOJE);
+      expect(aging.foraDasFaixas).toEqual({ valor: 300, quantidade: 1, semEnvio: 0, semRegra: 300 });
+      expect(aging.faixas['d1-30']).toBe(0);
+    });
+
+    it('com regra de Análise, o retorno real é a base do pagamento', () => {
+      // 01/11 + 10 = 11/11: 9 dias de atraso.
+      const aging = agingDaGlosaEmRecurso([lote({ dataRetornoReal: '2026-11-01' })], HOJE);
+      expect(aging.faixas['d1-30']).toBe(300);
+      expect(aging.foraDasFaixas.valor).toBe(0);
+    });
+  });
+
+  it('requisição com resultado final não entra; deferido parcial entra pelo que falta', () => {
+    const fonte = { id: 10, nome: 'AMIL' };
+    const lotes = [lote({
+      requisicoes: [
+        { foto: { ...emAnalise, status: 15 }, fontePagadora: fonte }, // indeferido
+        { foto: { ...emAnalise, status: 18 }, fontePagadora: fonte }, // acatada
+        { foto: { ...emAnalise, recebido: 1000 }, fontePagadora: fonte }, // deferido total
+        { foto: { ...emAnalise, recebido: 800 }, fontePagadora: fonte }, // deferido parcial: faltam 200
+      ],
+    })];
+    const aging = agingDaGlosaEmRecurso(lotes, HOJE);
+    expect(aging.faixas['d1-30']).toBe(200);
+    expect(aging.foraDasFaixas.quantidade).toBe(0);
+  });
+
+  it('as 7 maiores operadoras pelo total e a cauda somada em "Outras"', () => {
+    // Operadora i com valor recursado 100·i, i = 1..9, todas em 1–30; a 9 também em +90.
+    const lotes = Array.from({ length: 9 }, (_, k) => {
+      const i = k + 1;
+      return lote({ requisicoes: [{ foto: { ...emAnalise, valorRecursado: 100 * i }, fontePagadora: { id: i, nome: `OP ${i}` } }] });
+    });
+    lotes.push(lote({
+      dataEnvio: envioPara(100),
+      requisicoes: [{ foto: { ...emAnalise, valorRecursado: 50 }, fontePagadora: { id: 1, nome: 'OP 1' } }],
+    }));
+    const aging = agingDaGlosaEmRecurso(lotes, HOJE);
+    expect(aging.operadoras.map((o) => [o.nome, o.total])).toEqual([
+      ['OP 9', 900], ['OP 8', 800], ['OP 7', 700], ['OP 6', 600], ['OP 5', 500], ['OP 4', 400], ['OP 3', 300],
+      ['Outras', 350],
+    ]);
+    const outras = aging.operadoras[7];
+    expect(outras).toEqual({ fonteId: null, nome: 'Outras', outras: true, faixas: { 'a-vencer': 0, 'd1-30': 300, 'd31-60': 0, 'd61-90': 0, 'd90-mais': 50 }, total: 350 });
+  });
+
+  it('até 7 operadoras não há "Outras"', () => {
+    const lotes = [1, 2].map((id) => lote({ requisicoes: [{ foto: emAnalise, fontePagadora: { id, nome: `OP ${id}` } }] }));
+    expect(agingDaGlosaEmRecurso(lotes, HOJE).operadoras.map((o) => o.nome)).toEqual(['OP 1', 'OP 2']);
   });
 });

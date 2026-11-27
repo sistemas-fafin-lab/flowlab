@@ -28,6 +28,7 @@ import {
   statusDashboard,
   umaCasa,
   valorRecebidoGlosa,
+  type FontePagadoraFoto,
   type RequisicaoClassificavel,
   type RequisicaoDashboard,
 } from './recursoGlosa.js';
@@ -154,4 +155,45 @@ export function cardsValorGlosa(
     };
   };
   return { glosado: card('glosado'), acatado: card('acatado'), recuperado: card('recuperado'), saldoPendente: card('saldoPendente') };
+}
+
+/** Requisição da foto com a fonte pagadora que o saldo por operadora agrupa. */
+export interface RequisicaoSaldoOperadora extends RequisicaoFunil {
+  fontePagadora: FontePagadoraFoto;
+}
+
+export interface SaldoGlosaOperadora {
+  /** null: requisição sem fonte pagadora. */
+  fonteId: number | null;
+  nome: string;
+  /** Σ glosa fixada das requisições em disputa. */
+  valor: number;
+  quantidade: number;
+}
+
+/** Barras do gráfico (o padrão do Saldo por operadora do Contas a Receber). */
+const TOPO_SALDO = 10;
+
+/**
+ * Saldo de glosa por operadora
+ * (.scratch/glosas-recursos-calendario-pendencias/issues/07): a classe "em
+ * disputa" do funil, a mesma do card Glosa em disputa, por fonte pagadora; as
+ * 10 maiores. O Dashboard passa as requisições do mês do card, para as barras
+ * somarem o card.
+ */
+export function saldoDeGlosaPorOperadora(requisicoes: RequisicaoSaldoOperadora[]): SaldoGlosaOperadora[] {
+  const porFonte = new Map<number | null, { nome: string; centavos: number; quantidade: number }>();
+  for (const r of requisicoes) {
+    const funil = classificarParaFunil(r, r.glosaFixada);
+    if (funil?.classe !== 'em-disputa' || funil.valor <= 0) continue;
+    const { id, nome } = r.fontePagadora;
+    const soma = porFonte.get(id) ?? { nome: nome ?? 'Sem fonte pagadora', centavos: 0, quantidade: 0 };
+    soma.centavos += Math.round(funil.valor * 100);
+    soma.quantidade += 1;
+    porFonte.set(id, soma);
+  }
+  return [...porFonte.entries()]
+    .map(([fonteId, s]) => ({ fonteId, nome: s.nome, valor: s.centavos / 100, quantidade: s.quantidade }))
+    .sort((a, b) => b.valor - a.valor || a.nome.localeCompare(b.nome))
+    .slice(0, TOPO_SALDO);
 }

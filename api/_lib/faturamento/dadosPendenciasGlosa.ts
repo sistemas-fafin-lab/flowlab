@@ -3,8 +3,9 @@
 // (.scratch/glosas-recursos-calendario-pendencias/issues/06): o card do
 // Dashboard e os filtros de pendência das listas "Recursos fora de lote" e
 // "Lotes de recurso" leem o mesmo universo, de todos os meses de faturamento,
-// para a lista aberta pelo card bater com ele. As regras são de
-// faturamento/recursoGlosa.ts (pendenciasDeGlosa); aqui só se lê.
+// para a lista aberta pelo card bater com ele. O Aging da glosa em recurso
+// (issue 07) lê os mesmos lotes. As regras são de faturamento/recursoGlosa.ts
+// (pendenciasDeGlosa, agingDaGlosaEmRecurso); aqui só se lê.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { edicoesDaFoto, STATUS_GLOSA } from './recursoGlosa.js';
@@ -12,7 +13,7 @@ import type {
   LoteRecursoParaPendencia,
   RegraPrazo,
   RegrasPrazoLote,
-  RequisicaoClassificavel,
+  RequisicaoAging,
   RequisicaoPendenciaPrazo,
   TipoRegraPrazo,
 } from './recursoGlosa.js';
@@ -173,6 +174,8 @@ export const COLUNAS_LOTE_RECURSO =
 /** Requisição de um lote, em qualquer mês: o selo e os prazos olham o lote inteiro. */
 interface LinhaRequisicaoLote {
   id_lote_recurso: number;
+  id_fonte_pagadora: number | null;
+  fonte_pagadora_nome: string | null;
   status_aplis: number | null;
   liquido: number | string;
   recebido: number | string;
@@ -199,20 +202,20 @@ export function regrasDoLote(l: LinhaLoteRecurso, regras: Map<number, RegrasPraz
 
 /**
  * Requisições dos lotes, classificáveis (edições do lápis valendo acima do
- * apLIS), agrupadas por lote. `enviados`: lotes com data de envio.
+ * apLIS), com a fonte pagadora, agrupadas por lote. `enviados`: lotes com data de envio.
  */
 export async function requisicoesDosLotes(
   supabase: SupabaseClient,
   idsLotes: number[],
   enviados: Set<number>,
-): Promise<Map<number, RequisicaoClassificavel[]>> {
-  const porLote = new Map<number, RequisicaoClassificavel[]>();
+): Promise<Map<number, RequisicaoAging[]>> {
+  const porLote = new Map<number, RequisicaoAging[]>();
   for (let i = 0; i < idsLotes.length; i += IDS_POR_CONSULTA) {
     const ids = idsLotes.slice(i, i + IDS_POR_CONSULTA);
     for (let de = 0; ; de += PAGINA_LEITURA) {
       const { data, error } = await supabase
         .from('glosa_recurso_requisicoes')
-        .select('id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
+        .select('id_lote_recurso, id_fonte_pagadora, fonte_pagadora_nome, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
         .in('id_lote_recurso', ids)
         .order('id_requisicao')
         .range(de, de + PAGINA_LEITURA - 1);
@@ -221,6 +224,7 @@ export async function requisicoesDosLotes(
       for (const r of pagina) {
         const lista = porLote.get(r.id_lote_recurso) ?? [];
         lista.push({
+          fontePagadora: { id: r.id_fonte_pagadora, nome: r.fonte_pagadora_nome },
           foto: {
             status: r.status_aplis,
             liquido: Number(r.liquido),
@@ -243,25 +247,26 @@ export async function requisicoesDosLotes(
   return porLote;
 }
 
-export interface LoteRecursoPendencia extends LoteRecursoParaPendencia {
+export interface LoteRecursoPendencia extends LoteRecursoParaPendencia<RequisicaoAging> {
   linha: LinhaLoteRecurso;
 }
 
 /**
  * Lotes de recurso enviados, de todos os meses de faturamento, com as
  * requisições e as regras do convênio: o universo dos cards de retorno e de
- * pagamento atrasado. Lote sem data de envio não entra.
+ * pagamento atrasado. Lote sem data de envio não entra, salvo com
+ * `incluirNaoEnviados` (o Aging da glosa em recurso, que o põe fora das faixas).
  */
 export async function lerLotesEnviados(
   supabase: SupabaseClient,
-  filtros: { fontePagadoraId?: number; status?: string; busca?: string },
+  filtros: { fontePagadoraId?: number; status?: string; busca?: string; incluirNaoEnviados?: boolean },
 ): Promise<LoteRecursoPendencia[]> {
   const linhas: LinhaLoteRecurso[] = [];
   for (let de = 0; ; de += PAGINA_LEITURA) {
     let consulta = supabase
       .from('glosa_recurso_lotes_lista')
-      .select(COLUNAS_LOTE_RECURSO)
-      .not('data_envio', 'is', null);
+      .select(COLUNAS_LOTE_RECURSO);
+    if (!filtros.incluirNaoEnviados) consulta = consulta.not('data_envio', 'is', null);
     // Fonte da requisição, não do lote: é o mesmo recorte da lista de lotes.
     if (filtros.fontePagadoraId !== undefined) consulta = consulta.contains('fontes_requisicoes', [filtros.fontePagadoraId]);
     if (filtros.status !== undefined) consulta = consulta.eq('status_label', filtros.status);
@@ -275,7 +280,7 @@ export async function lerLotesEnviados(
 
   const ids = linhas.map((l) => l.id_lote_recurso);
   const [porLote, regras] = await Promise.all([
-    requisicoesDosLotes(supabase, ids, new Set(ids)),
+    requisicoesDosLotes(supabase, ids, new Set(linhas.filter((l) => l.data_envio !== null).map((l) => l.id_lote_recurso))),
     lerRegrasDasFontes(supabase, [...new Set(linhas.flatMap(fontesDoLote))]),
   ]);
   return linhas.map((linha) => ({
@@ -286,3 +291,4 @@ export async function lerLotesEnviados(
     requisicoes: porLote.get(linha.id_lote_recurso) ?? [],
   }));
 }
+

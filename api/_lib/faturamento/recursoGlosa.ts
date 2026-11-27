@@ -909,6 +909,109 @@ export function pendenciasDeGlosa<P extends RequisicaoPendenciaPrazo, L extends 
   };
 }
 
+/** Faixas do Aging da glosa em recurso: dias de hoje − data de pagamento prevista. */
+export type FaixaAging = 'a-vencer' | 'd1-30' | 'd31-60' | 'd61-90' | 'd90-mais';
+
+export const FAIXAS_AGING: FaixaAging[] = ['a-vencer', 'd1-30', 'd31-60', 'd61-90', 'd90-mais'];
+
+/** Operadoras com cor própria no aging; a cauda vira "Outras" (o padrão do Aging da carteira). */
+const TOPO_AGING = 7;
+
+/** Fonte pagadora da requisição na foto; os dois null: sem cadastro. */
+export interface FontePagadoraFoto {
+  id: number | null;
+  nome: string | null;
+}
+
+/** Requisição de lote de recurso com a fonte pagadora que o aging empilha. */
+export interface RequisicaoAging extends RequisicaoClassificavel {
+  fontePagadora: FontePagadoraFoto;
+}
+
+export type LoteParaAging = LoteRecursoParaPendencia<RequisicaoAging>;
+
+export interface AgingOperadora {
+  /** null: sem fonte pagadora, ou a linha "Outras". */
+  fonteId: number | null;
+  nome: string;
+  /** A cauda além das 7 maiores, somada. */
+  outras: boolean;
+  faixas: Record<FaixaAging, number>;
+  total: number;
+}
+
+export interface AgingGlosaRecurso {
+  faixas: Record<FaixaAging, number>;
+  /** As maiores pelo total nas faixas, a cauda somada em "Outras" (fonteId null). */
+  operadoras: AgingOperadora[];
+  /** Sem data de envio, ou convênio sem regra de Análise ou de Pagamento: a nota acima do gráfico. */
+  foraDasFaixas: { valor: number; quantidade: number; semEnvio: number; semRegra: number };
+}
+
+function faixasZeradas(): Record<FaixaAging, number> {
+  return Object.fromEntries(FAIXAS_AGING.map((f) => [f, 0])) as Record<FaixaAging, number>;
+}
+
+/** Dias corridos de `de` até `ate` ('YYYY-MM-DD'). */
+function diasEntre(de: string, ate: string): number {
+  return Math.round((paraData(ate).getTime() - paraData(de).getTime()) / 86_400_000);
+}
+
+/** Dia 0 (vence hoje) ainda é "A vencer", como no aging do Contas a Receber. */
+function faixaDoAtraso(dias: number): FaixaAging {
+  if (dias <= 0) return 'a-vencer';
+  if (dias <= 30) return 'd1-30';
+  if (dias <= 60) return 'd31-60';
+  if (dias <= 90) return 'd61-90';
+  return 'd90-mais';
+}
+
+/**
+ * Aging da glosa em recurso (spec "Aging da glosa em recurso"): o valor em
+ * aberto (recursado − recebido de glosa) das requisições de lote de recurso sem
+ * resultado final, por faixa de dias desde a data de pagamento prevista e por
+ * operadora. `hoje` é 'YYYY-MM-DD'.
+ */
+export function agingDaGlosaEmRecurso(lotes: LoteParaAging[], hoje: string): AgingGlosaRecurso {
+  const faixas = faixasZeradas();
+  const porFonte = new Map<number | null, AgingOperadora>();
+  const fora = { valor: 0, quantidade: 0, semEnvio: 0, semRegra: 0 };
+  for (const lote of lotes) {
+    // Decisão de 26/11/2026: sem regra de Análise o lote fica fora mesmo com
+    // data real de retorno, que daria a base do pagamento.
+    const semAnalise = lote.regras === null || lote.regras.glosaAnalise.tipo === 'sem_prazo';
+    for (const p of prazosDasRequisicoes(lote, lote.regras)) {
+      if (p.resultadoFinal || p.valorEmAberto <= 0) continue;
+      if (lote.dataEnvio === null || semAnalise || p.dataPagamentoPrevista === null) {
+        const motivo = lote.dataEnvio === null ? 'semEnvio' : 'semRegra';
+        fora[motivo] = centavos(fora[motivo] + p.valorEmAberto);
+        fora.valor = centavos(fora.valor + p.valorEmAberto);
+        fora.quantidade += 1;
+        continue;
+      }
+      const faixa = faixaDoAtraso(diasEntre(p.dataPagamentoPrevista, hoje));
+      const { id, nome } = p.requisicao.fontePagadora;
+      const operadora = porFonte.get(id) ?? { fonteId: id, nome: nome ?? 'Sem fonte pagadora', outras: false, faixas: faixasZeradas(), total: 0 };
+      operadora.faixas[faixa] = centavos(operadora.faixas[faixa] + p.valorEmAberto);
+      operadora.total = centavos(operadora.total + p.valorEmAberto);
+      porFonte.set(id, operadora);
+      faixas[faixa] = centavos(faixas[faixa] + p.valorEmAberto);
+    }
+  }
+  const ordenadas = [...porFonte.values()].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+  const resto = ordenadas.slice(TOPO_AGING);
+  const operadoras = ordenadas.slice(0, TOPO_AGING);
+  if (resto.length > 0) {
+    const outras: AgingOperadora = { fonteId: null, nome: 'Outras', outras: true, faixas: faixasZeradas(), total: 0 };
+    for (const o of resto) {
+      for (const f of FAIXAS_AGING) outras.faixas[f] = centavos(outras.faixas[f] + o.faixas[f]);
+      outras.total = centavos(outras.total + o.total);
+    }
+    operadoras.push(outras);
+  }
+  return { faixas, operadoras, foraDasFaixas: fora };
+}
+
 /** Requisição da foto como o Calendário de recursos a lê. */
 export interface RequisicaoCalendario {
   /** Lote de faturamento original (`requisicao.Lote`). */
