@@ -4,6 +4,7 @@ import type { RequisicaoClassificavel } from './recursoGlosa.js';
 import {
   cardsValorGlosa,
   classificarParaFunil,
+  recursosPorInstancia,
   saldoDeGlosaPorOperadora,
   STATUS_APLIS_RECUPERADA,
   valorRecuperado,
@@ -162,5 +163,61 @@ describe('saldoDeGlosaPorOperadora', () => {
     }));
     const saldo = saldoDeGlosaPorOperadora(requisicoes);
     expect(saldo.map((s) => s.valor)).toEqual([120, 110, 100, 90, 80, 70, 60, 50, 40, 30]);
+  });
+});
+
+describe('recursosPorInstancia', () => {
+  // Em 1º recurso, R$ 300 recursados, nada voltou ainda.
+  const em1 = { ...req({}), glosaFixada: 300, instancia: { observada: 1 as const, editada: null } };
+  // Recurso pago: voltaram os R$ 300 recursados.
+  const pago2 = { ...req({ status: 17, recebido: 300 }), glosaFixada: 300, instancia: { observada: 2 as const, editada: null } };
+
+  it('cada card soma quantidade, valor recorrido e valor recuperado da instância vigente', () => {
+    const { cards } = recursosPorInstancia('2026-10', { '2026-10': [em1, pago2, em1] });
+    expect(cards).toEqual([
+      { instancia: 1, quantidade: 2, valorRecorrido: 600, valorRecuperado: 0 },
+      { instancia: 2, quantidade: 1, valorRecorrido: 300, valorRecuperado: 300 },
+      { instancia: 3, quantidade: 0, valorRecorrido: 0, valorRecuperado: 0 },
+    ]);
+  });
+
+  it('requisição sem instância (nem observada nem editada) fica fora', () => {
+    const semInstancia = { ...req({ status: STATUS_GLOSA.glosadoSemRecurso }), glosaFixada: 300, instancia: { observada: null, editada: null } };
+    const { cards } = recursosPorInstancia('2026-10', { '2026-10': [semInstancia] });
+    expect(cards.every((c) => c.quantidade === 0 && c.valorRecorrido === 0)).toBe(true);
+  });
+
+  it('a instância editada à mão vence a observada no apLIS', () => {
+    const marcada3 = { ...em1, instancia: { observada: 1 as const, editada: 3 as const } };
+    const { cards } = recursosPorInstancia('2026-10', { '2026-10': [marcada3] });
+    expect(cards.map((c) => c.quantidade)).toEqual([0, 0, 1]);
+  });
+
+  it('o valor recursado editado pelo lápis vale acima do apLIS', () => {
+    const editado = { ...req({}, { valorRecursado: 250 }), glosaFixada: 300, instancia: { observada: 1 as const, editada: null } };
+    expect(recursosPorInstancia('2026-10', { '2026-10': [editado] }).cards[0].valorRecorrido).toBe(250);
+  });
+
+  it('os cards contam só o mês filtrado', () => {
+    const { cards } = recursosPorInstancia('2026-10', { '2026-09': [em1], '2026-10': [pago2] });
+    expect(cards.map((c) => c.quantidade)).toEqual([0, 1, 0]);
+  });
+
+  it('evolução: valor recorrido por instância nos 6 meses até o período, meses sem dado em zero', () => {
+    const marcada3 = { ...em1, instancia: { observada: 1 as const, editada: 3 as const } };
+    const { evolucao } = recursosPorInstancia('2026-02', {
+      '2025-09': [em1],
+      '2025-12': [em1, pago2],
+      '2026-02': [marcada3],
+      '2026-03': [em1],
+    });
+    expect(evolucao).toEqual([
+      { competencia: '2025-09', primeiro: 300, segundo: 0, terceiro: 0 },
+      { competencia: '2025-10', primeiro: 0, segundo: 0, terceiro: 0 },
+      { competencia: '2025-11', primeiro: 0, segundo: 0, terceiro: 0 },
+      { competencia: '2025-12', primeiro: 300, segundo: 300, terceiro: 0 },
+      { competencia: '2026-01', primeiro: 0, segundo: 0, terceiro: 0 },
+      { competencia: '2026-02', primeiro: 0, segundo: 0, terceiro: 300 },
+    ]);
   });
 });

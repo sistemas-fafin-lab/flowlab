@@ -1443,6 +1443,22 @@ export interface ItemRankingGlosa {
   percentual: number;
 }
 
+/** Card do bloco Recursos por instância: requisições com essa instância vigente no período. */
+export interface CardInstanciaRecurso {
+  instancia: InstanciaRecurso;
+  quantidade: number;
+  valorRecorrido: number;
+  valorRecuperado: number;
+}
+
+/** Recursos por instância do Dashboard de glosa (issue 09). */
+export interface RecursosPorInstancia {
+  /** 1º, 2º e 3º recurso, sempre os três. */
+  cards: CardInstanciaRecurso[];
+  /** Valor recorrido por instância nos 6 meses até o período, do mais antigo ao filtrado. */
+  evolucao: { competencia: string; primeiro: number; segundo: number; terceiro: number }[];
+}
+
 /** Aba Dashboard de Glosas e Recursos — contrato de GET /api/faturamento/glosas-recursos-dashboard. */
 export interface DashboardGlosas {
   /** Σ valor dos lotes de faturamento criados no mês: base do "% do faturado". */
@@ -1450,6 +1466,7 @@ export interface DashboardGlosas {
   valores: CardsValorGlosa;
   /** As 10 maiores fontes pagadoras pela glosa em disputa do período (a do card). */
   saldoPorOperadora: SaldoGlosaOperadora[];
+  recursosPorInstancia: RecursosPorInstancia;
   /** Os 6 meses até o período, do mais antigo ao filtrado. */
   evolucao: { competencia: string; aberta: number; emRecurso: number; revertida: number }[];
   /** Total = requisições nos quatro status; percentual da quantidade. */

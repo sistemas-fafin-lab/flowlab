@@ -22,6 +22,9 @@
 // aqui fica só o recorte "revertida" e a constante revisável.
 
 import {
+  instanciaDoRecurso,
+  MESES_EVOLUCAO,
+  recursadoEfetivo,
   valorPerdaDefinitiva,
   STATUS_GLOSA,
   somarMeses,
@@ -29,6 +32,7 @@ import {
   umaCasa,
   valorRecebidoGlosa,
   type FontePagadoraFoto,
+  type InstanciaRecurso,
   type RequisicaoClassificavel,
   type RequisicaoDashboard,
 } from './recursoGlosa.js';
@@ -196,4 +200,89 @@ export function saldoDeGlosaPorOperadora(requisicoes: RequisicaoSaldoOperadora[]
     .map(([fonteId, s]) => ({ fonteId, nome: s.nome, valor: s.centavos / 100, quantidade: s.quantidade }))
     .sort((a, b) => b.valor - a.valor || a.nome.localeCompare(b.nome))
     .slice(0, TOPO_SALDO);
+}
+
+/** Requisição da foto com a instância do recurso (observada no apLIS e editada à mão). */
+export interface RequisicaoInstancia extends RequisicaoFunil {
+  instancia: { observada: InstanciaRecurso | null; editada: InstanciaRecurso | null };
+}
+
+export interface CardInstancia {
+  instancia: InstanciaRecurso;
+  quantidade: number;
+  /** Σ valor recursado (o editado pelo lápis, ou o do apLIS). */
+  valorRecorrido: number;
+  /** Σ das requisições na classe "recuperada" do funil (`classificarParaFunil`), a do card Glosa recuperada. */
+  valorRecuperado: number;
+}
+
+export interface MesInstancia {
+  competencia: string;
+  /** Valor recorrido em cada instância. */
+  primeiro: number;
+  segundo: number;
+  terceiro: number;
+}
+
+export interface RecursosPorInstancia {
+  /** 1º, 2º e 3º recurso, sempre os três. */
+  cards: CardInstancia[];
+  /** Os 6 meses até o período, do mais antigo ao filtrado. */
+  evolucao: MesInstancia[];
+}
+
+const INSTANCIAS: InstanciaRecurso[] = [1, 2, 3];
+
+/** Soma de uma instância: requisições, e recorrido e recuperado em centavos. */
+interface SomaInstancia {
+  quantidade: number;
+  recorrido: number;
+  recuperado: number;
+}
+
+function somarPorInstancia(requisicoes: RequisicaoInstancia[]): Record<InstanciaRecurso, SomaInstancia> {
+  const somas = Object.fromEntries(
+    INSTANCIAS.map((i) => [i, { quantidade: 0, recorrido: 0, recuperado: 0 }]),
+  ) as Record<InstanciaRecurso, SomaInstancia>;
+  for (const r of requisicoes) {
+    const { vigente } = instanciaDoRecurso(r.instancia);
+    if (vigente === null) continue;
+    somas[vigente].quantidade += 1;
+    somas[vigente].recorrido += Math.round(recursadoEfetivo(r.foto, r.edicoes ?? {}) * 100);
+    const funil = classificarParaFunil(r, r.glosaFixada);
+    if (funil?.classe === 'recuperada') somas[vigente].recuperado += Math.round(funil.valor * 100);
+  }
+  return somas;
+}
+
+/**
+ * Recursos por instância do Dashboard de glosa
+ * (.scratch/glosas-recursos-calendario-pendencias/issues/09): as requisições com
+ * instância vigente (a editada vence a observada; sem nenhuma, fica fora), pelo
+ * mês do lote de faturamento original (`porMes`, por YYYY-MM). Todo o recurso da
+ * requisição vai para a instância vigente: o recorrido no 1º de uma requisição
+ * que chegou ao 2º não se separa.
+ */
+export function recursosPorInstancia(
+  competencia: string,
+  porMes: Record<string, RequisicaoInstancia[]>,
+): RecursosPorInstancia {
+  const atual = somarPorInstancia(porMes[competencia] ?? []);
+  const cards = INSTANCIAS.map((instancia) => ({
+    instancia,
+    quantidade: atual[instancia].quantidade,
+    valorRecorrido: atual[instancia].recorrido / 100,
+    valorRecuperado: atual[instancia].recuperado / 100,
+  }));
+  const evolucao = Array.from({ length: MESES_EVOLUCAO }, (_, i) => {
+    const mes = somarMeses(competencia, i - (MESES_EVOLUCAO - 1));
+    const somas = somarPorInstancia(porMes[mes] ?? []);
+    return {
+      competencia: mes,
+      primeiro: somas[1].recorrido / 100,
+      segundo: somas[2].recorrido / 100,
+      terceiro: somas[3].recorrido / 100,
+    };
+  });
+  return { cards, evolucao };
 }

@@ -34,12 +34,14 @@ import { Kpi, VIDRO } from './KpiVidro';
 import AgingGlosaBloco from './AgingGlosaBloco';
 import { CARD, Painel, Vazio } from './PainelGlosa';
 import PendenciasGlosaBloco from './PendenciasGlosaBloco';
+import RecursosPorInstanciaBloco from './RecursosPorInstanciaBloco';
 
 // Glosas e Recursos → aba Dashboard: cards de valor (Valor glosado, Valor
 // acatado, Glosa recuperada e Glosa em disputa, no visual dos cards de glosa do
 // Contas a Receber, com a variação sobre o mês de faturamento anterior),
 // Pendências de glosa (PendenciasGlosaBloco), Aging da glosa em recurso e Saldo
-// de glosa por operadora (AgingGlosaBloco), evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
+// de glosa por operadora (AgingGlosaBloco), Recursos por instância
+// (RecursosPorInstanciaBloco), evolução de 6 meses, distribuição por status, procedimentos, convênios e motivos. Os números vêm prontos do servidor
 // (api/_lib/faturamento/recursoGlosa.ts → resumirDashboard).
 //
 // Gráficos no padrão do Dashboard de Contas a Receber (recharts, eixos e
@@ -258,6 +260,8 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao, onAbrirPendencia })
         saldoPorOperadora={dashboard.saldoPorOperadora}
         competencia={recorte.competencia}
       />
+
+      <RecursosPorInstanciaBloco recursos={dashboard.recursosPorInstancia} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Painel

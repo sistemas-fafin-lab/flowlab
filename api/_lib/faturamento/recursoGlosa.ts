@@ -149,7 +149,7 @@ export function edicoesDaFoto(editados: {
 }
 
 /** R: o recursado editado vale acima do do apLIS. */
-function recursadoEfetivo(foto: RequisicaoFoto, edicoes: EdicoesRequisicao): number {
+export function recursadoEfetivo(foto: RequisicaoFoto, edicoes: EdicoesRequisicao): number {
   return edicoes.valorRecursado ?? foto.valorRecursado ?? 0;
 }
 

@@ -8,7 +8,8 @@
  * pendente; .scratch/glosas-recursos-calendario-pendencias/issues/05) usam a
  * classificação do funil de faturamento/glosaRecuperada.ts, com o faturado dos
  * lotes de faturamento criados no mês (ver `faturadoDoMes`). O Saldo de glosa
- * por operadora (issue 07) é a mesma classe "em disputa", do mês. Lê da foto do Supabase; a tradução de
+ * por operadora (issue 07) é a mesma classe "em disputa", do mês. Os Recursos
+ * por instância (issue 09) contam as requisições com instância vigente. Lê da foto do Supabase; a tradução de
  * status e as somas são de faturamento/recursoGlosa.ts, com as edições do
  * lápis valendo acima do apLIS.
  *
@@ -31,9 +32,9 @@ import {
   resumirDashboard,
   somarMeses,
 } from '../faturamento/recursoGlosa.js';
-import type { RequisicaoDashboard } from '../faturamento/recursoGlosa.js';
-import { cardsValorGlosa, saldoDeGlosaPorOperadora } from '../faturamento/glosaRecuperada.js';
-import type { RequisicaoSaldoOperadora } from '../faturamento/glosaRecuperada.js';
+import type { InstanciaRecurso, RequisicaoDashboard } from '../faturamento/recursoGlosa.js';
+import { cardsValorGlosa, recursosPorInstancia, saldoDeGlosaPorOperadora } from '../faturamento/glosaRecuperada.js';
+import type { RequisicaoInstancia, RequisicaoSaldoOperadora } from '../faturamento/glosaRecuperada.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 /** Linhas por página do PostgREST (o teto padrão é 1000). */
@@ -54,13 +55,15 @@ interface LinhaFoto {
   procedimentos: string[] | null;
   motivos: string[] | null;
   id_lote_recurso: number | null;
+  instancia_observada: number | null;
+  instancia_editada: number | null;
   glosa_recurso_lotes: { data_envio_aplis: string | null; data_envio_editada: string | null } | null;
 }
 
 class ErroLeitura extends Error {}
 
-/** Requisição da foto com o que o dashboard e o saldo por operadora usam. */
-type RequisicaoDoMes = RequisicaoDashboard & RequisicaoSaldoOperadora;
+/** Requisição da foto com o que o dashboard, o saldo por operadora e os recursos por instância usam. */
+type RequisicaoDoMes = RequisicaoDashboard & RequisicaoSaldoOperadora & RequisicaoInstancia;
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
@@ -81,7 +84,7 @@ async function requisicoesPorMes(
   for (let de = 0; ; de += PAGINA) {
     let consulta = supabase
       .from('glosa_recurso_requisicoes')
-      .select('competencia, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado, glosa_fixada, id_fonte_pagadora, fonte_pagadora_nome, procedimentos, motivos, id_lote_recurso, glosa_recurso_lotes(data_envio_aplis, data_envio_editada)')
+      .select('competencia, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado, glosa_fixada, id_fonte_pagadora, fonte_pagadora_nome, procedimentos, motivos, id_lote_recurso, instancia_observada, instancia_editada, glosa_recurso_lotes(data_envio_aplis, data_envio_editada)')
       .in('competencia', meses);
     if (fontePagadoraId !== undefined) consulta = consulta.eq('id_fonte_pagadora', fontePagadoraId);
     const { data, error } = await consulta.order('id_requisicao').range(de, de + PAGINA - 1);
@@ -109,6 +112,10 @@ async function requisicoesPorMes(
         fontePagadora: { id: l.id_fonte_pagadora, nome: l.fonte_pagadora_nome },
         procedimentos: l.procedimentos ?? [],
         motivos: l.motivos ?? [],
+        instancia: {
+          observada: l.instancia_observada as InstanciaRecurso | null,
+          editada: l.instancia_editada as InstanciaRecurso | null,
+        },
       });
     }
     if (linhas.length < PAGINA) return porMes;
@@ -195,6 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         valores: cardsValorGlosa(competencia, porMes, faturado),
         // Do mês, como o card Glosa em disputa: as barras somam o card.
         saldoPorOperadora: saldoDeGlosaPorOperadora(porMes[competencia] ?? []),
+        recursosPorInstancia: recursosPorInstancia(competencia, porMes),
       };
     } catch (err) {
       if (!(err instanceof ErroLeitura)) throw err;
