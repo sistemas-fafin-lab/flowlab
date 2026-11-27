@@ -8,11 +8,11 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, FileDown, Info, Loader2, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useTabelaColaborador } from '../hooks/useTabelaColaborador';
+import { useGerarPdf } from '../hooks/useGerarPdf';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
 import { exameDisponivel, filtrarExamesColaborador, motivoSemValor, totalColaborador } from '../domain/carrinhoColaborador';
 import { MAX_CARACTERES_PACIENTE, nomeValido } from '../domain/paciente';
 import { montarPdfOrcamentoColaborador } from '../domain/pdfCliente';
-import { carregarLogoPdf } from '../logoPdf';
 import ControleQuantidade from './ControleQuantidade';
 import type { PrecoColaborador } from '../domain/tabelaColaborador';
 import type { ItemCarrinho, ItemColaboradorDisponivel, ItemTabelaColaborador } from '../types';
@@ -135,26 +135,13 @@ const ModoColaborador: React.FC = () => {
     if (carrinho.length === 0) setColaborador('');
   }, [carrinho.length]);
 
-  const [gerandoPdf, setGerandoPdf] = useState(false);
-  const [erroPdf, setErroPdf] = useState<string | null>(null);
-  const podeGerarPdf = carrinho.length > 0 && nomeValido(colaborador) && !gerandoPdf;
-  const gerarPdf = async () => {
+  const { gerando: gerandoPdf, erro: erroPdf, gerar } = useGerarPdf<'colaborador'>();
+  const podeGerarPdf = carrinho.length > 0 && nomeValido(colaborador) && gerandoPdf === null;
+  const gerarPdf = () => {
     if (!podeGerarPdf) return;
-    setGerandoPdf(true);
-    setErroPdf(null);
-    try {
-      const emitidoEm = new Date();
-      const doc = montarPdfOrcamentoColaborador(
-        { carrinho, emitidoEm, colaborador: colaborador.trim() },
-        await carregarLogoPdf(),
-      );
-      doc.save(`Orcamento_Colaborador_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
-    } catch (error) {
-      console.error('Falha ao gerar o PDF do Orçamento – Tabela Colaborador:', error);
-      setErroPdf('Não foi possível gerar o PDF. Tente de novo.');
-    } finally {
-      setGerandoPdf(false);
-    }
+    void gerar('colaborador', 'Orcamento_Colaborador', (emitidoEm, logo) =>
+      montarPdfOrcamentoColaborador({ carrinho, emitidoEm, colaborador: colaborador.trim() }, logo),
+    );
   };
 
   if (loading) {
@@ -269,7 +256,7 @@ const ModoColaborador: React.FC = () => {
                 maxLength={MAX_CARACTERES_PACIENTE}
                 onChange={(e) => setColaborador(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') void gerarPdf();
+                  if (e.key === 'Enter') gerarPdf();
                 }}
                 placeholder="Nome do colaborador"
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
@@ -283,11 +270,11 @@ const ModoColaborador: React.FC = () => {
           )}
           <button
             type="button"
-            onClick={() => void gerarPdf()}
+            onClick={gerarPdf}
             disabled={!podeGerarPdf}
             className="mt-4 w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
-            {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
+            {gerandoPdf !== null ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
           </button>
           {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
           {carrinho.length > 0 && (

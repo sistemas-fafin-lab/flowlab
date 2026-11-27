@@ -1,6 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Tag, Trash2, User, Users, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
+import { useGerarPdf } from '../hooks/useGerarPdf';
 import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
 import {
@@ -24,7 +25,6 @@ import {
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
 import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
 import type { DadosPdfOrcamento } from '../domain/pdfComum';
-import { carregarLogoPdf } from '../logoPdf';
 import LeituraPedidoMedicoModal from './LeituraPedidoMedicoModal';
 import SeletorConvenio from './SeletorConvenio';
 import ListaConvenios from './ListaConvenios';
@@ -277,23 +277,13 @@ const ModoParticular: React.FC = () => {
     setPaciente((atual) => sugerirPaciente(atual, pacienteLido));
   };
 
-  const [gerandoPdf, setGerandoPdf] = useState<TipoPdf | null>(null);
-  const [erroPdf, setErroPdf] = useState<string | null>(null);
-  const gerarPdf = async (tipo: TipoPdf) => {
+  const { gerando: gerandoPdf, erro: erroPdf, gerar } = useGerarPdf<TipoPdf>();
+  const gerarPdf = (tipo: TipoPdf) => {
     if (!paciente.confirmado) return;
-    setGerandoPdf(tipo);
-    setErroPdf(null);
-    try {
-      const emitidoEm = new Date();
-      const { montar, arquivo } = PDFS[tipo];
-      const doc = montar({ carrinho, orcamento, emitidoEm, paciente: paciente.nome.trim() }, await carregarLogoPdf());
-      doc.save(`${arquivo}_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
-    } catch (error) {
-      console.error('Falha ao gerar o PDF do Orçamento:', error);
-      setErroPdf('Não foi possível gerar o PDF. Tente de novo.');
-    } finally {
-      setGerandoPdf(null);
-    }
+    const { montar, arquivo } = PDFS[tipo];
+    void gerar(tipo, arquivo, (emitidoEm, logo) =>
+      montar({ carrinho, orcamento, emitidoEm, paciente: paciente.nome.trim() }, logo),
+    );
   };
 
   return (
