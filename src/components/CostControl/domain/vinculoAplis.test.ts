@@ -13,6 +13,7 @@ const exame = (id: string, aplisIdExameTipo: number | null, aplisIdTeste: number
   indirectItems: [],
   aplisIdExameTipo,
   aplisIdTeste,
+  usoInterno: false,
 });
 
 describe('exameComMesmoVinculoAplis', () => {

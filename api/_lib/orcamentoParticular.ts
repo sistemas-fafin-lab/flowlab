@@ -84,6 +84,8 @@ interface ExameRow {
   id: string;
   tuss: string;
   nome: string;
+  /** Exame de uso interno (só Tabela Colaborador): nunca entra nesta lista. */
+  uso_interno: boolean;
   /** Ausentes quando a montagem é sem custo (não entram no select). */
   custo_direto?: number;
   custo_indireto?: number;
@@ -126,6 +128,10 @@ export function isTabelaParticularApiKeyValid(req: VercelRequest): boolean {
  * tem precedência sobre a linha geral do TUSS (`exame_id` null), que vale
  * pros demais exames do TUSS. Só entram linhas da tabela associada
  * "Particular" da fonte "Particular", pelo cadastro (ver TABELA_PARTICULAR).
+ *
+ * Exame de uso interno (custo_exames.uso_interno, só Tabela Colaborador) não
+ * gera item, nem pela linha geral do TUSS nem pela própria, e um TUSS cujo
+ * único exame é interno não vira item avulso sem nome. A view integracao.vw_precos_particulares segue a mesma regra.
  */
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
@@ -148,7 +154,7 @@ export async function buildOrcamentoParticular(
     buscarTodasPaginado<ExameRow>(
       supabase,
       'custo_exames',
-      incluirCusto ? 'id, tuss, nome, custo_direto, custo_indireto' : 'id, tuss, nome',
+      incluirCusto ? 'id, tuss, nome, uso_interno, custo_direto, custo_indireto' : 'id, tuss, nome, uso_interno',
     ),
     buscarTodasPaginado<ExclusaoRow>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
     buscarTodasPaginado<ValorPersonalizadoRow>(
@@ -186,11 +192,19 @@ export async function buildOrcamentoParticular(
   // escolher arbitrariamente só um. Exame sem TUSS não entra em grupo
   // nenhum: TUSS vazio não é um código compartilhado, e esses exames só
   // aparecem via linha de exame (exame_id).
+  //
+  // Exame de uso interno fica fora do grupo (senão, com o mesmo nome de um
+  // exame comum, poderia vencer a duplicata e tirá-lo da lista), mas o TUSS
+  // dele conta como "tem exame": um TUSS só de exames internos não vira item
+  // avulso sem nome.
   const examesPorTuss = new Map<string, ExameRow[]>();
+  const tussComExame = new Set<string>();
   const examesPorId = new Map<string, ExameRow>();
   for (const exame of exames) {
     examesPorId.set(exame.id, exame);
     if (!exame.tuss) continue;
+    tussComExame.add(exame.tuss);
+    if (exame.uso_interno) continue;
     const grupo = examesPorTuss.get(exame.tuss);
     if (!grupo) {
       examesPorTuss.set(exame.tuss, [exame]);
@@ -287,7 +301,13 @@ export async function buildOrcamentoParticular(
   for (const fonte of particulares) {
     if (fonte.exame_id) {
       const exame = examesPorId.get(fonte.exame_id);
-      if (!exame || examesJaVistos.has(exame.id) || exclusoesPorChave.has(`${fonte.id}:${exame.id}`)) continue;
+      if (
+        !exame ||
+        exame.uso_interno ||
+        examesJaVistos.has(exame.id) ||
+        exclusoesPorChave.has(`${fonte.id}:${exame.id}`)
+      )
+        continue;
       examesJaVistos.add(exame.id);
       itens.push(itemDoExame(fonte, exame));
       continue;
@@ -300,6 +320,7 @@ export async function buildOrcamentoParticular(
     // com linha Particular própria saem — se todos saírem, esse tuss não
     // gera item nenhum aqui.
     if (!grupo) {
+      if (tussComExame.has(fonte.tuss)) continue; // só exames de uso interno
       itens.push({
         tuss: fonte.tuss,
         nome: null,

@@ -16,6 +16,8 @@ import { Exam, formatBRL } from '../../hooks/useCostControl';
 import { useCobrancasTestesAplis } from '../../hooks/useCobrancasTestesAplis';
 import { useNotification } from '../../hooks/useNotification';
 import { useDialog } from '../../hooks/useDialog';
+import { useAuth } from '../../hooks/useAuth';
+import { hasPermission } from '../../utils/permissions';
 import Notification from '../Notification';
 import ConfirmDialog from '../ConfirmDialog';
 import ExamTable from './ExamTable';
@@ -90,6 +92,8 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
     handleConfirmDialogConfirm,
   } = useDialog();
 
+  const { userProfile } = useAuth();
+  const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageControleCustos');
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('all');
   const [vinculoAplis, setVinculoAplis] = useState<FiltroVinculoAplis>('todos');
@@ -409,6 +413,7 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
       <ExamFormModal
         open={modalOpen}
         exam={editing}
+        podeGerenciar={podeGerenciar}
         onClose={() => { setModalOpen(false); setEditing(null); }}
         onSave={handleSave}
       />

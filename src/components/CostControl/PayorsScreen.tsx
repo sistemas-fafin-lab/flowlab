@@ -1416,6 +1416,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         <ExamFormModal
           open={editingExam !== null}
           exam={editingExam}
+          podeGerenciar={podeGerenciar}
           onClose={() => setEditingExam(null)}
           onSave={handleSaveExame}
         />

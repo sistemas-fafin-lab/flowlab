@@ -13,6 +13,7 @@ const exame = (id: string, name: string): Exam => ({
   indirectItems: [],
   aplisIdExameTipo: null,
   aplisIdTeste: null,
+  usoInterno: false,
 });
 
 describe('semelhancaNomes', () => {

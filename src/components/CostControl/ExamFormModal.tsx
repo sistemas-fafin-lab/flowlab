@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Pencil, Plus, X, Save, Link2 } from 'lucide-react';
+import { Pencil, Plus, X, Save, Link2, Lock } from 'lucide-react';
 import { Exam, IndirectCostItem, formatBRL } from '../../hooks/useCostControl';
 import { useCobrancasTestesAplis, type CobrancaAplis, type TesteAplis } from '../../hooks/useCobrancasTestesAplis';
 import AutocompleteInput from './AutocompleteInput';
@@ -21,11 +21,14 @@ interface FormState {
   indirectItems: IndirectCostItem[];
   aplisIdExameTipo: number | null;
   aplisIdTeste: number | null;
+  usoInterno: boolean;
 }
 
 interface ExamFormModalProps {
   open: boolean;
   exam: Exam | null;
+  /** canManageControleCustos: só quem gerencia marca ou desmarca o uso interno. */
+  podeGerenciar: boolean;
   onClose: () => void;
   onSave: (data: Omit<Exam, 'id'>) => void;
 }
@@ -36,7 +39,7 @@ interface ExamFormModalProps {
 
 const EMPTY_FORM: FormState = {
   code: '', tuss: '', name: '', location: '', direct: 0, indirect: 0, indirectItems: [],
-  aplisIdExameTipo: null, aplisIdTeste: null,
+  aplisIdExameTipo: null, aplisIdTeste: null, usoInterno: false,
 };
 
 const BotaoLimpar: React.FC<{ onClick: () => void; title: string }> = ({ onClick, title }) => (
@@ -54,7 +57,7 @@ const BotaoLimpar: React.FC<{ onClick: () => void; title: string }> = ({ onClick
 const filtrarPorNome = <T extends { nome: string }>(itens: T[], texto: string): T[] =>
   texto.trim() ? itens.filter(i => casaTermo(i.nome, texto)) : itens;
 
-const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSave }) => {
+const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, podeGerenciar, onClose, onSave }) => {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   // Texto digitado nos autocompletes do apLIS. O vínculo é o id em `form`: texto
   // que não veio de uma sugestão não liga nada (ver handleSubmit).
@@ -94,6 +97,7 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
               indirectItems: exam.indirectItems ?? [],
               aplisIdExameTipo: exam.aplisIdExameTipo,
               aplisIdTeste: exam.aplisIdTeste,
+              usoInterno: exam.usoInterno,
             }
           : EMPTY_FORM
       );
@@ -350,6 +354,29 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                 )}
               </div>
             </div>
+
+            {/* Uso interno */}
+            <label
+              className={`flex items-start gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4 ${
+                podeGerenciar ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={form.usoInterno}
+                disabled={!podeGerenciar}
+                onChange={e => setForm(f => ({ ...f, usoInterno: e.target.checked }))}
+                className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500/30"
+              />
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
+                  <Lock className="w-3.5 h-3.5" /> Uso interno (só Tabela Colaborador)
+                </span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  O exame sai do Gerador de Orçamento particular, da Tabela Particular e da Conferência de cobertura.
+                </span>
+              </span>
+            </label>
 
             {/* Total summary card */}
             <div className="rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 p-5 text-white shadow-lg shadow-blue-500/30">

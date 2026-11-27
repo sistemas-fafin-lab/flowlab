@@ -216,6 +216,7 @@ describe('planejarImportacao', () => {
     indirectItems: [],
     aplisIdExameTipo: null,
     aplisIdTeste: null,
+    usoInterno: false,
     ...over,
   });
 

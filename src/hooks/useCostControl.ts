@@ -31,6 +31,9 @@ export interface Exam {
   // teste só existe com cobrança.
   aplisIdExameTipo: number | null;
   aplisIdTeste: number | null;
+  // Exame de uso interno (migration 20261127120000): só aparece na Tabela
+  // Colaborador; fica fora do Gerador particular e da Tabela Particular.
+  usoInterno: boolean;
 }
 
 export interface Payor {
@@ -148,6 +151,7 @@ const mapExamRow = (row: any): Exam => ({
   indirectItems: row.custo_indireto_itens ?? [],
   aplisIdExameTipo: row.aplis_id_exame_tipo ?? null,
   aplisIdTeste: row.aplis_id_teste ?? null,
+  usoInterno: row.uso_interno === true,
 });
 
 const toExamPayload = (data: Partial<Omit<Exam, 'id'>>) => {
@@ -161,6 +165,7 @@ const toExamPayload = (data: Partial<Omit<Exam, 'id'>>) => {
   if (data.indirectItems !== undefined) payload.custo_indireto_itens = data.indirectItems;
   if (data.aplisIdExameTipo !== undefined) payload.aplis_id_exame_tipo = data.aplisIdExameTipo;
   if (data.aplisIdTeste !== undefined) payload.aplis_id_teste = data.aplisIdTeste;
+  if (data.usoInterno !== undefined) payload.uso_interno = data.usoInterno;
   return payload;
 };
 

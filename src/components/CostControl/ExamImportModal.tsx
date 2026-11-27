@@ -121,6 +121,7 @@ const ExamImportModal: React.FC<ExamImportModalProps> = ({ open, onClose, onImpo
               indirectItems: [],
               aplisIdExameTipo: null,
               aplisIdTeste: null,
+              usoInterno: false,
             },
           };
         });

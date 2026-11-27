@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pencil, Trash2, SearchX, Link2 } from 'lucide-react';
+import { Pencil, Trash2, SearchX, Link2, Lock } from 'lucide-react';
 import { Exam, formatBRL } from '../../hooks/useCostControl';
 import type { CobrancaAplis } from '../../hooks/useCobrancasTestesAplis';
 import { descricaoVinculoAplis } from './domain/vinculoAplis';
@@ -100,6 +100,15 @@ const ExamTable: React.FC<ExamTableProps> = ({
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="font-semibold text-gray-800 dark:text-gray-100">{exam.name}</div>
+                  {exam.usoInterno && (
+                    <span
+                      title="Só aparece na Tabela Colaborador: fica fora do Gerador particular, da Tabela Particular e da Conferência de cobertura"
+                      className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 whitespace-nowrap"
+                    >
+                      <Lock className="w-3 h-3" />
+                      Uso interno
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3.5">
                   {exam.location ? (

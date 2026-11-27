@@ -24,6 +24,7 @@ const exame = (over: Partial<Exam>): Exam => ({
   indirectItems: [],
   aplisIdExameTipo: null,
   aplisIdTeste: null,
+  usoInterno: false,
   ...over,
 });
 

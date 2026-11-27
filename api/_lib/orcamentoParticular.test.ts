@@ -63,6 +63,8 @@ interface ExameRow {
   nome: string;
   custo_direto: number | string;
   custo_indireto: number | string;
+  // Omitido nos testes = exame comum (não é de uso interno).
+  uso_interno?: boolean;
 }
 
 interface ExclusaoRow {
@@ -780,5 +782,104 @@ describe('buildOrcamentoParticular — sem custo', () => {
     expect(supabase.colunasPedidas.custo_exames).toEqual(
       expect.arrayContaining(['custo_direto', 'custo_indireto']),
     );
+  });
+});
+
+describe('buildOrcamentoParticular — exames de uso interno', () => {
+  const linhaParticular = (tuss: string, extra: Partial<FonteRow> = {}): FonteRow => ({
+    id: `particular-${tuss}`,
+    fonte_pagadora: 'Particular',
+    tuss,
+    valor: 100,
+    atendido: true,
+    elegivel_desconto_particular: false,
+    ...extra,
+  });
+
+  it('exame de uso interno sai; o exame não interno com o mesmo TUSS continua', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('40301060')],
+      custo_exames: [
+        { id: 'ex-comum', tuss: '40301060', nome: 'Hemograma', custo_direto: 10, custo_indireto: 5 },
+        {
+          id: 'ex-interno',
+          tuss: '40301060',
+          nome: 'Hemograma colaborador',
+          custo_direto: 10,
+          custo_indireto: 5,
+          uso_interno: true,
+        },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(itens.map(i => i.nome)).toEqual(['Hemograma']);
+  });
+
+  it('exame de uso interno com linha Particular própria não aparece', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('', { id: 'particular-do-exame', exame_id: 'ex-interno' })],
+      custo_exames: [
+        { id: 'ex-interno', tuss: '', nome: 'Painel colaborador', custo_direto: 10, custo_indireto: 5, uso_interno: true },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(itens).toEqual([]);
+  });
+
+  it('exame interno com mesmo TUSS e mesmo nome, lido depois, não tira o exame comum', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('40301060')],
+      custo_exames: [
+        { id: 'ex-comum', tuss: '40301060', nome: 'Hemograma', custo_direto: 10, custo_indireto: 5 },
+        { id: 'ex-interno', tuss: '40301060', nome: 'Hemograma', custo_direto: 8, custo_indireto: 2, uso_interno: true },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(itens.map(i => [i.nome, i.custo])).toEqual([['Hemograma', 15]]);
+  });
+
+  it('TUSS cujo único exame é de uso interno não vira item avulso sem nome', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linhaParticular('40301060')],
+      custo_exames: [
+        { id: 'ex-interno', tuss: '40301060', nome: 'Hemograma colaborador', custo_direto: 10, custo_indireto: 5, uso_interno: true },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(itens).toEqual([]);
+  });
+
+  it('exame marcado como não interno sai igual a hoje', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linhaParticular('40301060', { elegivel_desconto_particular: true }),
+        { fonte_pagadora: 'Convênio A', tuss: '40301060', valor: 80, atendido: true, elegivel_desconto_particular: false },
+      ],
+      custo_exames: [
+        { id: 'ex-comum', tuss: '40301060', nome: 'Hemograma', custo_direto: 10, custo_indireto: 5, uso_interno: false },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(itens).toEqual([
+      {
+        tuss: '40301060',
+        nome: 'Hemograma',
+        preco: 100,
+        custo: 15,
+        elegivelDescontoParticular: true,
+        conveniosAceitos: ['Convênio A'],
+        coberturaConvenios: [{ fonte: 'Convênio A', convenio: 'Convênio A' }],
+      },
+    ]);
   });
 });
