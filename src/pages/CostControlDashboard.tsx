@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, FlaskConical, Building2, TrendingUp } from 'lucide-react';
+import { ChevronRight, FlaskConical, Building2, TrendingUp, BadgePercent } from 'lucide-react';
 import { useCostControl } from '../hooks/useCostControl';
 import ExamsScreen from '../components/CostControl/ExamsScreen';
 import PayorsScreen from '../components/CostControl/PayorsScreen';
 import AnalyticsScreen from '../components/CostControl/AnalyticsScreen';
+import TabelaColaboradorScreen from '../components/CostControl/TabelaColaboradorScreen';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-type TabKey = 'exams' | 'payors' | 'analytics';
+type TabKey = 'exams' | 'payors' | 'analytics' | 'tabelaColaborador';
 
 interface Tab {
   key: TabKey;
@@ -25,6 +26,7 @@ const TABS: Tab[] = [
   { key: 'exams',     label: 'Exames',                    icon: <FlaskConical className="w-4 h-4" /> },
   { key: 'payors',    label: 'Fontes Pagadoras',           icon: <Building2 className="w-4 h-4" /> },
   { key: 'analytics', label: 'Análise de Rentabilidade',   icon: <TrendingUp className="w-4 h-4" /> },
+  { key: 'tabelaColaborador', label: 'Tabela Colaborador',  icon: <BadgePercent className="w-4 h-4" /> },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -162,6 +164,7 @@ const CostControlDashboard: React.FC = () => {
         {activeTab === 'analytics' && (
           <AnalyticsScreen exams={exams} payors={payors} />
         )}
+        {activeTab === 'tabelaColaborador' && <TabelaColaboradorScreen />}
       </main>
     </div>
   );
