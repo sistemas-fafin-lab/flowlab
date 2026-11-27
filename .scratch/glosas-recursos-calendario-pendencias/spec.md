@@ -1,6 +1,6 @@
 # Glosas e Recursos: Calendário de recursos, Pendências de glosa, Aging e Instância do recurso
 
-Status: ready-for-agent
+Status: done
 
 Continua `.scratch/glosas-recursos-dashboard/spec.md`. Vocabulário do `CONTEXT.md` (Calendário de recursos, Pendências de glosa, Instância do recurso, Glosa da DRE, Calendário de envios).
 
